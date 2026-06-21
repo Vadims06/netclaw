@@ -73,7 +73,7 @@ _TENANT_TWO = {
     "type": "tenant",
     "attributes": {
         "domainPrefix": "acme-staging",
-        "displayName": "Acme Staging",
+        "displayName": "Acme Corp Staging",
         "tenantType": "client",
     },
 }
