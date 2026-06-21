@@ -156,18 +156,23 @@ def _is_ip(v: str) -> bool: ...  # simple ipaddress.ip_address try/except
 async def resolve_device(client, value, tenants=None):
     if looks_like_id(value):
         return Resolution(id=value)
-    # name path: filter[deviceName]; IP path: fetch and match attributes.ipAddresses
-    flt = {"filter[deviceName]": value} if not _is_ip(value) else {}
-    res = await client.get_all("/v1/inventory/device/info", params={**flt, **({"tenants":tenants} if tenants else {})})
+    # NOTE: /v1/inventory/device/info has NO name filter — fetch (paginated)
+    # and match client-side on deviceName / ipAddresses.
+    params = {"tenants": tenants} if tenants else None
+    res = await client.get_all("/v1/inventory/device/info", params=params)
     items = res["items"]
     if _is_ip(value):
-        items = [d for d in items if value in (d.get("attributes",{}).get("ipAddresses") or [])]
-    cands = [_candidate(d) for d in items]
+        matches = [d for d in items if value in (d.get("attributes",{}).get("ipAddresses") or [])]
+    else:
+        v = value.lower()
+        exact = [d for d in items if (d.get("attributes",{}).get("deviceName") or "").lower() == v]
+        matches = exact or [d for d in items if v in (d.get("attributes",{}).get("deviceName") or "").lower()]
+    cands = [_candidate(d) for d in matches]
     if len(cands) == 1: return Resolution(id=cands[0]["id"])
     if len(cands) > 1:  return Resolution(ambiguous=True, candidates=cands)
     return Resolution()
 ```
-`_candidate(d)` → `{id, name, ipAddress, entityType:"device", tenant}`.
+`_candidate(d)` → `{id, name, ipAddress, entityType:"device", tenant}`. `resolve_network`/`resolve_tenant` follow the same client-side-match shape (networks have no name filter either; tenants come from `/v1/tenants`, matched on `domainPrefix`/`displayName`).
 - [ ] **Step 4:** Run → PASS.
 - [ ] **Step 5 (impl, generic):** add `resolve_network`, `resolve_interface`, `resolve_tenant` (tenant via `/v1/tenants` name/domainPrefix match) following the same shape; add focused tests. 
 - [ ] **Step 6:** Run → PASS. **Step 7:** Commit `feat(036): entity resolver (name/IP→id, candidates)`.
