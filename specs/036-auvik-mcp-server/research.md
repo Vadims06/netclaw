@@ -50,7 +50,8 @@
 - `networkType`: `routed, vlan, wifi, loopback, network, layer2, internet`.
 - `entity note entityType`: `root, device, network, interface`.
 - snmppoller `filter[type]`: `string, numeric`; `filter[useAs]`: `serialNo, poller`.
-- `deviceType` (48 values) and `interfaceType` (30 values) — stored verbatim in constants for validation/help text.
+- `deviceType` (48 values, verbatim from `DeviceTypeSchema`): `unknown, switch, l3Switch, router, accessPoint, firewall, workstation, server, storage, printer, copier, hypervisor, multimedia, phone, tablet, handheld, virtualAppliance, bridge, controller, hub, modem, ups, module, loadBalancer, camera, telecommunications, packetProcessor, chassis, airConditioner, virtualMachine, pdu, ipPhone, backhaul, internetOfThings, voipSwitch, stack, backupDevice, timeClock, lightingDevice, audioVisual, securityAppliance, utm, alarm, buildingManagement, ipmi, thinAccessPoint, thinClient, subnet`.
+- `interfaceType` (30 values, verbatim from `filter[interfaceType]`): `ethernet, wifi, bluetooth, cdma, coax, cpu, distributedVirtualSwitch, firewire, gsm, ieee8023AdLag, inferredWired, inferredWireless, interface, linkAggregation, loopback, modem, wimax, optical, other, parallel, ppp, radiomac, rs232, tunnel, unknown, usb, virtualBridge, virtualNic, virtualSwitch, vlan`.
 
 ## 2. NetClaw MCP conventions (from live repo)
 

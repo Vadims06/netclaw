@@ -134,9 +134,20 @@ def test_network_types():
     assert NETWORK_TYPES == expected
 
 
-def test_device_types_is_nonempty_set():
-    assert isinstance(DEVICE_TYPES, (set, frozenset)) and len(DEVICE_TYPES) > 0
+def test_device_types_authoritative():
+    # 48 values verbatim from Auvik DeviceTypeSchema. Pin count + sample real
+    # values, and assert hallucinated values are NOT present.
+    assert len(DEVICE_TYPES) == 48
+    for v in ("multimedia", "phone", "tablet", "ups", "camera", "pdu", "voipSwitch", "utm"):
+        assert v in DEVICE_TYPES
+    for bogus in ("tablets", "alloy", "sambaServer", "containerPlatform"):
+        assert bogus not in DEVICE_TYPES
 
 
-def test_interface_types_is_nonempty_set():
-    assert isinstance(INTERFACE_TYPES, (set, frozenset)) and len(INTERFACE_TYPES) > 0
+def test_interface_types_authoritative():
+    # 30 values verbatim from Auvik filter[interfaceType] enum.
+    assert len(INTERFACE_TYPES) == 30
+    for v in ("ethernet", "wifi", "distributedVirtualSwitch", "linkAggregation", "vlan"):
+        assert v in INTERFACE_TYPES
+    for bogus in ("gigabitEthernet", "tengigabitEthernet", "softwareLoopback"):
+        assert bogus not in INTERFACE_TYPES
