@@ -33,7 +33,7 @@ from models.responses import (
     Usage,
     to_json,
 )
-from utils.resolver import looks_like_id, resolve_device, resolve_network, resolve_or_error
+from utils.resolver import looks_like_id, resolve_device, resolve_network, resolve_or_error, resolve_tenants
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +247,10 @@ async def auvik_list_devices(
                 raw_params["filter[stateKnown]"] = "true" if state_known else "false"
 
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -326,7 +329,10 @@ async def auvik_list_networks(
         if scope and detail_level == "detail":
             raw_params["filter[scope]"] = scope
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -407,7 +413,10 @@ async def auvik_list_interfaces(
         if modified_after:
             raw_params["filter[modifiedAfter]"] = modified_after
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -472,7 +481,10 @@ async def auvik_list_components(
         if modified_after:
             raw_params["filter[modifiedAfter]"] = modified_after
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -584,7 +596,10 @@ async def auvik_list_entity_notes(
         if modified_after:
             raw_params["filter[modifiedAfter]"] = modified_after
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -637,7 +652,10 @@ async def auvik_list_entity_audits(
         if modified_after:
             raw_params["filter[modifiedAfter]"] = modified_after
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -699,7 +717,10 @@ async def auvik_get_usage(
 
         if scope == "client":
             if tenants:
-                date_params["tenants"] = tenants
+                resolved_tenants, terr = await resolve_tenants(client, tenants)
+                if terr:
+                    return json.dumps(terr)
+                date_params["tenants"] = resolved_tenants
             result = await client.get("/v1/billing/usage/client", params=date_params)
             return _single_result(result, Usage, raw=raw)
 

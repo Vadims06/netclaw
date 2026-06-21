@@ -324,7 +324,7 @@ class TestListAlertsFilters:
         assert captured["params"].get("filter[alertSpecificationId]") == "spec-001"
 
     async def test_tenants_filter(self):
-        """tenants → tenants query param."""
+        """tenants (as ID) → tenants query param forwarded unchanged."""
         captured = {}
 
         def handler(req: httpx.Request) -> httpx.Response:
@@ -332,10 +332,11 @@ class TestListAlertsFilters:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
-        await auvik_list_alerts(client, tenants="acme")
+        # Use a numeric ID so no /v1/tenants lookup is needed
+        await auvik_list_alerts(client, tenants="500001")
         await client.close()
 
-        assert captured["params"].get("tenants") == "acme"
+        assert captured["params"].get("tenants") == "500001"
 
     async def test_page_first_param(self):
         """page_first → page[first] query param."""
@@ -456,11 +457,11 @@ class TestListAlertsEntityResolution:
             severity="warning",
             status="created",
             dismissed=False,
-            tenants="acme",
+            tenants="500001",
         )
         await client.close()
 
         assert captured["params"].get("filter[severity]") == "warning"
         assert captured["params"].get("filter[status]") == "created"
         assert captured["params"].get("filter[dismissed]") == "false"
-        assert captured["params"].get("tenants") == "acme"
+        assert captured["params"].get("tenants") == "500001"

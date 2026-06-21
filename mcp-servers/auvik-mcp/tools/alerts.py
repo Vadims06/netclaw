@@ -28,7 +28,7 @@ import json
 from typing import Optional
 
 from models.responses import Alert, to_json
-from utils.resolver import looks_like_id, resolve_device, resolve_or_error
+from utils.resolver import looks_like_id, resolve_device, resolve_or_error, resolve_tenants
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +187,10 @@ async def auvik_list_alerts(
         if alert_specification_id:
             raw_params["filter[alertSpecificationId]"] = alert_specification_id
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 

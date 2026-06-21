@@ -847,7 +847,7 @@ class TestGetOidStatistics:
         assert captured["params"].get("filter[oid]") == "1.3.6.1.2.1.1.1.0"
 
     async def test_tenants_filter_sent(self):
-        """tenants → tenants query param."""
+        """tenants (as ID) → tenants query param forwarded unchanged."""
         captured = {}
 
         def handler(req: httpx.Request) -> httpx.Response:
@@ -855,10 +855,11 @@ class TestGetOidStatistics:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
-        await auvik_get_oid_statistics(client, tenants="acme")
+        # Use a numeric ID so no /v1/tenants lookup is needed
+        await auvik_get_oid_statistics(client, tenants="500001")
         await client.close()
 
-        assert captured["params"].get("tenants") == "acme"
+        assert captured["params"].get("tenants") == "500001"
 
 
 # ---------------------------------------------------------------------------
@@ -868,7 +869,7 @@ class TestGetOidStatistics:
 
 class TestListSnmpPollerSettings:
     async def test_happy_path_list(self):
-        """tenants REQUIRED → GET /v1/settings/snmppoller."""
+        """tenants REQUIRED (as ID) → GET /v1/settings/snmppoller."""
         captured = {}
 
         def handler(req: httpx.Request) -> httpx.Response:
@@ -877,11 +878,12 @@ class TestListSnmpPollerSettings:
             return httpx.Response(200, json=_make_list_payload([_snmp_setting_item()]))
 
         client = _client_for(handler)
-        result_str = await auvik_list_snmp_poller_settings(client, tenants="acme")
+        # Use a numeric ID so no /v1/tenants lookup is needed
+        result_str = await auvik_list_snmp_poller_settings(client, tenants="500001")
         await client.close()
 
         assert captured["path"] == "/v1/settings/snmppoller"
-        assert captured["params"].get("tenants") == "acme"
+        assert captured["params"].get("tenants") == "500001"
         data = json.loads(result_str)
         assert "items" in data
 
@@ -913,7 +915,7 @@ class TestListSnmpPollerSettings:
 
         client = _client_for(handler)
         result_str = await auvik_list_snmp_poller_settings(
-            client, tenants="acme", poller_id="222222"
+            client, tenants="500001", poller_id="222222"
         )
         await client.close()
 
@@ -929,7 +931,7 @@ class TestListSnmpPollerSettings:
 
         client = _client_for(handler)
         result_str = await auvik_list_snmp_poller_settings(
-            client, tenants="acme", poller_id="222222", with_devices=True
+            client, tenants="500001", poller_id="222222", with_devices=True
         )
         await client.close()
 
@@ -946,8 +948,9 @@ class TestListSnmpPollerSettings:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
+        # Use a numeric tenant ID so no /v1/tenants lookup is needed
         await auvik_list_snmp_poller_settings(
-            client, tenants="acme", device="core-sw"
+            client, tenants="500001", device="core-sw"
         )
         await client.close()
 
@@ -962,7 +965,7 @@ class TestListSnmpPollerSettings:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
-        await auvik_list_snmp_poller_settings(client, tenants="acme", use_as="poller")
+        await auvik_list_snmp_poller_settings(client, tenants="500001", use_as="poller")
         await client.close()
 
         assert captured["params"].get("filter[useAs]") == "poller"
@@ -976,7 +979,7 @@ class TestListSnmpPollerSettings:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
-        await auvik_list_snmp_poller_settings(client, tenants="acme", type="numeric")
+        await auvik_list_snmp_poller_settings(client, tenants="500001", type="numeric")
         await client.close()
 
         assert captured["params"].get("filter[type]") == "numeric"
@@ -990,7 +993,7 @@ class TestListSnmpPollerSettings:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
-        await auvik_list_snmp_poller_settings(client, tenants="acme", name="My OID")
+        await auvik_list_snmp_poller_settings(client, tenants="500001", name="My OID")
         await client.close()
 
         assert captured["params"].get("filter[name]") == "My OID"

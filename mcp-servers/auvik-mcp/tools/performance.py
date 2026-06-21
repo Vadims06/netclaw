@@ -43,7 +43,7 @@ from utils.constants import (
     OID_STAT_IDS,
     SERVICE_STAT_IDS,
 )
-from utils.resolver import looks_like_id, resolve_device, resolve_or_error
+from utils.resolver import looks_like_id, resolve_device, resolve_or_error, resolve_tenants
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +258,10 @@ async def auvik_get_device_statistics(
         if availability and omit_undiscovered is not None:
             raw_params["filter[omitUndiscovered]"] = "true" if omit_undiscovered else "false"
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -343,7 +346,10 @@ async def auvik_get_interface_statistics(
         if parent_device_id:
             raw_params["filter[parentDevice]"] = parent_device_id
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -411,7 +417,10 @@ async def auvik_get_service_statistics(
         if service_id:
             raw_params["filter[serviceId]"] = service_id
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -501,7 +510,10 @@ async def auvik_get_component_statistics(
         if parent_device_id:
             raw_params["filter[parentDevice]"] = parent_device_id
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -556,7 +568,10 @@ async def auvik_get_oid_statistics(
         if oid:
             raw_params["filter[oid]"] = oid
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -607,13 +622,18 @@ async def auvik_list_snmp_poller_settings(
                 "(Auvik API mandates tenants on SNMP poller endpoints)."
             )
 
+        # 1b. Resolve tenant names → IDs early so all downstream calls use IDs
+        resolved_tenants, terr = await resolve_tenants(client, tenants)
+        if terr:
+            return json.dumps(terr)
+
         # 2. Resolve device identifier
         device_id: Optional[str] = None
         if device is not None:
             if looks_like_id(device):
                 device_id = device
             else:
-                resolution = await resolve_device(client, device, tenants=tenants)
+                resolution = await resolve_device(client, device, tenants=resolved_tenants)
                 device_id, err = resolve_or_error(resolution, label="device")
                 if err:
                     return json.dumps(err)
@@ -623,7 +643,7 @@ async def auvik_list_snmp_poller_settings(
             if with_devices:
                 path = f"/v1/settings/snmppoller/{poller_id}/devices"
                 # /devices returns a list of devices
-                raw_params: dict = {"tenants": tenants}
+                raw_params: dict = {"tenants": resolved_tenants}
                 if page_first is not None:
                     raw_params["page[first]"] = page_first
                 page_result = await client.get_all(path, params=raw_params)
@@ -636,11 +656,11 @@ async def auvik_list_snmp_poller_settings(
                 }, default=str)
             else:
                 path = f"/v1/settings/snmppoller/{poller_id}"
-                result = await client.get(path, params={"tenants": tenants})
+                result = await client.get(path, params={"tenants": resolved_tenants})
                 return _single_result(result, SnmpPollerSetting, raw=raw)
 
         # 4. Build list params
-        raw_params = {"tenants": tenants}
+        raw_params = {"tenants": resolved_tenants}
         if device_id:
             raw_params["filter[deviceId]"] = device_id
         if use_as:

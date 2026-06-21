@@ -311,7 +311,7 @@ class TestListDevices:
         assert captured["params"].get("filter[makeModel]") == "Catalyst"
 
     async def test_tenants_param(self):
-        """tenants → tenants query param."""
+        """tenants (as ID) → tenants query param forwarded unchanged."""
         captured = {}
 
         def handler(req: httpx.Request) -> httpx.Response:
@@ -319,10 +319,11 @@ class TestListDevices:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
-        await auvik_list_devices(client, tenants="acme")
+        # Use a numeric ID so no /v1/tenants lookup is needed
+        await auvik_list_devices(client, tenants="500001")
         await client.close()
 
-        assert captured["params"].get("tenants") == "acme"
+        assert captured["params"].get("tenants") == "500001"
 
     async def test_device_name_resolution_ambiguous(self):
         """When device name resolves to multiple matches → Ambiguous error returned."""
@@ -1117,7 +1118,7 @@ class TestGetUsage:
         assert data["error"]["code"] == "ValidationError"
 
     async def test_client_scope_with_tenants(self):
-        """scope=client with tenants → tenants param forwarded."""
+        """scope=client with tenants (as ID) → tenants param forwarded."""
         captured = {}
 
         def handler(req: httpx.Request) -> httpx.Response:
@@ -1125,15 +1126,16 @@ class TestGetUsage:
             return httpx.Response(200, json=_make_single_payload(_usage_item()))
 
         client = _client_for(handler)
+        # Use a numeric ID so no /v1/tenants lookup is needed
         await auvik_get_usage(
             client,
             from_date="2024-01-01",
             thru_date="2024-01-31",
-            tenants="acme",
+            tenants="500001",
         )
         await client.close()
 
-        assert captured["params"].get("tenants") == "acme"
+        assert captured["params"].get("tenants") == "500001"
 
 
 # ---------------------------------------------------------------------------

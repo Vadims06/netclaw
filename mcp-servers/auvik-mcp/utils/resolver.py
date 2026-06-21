@@ -236,6 +236,44 @@ async def resolve_tenant(
     return _to_resolution(substring)
 
 
+async def resolve_tenants(
+    client,
+    tenants,
+) -> tuple[Optional[str], Optional[dict]]:
+    """Resolve a comma-separated *tenants* value (names/domain-prefixes/IDs)
+    to a comma-joined string of Auvik tenant IDs.
+
+    Resolution rules per part:
+    - Empty / None input  → (None, None)  — caller should omit the param.
+    - Part matching ``looks_like_id`` → kept as-is (no API call).
+    - Otherwise          → ``resolve_tenant`` + ``resolve_or_error``.
+    - On the first error  → (None, error_envelope) immediately.
+
+    Returns:
+        ``(resolved_str, None)`` on success.
+        ``(None, error_envelope)`` if any part is ambiguous or not found.
+    """
+    if not tenants:
+        return (None, None)
+
+    parts = [p.strip() for p in str(tenants).split(",") if p.strip()]
+    if not parts:
+        return (None, None)
+
+    ids: list[str] = []
+    for part in parts:
+        if looks_like_id(part):
+            ids.append(part)
+        else:
+            resolution = await resolve_tenant(client, part)
+            id_, err = resolve_or_error(resolution, label="tenant")
+            if err:
+                return (None, err)
+            ids.append(id_)
+
+    return (",".join(ids), None)
+
+
 def resolve_or_error(
     resolution: Resolution,
     label: str = "entity",

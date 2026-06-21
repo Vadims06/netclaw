@@ -251,7 +251,7 @@ class TestListDeviceLifecycle:
         assert captured["params"].get("filter[lastSupportStatus]") == "covered"
 
     async def test_tenants_filter(self):
-        """tenants → tenants query param."""
+        """tenants (as ID) → tenants query param forwarded unchanged."""
         captured = {}
 
         def handler(req: httpx.Request) -> httpx.Response:
@@ -259,10 +259,11 @@ class TestListDeviceLifecycle:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
-        await auvik_list_device_lifecycle(client, tenants="acme")
+        # Use a numeric ID so no /v1/tenants lookup is needed
+        await auvik_list_device_lifecycle(client, tenants="500001")
         await client.close()
 
-        assert captured["params"].get("tenants") == "acme"
+        assert captured["params"].get("tenants") == "500001"
 
     async def test_page_first_param(self):
         """page_first → page[first] query param."""
@@ -440,7 +441,7 @@ class TestListDeviceWarranty:
         assert captured["params"].get("filter[coveredUnderService]") == "false"
 
     async def test_tenants_filter(self):
-        """tenants → tenants query param."""
+        """tenants (as ID) → tenants query param forwarded unchanged."""
         captured = {}
 
         def handler(req: httpx.Request) -> httpx.Response:
@@ -448,10 +449,11 @@ class TestListDeviceWarranty:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
-        await auvik_list_device_warranty(client, tenants="acme")
+        # Use a numeric ID so no /v1/tenants lookup is needed
+        await auvik_list_device_warranty(client, tenants="500001")
         await client.close()
 
-        assert captured["params"].get("tenants") == "acme"
+        assert captured["params"].get("tenants") == "500001"
 
     async def test_page_first_param(self):
         """page_first → page[first] query param."""
@@ -649,7 +651,7 @@ class TestListConfigurations:
         assert captured["params"].get("filter[isRunning]") == "false"
 
     async def test_tenants_filter(self):
-        """tenants → tenants query param."""
+        """tenants (as ID) → tenants query param forwarded unchanged."""
         captured = {}
 
         def handler(req: httpx.Request) -> httpx.Response:
@@ -657,10 +659,11 @@ class TestListConfigurations:
             return httpx.Response(200, json=_make_list_payload([]))
 
         client = _client_for(handler)
-        await auvik_list_configurations(client, tenants="acme")
+        # Use a numeric ID so no /v1/tenants lookup is needed
+        await auvik_list_configurations(client, tenants="500001")
         await client.close()
 
-        assert captured["params"].get("tenants") == "acme"
+        assert captured["params"].get("tenants") == "500001"
 
     async def test_page_first_param(self):
         """page_first → page[first] query param."""

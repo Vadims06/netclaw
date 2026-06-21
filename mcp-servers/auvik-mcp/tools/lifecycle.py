@@ -22,7 +22,7 @@ import json
 from typing import Optional
 
 from models.responses import Configuration, DeviceLifecycle, DeviceWarranty, to_json
-from utils.resolver import looks_like_id, resolve_device, resolve_or_error
+from utils.resolver import looks_like_id, resolve_device, resolve_or_error, resolve_tenants
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +152,10 @@ async def auvik_list_device_lifecycle(
         if last_support_status:
             raw_params["filter[lastSupportStatus]"] = last_support_status
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -212,7 +215,10 @@ async def auvik_list_device_warranty(
                 "true" if covered_under_service else "false"
             )
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -276,7 +282,10 @@ async def auvik_list_configurations(
         if is_running is not None:
             raw_params["filter[isRunning]"] = "true" if is_running else "false"
         if tenants:
-            raw_params["tenants"] = tenants
+            resolved_tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+            raw_params["tenants"] = resolved_tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
