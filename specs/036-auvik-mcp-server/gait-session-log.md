@@ -204,4 +204,44 @@
 
 ---
 
-<!-- Subsequent turns (implementation, coherence, verification) appended below. -->
+## Turn 5 — Implementation Phases A–C (subagent-driven)
+
+**Asked**
+
+> [operator] Subagent-driven execution.
+
+**Decided / Done**
+
+- Invoked `superpowers:subagent-driven-development`. Controller prep: verified
+  toolchain (python 3.11, httpx 0.28, pytest 9, pytest-asyncio present);
+  installed `fastmcp` 3.4.2; chose `httpx.MockTransport` for HTTP tests
+  (respx unavailable). Confirmed `mcp-servers/*` is git-ignored with each
+  server explicitly unignored → added `!mcp-servers/auvik-mcp/`.
+- **Phase A (utils)** — implementer sonnet. Scaffold + `constants.py`,
+  `toon_helper.py`, `rate_limiter.py`, `pagination.py`. 38 tests.
+  - *Spec review caught a defect:* implementer hallucinated `DEVICE_TYPES`/
+    `INTERFACE_TYPES` (the two enums research.md left as count-only).
+    Fixed to the verbatim 48/30 values from the OpenAPI; strengthened tests to
+    pin counts + reject bogus values; enumerated both in research.md.
+- **Phase B (client)** — implementer sonnet. `clients/auvik_client.py`:
+  async Basic-auth `get()` (401/403/timeout/connect handling), 429/Retry-After
+  backoff (max 3), `get_all()` auto-paginating on `links.next` with truncation
+  flag + continuation cursor. Read-only (GET only). 60 tests. Verified clean.
+- **Phase C (resolver)** — implementer sonnet. *Before dispatch, review caught a
+  plan error:* `/device/info`, `/network/info`, `/interface/info` have NO
+  server-side name filter (only `/component/info`, `/entity/note`,
+  `/snmppoller` do) — corrected research.md D1 + tasks.md C1 to client-side
+  matching. `utils/resolver.py`: `looks_like_id`, `resolve_device`
+  (name exact→substring, IP), `resolve_network` (on `description`),
+  `resolve_tenant` (domainPrefix/displayName), `resolve_or_error`
+  (Ambiguous/NotFound envelopes). 97 tests. Verified clean.
+- Net: 97 passing tests; foundations (utils, client, resolver) done and
+  spec-reviewed. Two real defects caught by review before they propagated.
+
+**Commits:** `65302cd`→`92f200b` (scaffold, 4 utils, enum fix, client x3,
+resolver x3, 2 spec fixes).
+
+---
+
+<!-- Subsequent turns (models, tools, server, skills, coherence, verification)
+     appended below. -->
