@@ -160,5 +160,48 @@
 
 ---
 
-<!-- Subsequent turns (plan/research, implementation, coherence,
-     verification) appended below as the session progresses. -->
+## Turn 4 — Plan phase authored (SDD artifact set)
+
+**Asked**
+
+> [operator] Proceed [to plan phase].
+
+**Decided / Produced**
+
+- Invoked `superpowers:writing-plans`. Dispatched 3 parallel research agents:
+  (A) extract live MCP code patterns, (B) extract coherence-artifact formats +
+  insertion points, (C) parse the Auvik OpenAPI for exact params/enums/gotchas.
+- Reconciled subagent output against the decided design — discarded the agents'
+  invented endpoint paths / env names / skill names; kept Agent C's authoritative
+  API facts and the structural patterns.
+- Authored the full Spec Kit plan set under `specs/036-auvik-mcp-server/`:
+  - `research.md` — API facts, conventions, 7 spec gotchas, decisions D1–D6.
+  - `data-model.md` — 16 entities with exact `attributes.*` fields + internal types.
+  - `contracts/mcp-tools.md` — 20 tool contracts mapped to exact endpoints/params,
+    with FR→tool coverage map.
+  - `plan.md` — architecture, technical context, Constitution Check (no violations),
+    file structure + responsibilities, phases 0–5.
+  - `quickstart.md` — install/config/run + 8 smoke tests mapped to SCs.
+  - `tasks.md` — bite-sized TDD tasks (A scaffold/utils → B client → C resolver →
+    D models → E 20 tools+server → F 4 skills → G 12 coherence artifacts → H verify),
+    with complete code for foundational units + self-review.
+  - `checklists/requirements.md` — Principle XI coherence checklist + FR/SC coverage.
+- Key build gotchas captured for implementation: drive pagination off `links.next`
+  (deprecated `meta.totalPages`); `snmpPollerSettingId` path param; alert
+  `detectedTime*` is a timestamp despite boolean schema; extended-detail requires
+  `filter[deviceType]`; SNMP-poller endpoints require `tenants`; only `us1` attested.
+- Tool count locked at 20 (inventory 9 incl. verify, alerts 1, lifecycle 3,
+  performance 7). Env vars locked: AUVIK_USERNAME/API_KEY/BASE_URL/VERIFY_SSL/
+  TIMEOUT/RATE_LIMIT/MAX_PAGES.
+
+**Created/Modified**
+
+- `specs/036-auvik-mcp-server/{research,data-model,plan,quickstart,tasks}.md`,
+  `contracts/mcp-tools.md`, `checklists/requirements.md` (all new)
+- `specs/036-auvik-mcp-server/gait-session-log.md` (this file)
+
+**Commit:** `docs(036): add plan-phase SDD artifacts (research, plan, data-model, contracts, tasks, quickstart, checklist)`
+
+---
+
+<!-- Subsequent turns (implementation, coherence, verification) appended below. -->
