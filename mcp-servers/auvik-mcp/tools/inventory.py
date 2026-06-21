@@ -747,7 +747,8 @@ async def auvik_verify_credentials(client) -> str:
                     "details": None,
                 }
             })
-        return json.dumps(result["data"], default=str)
+        # Auvik returns an empty 200 body on success; treat that as verified.
+        return json.dumps({"verified": True, "data": result["data"]}, default=str)
 
     except Exception as exc:
         return _upstream_error(exc)

@@ -155,7 +155,14 @@ class AuvikClient:
                     ),
                 }
 
-            return {"success": True, "data": resp.json(), "error": None}
+            # Some Auvik 2xx responses carry no body (e.g. the credential-verify
+            # endpoint returns an empty 200). Don't assume JSON — guard the parse.
+            if not resp.content:
+                return {"success": True, "data": None, "error": None}
+            try:
+                return {"success": True, "data": resp.json(), "error": None}
+            except ValueError:
+                return {"success": True, "data": {"raw": resp.text}, "error": None}
 
     async def get_all(
         self,

@@ -36,6 +36,30 @@ def _decode_basic(auth_header: str) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 
+async def test_get_200_empty_body_returns_success_none_data():
+    """An empty 200 body (e.g. /authentication/verify) must NOT crash on .json()."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"")
+
+    client = AuvikClient(base_url=DEFAULT_BASE_URL, username="u", password="k",
+                         transport=_make_transport(handler))
+    result = await client.get("/v1/authentication/verify")
+    assert result == {"success": True, "data": None, "error": None}
+
+
+async def test_get_200_non_json_body_returns_raw():
+    """A 200 with a non-JSON body returns success with the raw text, not a crash."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"OK plain text")
+
+    client = AuvikClient(base_url=DEFAULT_BASE_URL, username="u", password="k",
+                         transport=_make_transport(handler))
+    result = await client.get("/v1/x")
+    assert result["success"] is True and result["data"] == {"raw": "OK plain text"}
+
+
 async def test_get_200_returns_success_dict():
     """A 200 response returns success=True with the parsed JSON body."""
 
