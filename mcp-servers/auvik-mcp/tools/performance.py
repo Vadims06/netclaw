@@ -230,7 +230,13 @@ async def auvik_get_device_statistics(
                 f"interval must be one of {sorted(INTERVALS)}, got {interval!r}."
             )
 
-        # 3. Resolve device identifier
+        # 3. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 4. Resolve device identifier
         device_id: Optional[str] = None
         if device is not None:
             if looks_like_id(device):
@@ -241,7 +247,7 @@ async def auvik_get_device_statistics(
                 if err:
                     return json.dumps(err)
 
-        # 4. Build path and params
+        # 5. Build path and params
         base = "deviceAvailability" if availability else "device"
         path = f"/v1/stat/{base}/{stat_id}"
 
@@ -258,10 +264,7 @@ async def auvik_get_device_statistics(
         if availability and omit_undiscovered is not None:
             raw_params["filter[omitUndiscovered]"] = "true" if omit_undiscovered else "false"
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -319,7 +322,13 @@ async def auvik_get_interface_statistics(
                 f"interval must be one of {sorted(INTERVALS)}, got {interval!r}."
             )
 
-        # 2. Resolve parent_device
+        # 2. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Resolve parent_device
         parent_device_id: Optional[str] = None
         if parent_device is not None:
             if looks_like_id(parent_device):
@@ -330,7 +339,7 @@ async def auvik_get_interface_statistics(
                 if err:
                     return json.dumps(err)
 
-        # 3. Build path and params
+        # 4. Build path and params
         path = f"/v1/stat/interface/{stat_id}"
 
         raw_params: dict = {
@@ -346,10 +355,7 @@ async def auvik_get_interface_statistics(
         if parent_device_id:
             raw_params["filter[parentDevice]"] = parent_device_id
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -405,7 +411,13 @@ async def auvik_get_service_statistics(
                 f"interval must be one of {sorted(INTERVALS)}, got {interval!r}."
             )
 
-        # 2. Build path and params
+        # 2. Resolve tenant name → ID early
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Build path and params
         path = f"/v1/stat/service/{stat_id}"
 
         raw_params: dict = {
@@ -417,10 +429,7 @@ async def auvik_get_service_statistics(
         if service_id:
             raw_params["filter[serviceId]"] = service_id
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -485,7 +494,13 @@ async def auvik_get_component_statistics(
                 f"interval must be one of {sorted(INTERVALS)}, got {interval!r}."
             )
 
-        # 2. Resolve parent_device
+        # 2. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Resolve parent_device
         parent_device_id: Optional[str] = None
         if parent_device is not None:
             if looks_like_id(parent_device):
@@ -496,7 +511,7 @@ async def auvik_get_component_statistics(
                 if err:
                     return json.dumps(err)
 
-        # 3. Build path and params
+        # 4. Build path and params
         path = f"/v1/stat/component/{component_type}/{stat_id}"
 
         raw_params: dict = {
@@ -510,10 +525,7 @@ async def auvik_get_component_statistics(
         if parent_device_id:
             raw_params["filter[parentDevice]"] = parent_device_id
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -548,7 +560,13 @@ async def auvik_get_oid_statistics(
     device → filter[deviceId] (resolved if not an ID).
     """
     try:
-        # 1. Resolve device identifier
+        # 1. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 2. Resolve device identifier
         device_id: Optional[str] = None
         if device is not None:
             if looks_like_id(device):
@@ -559,7 +577,7 @@ async def auvik_get_oid_statistics(
                 if err:
                     return json.dumps(err)
 
-        # 2. Build params (no time params for OID stats)
+        # 3. Build params (no time params for OID stats)
         raw_params: dict = {}
         if device_id:
             raw_params["filter[deviceId]"] = device_id
@@ -568,10 +586,7 @@ async def auvik_get_oid_statistics(
         if oid:
             raw_params["filter[oid]"] = oid
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -741,7 +756,12 @@ async def auvik_get_snmp_poller_history(
                 )
         # string type: interval not needed (and not sent even if provided)
 
-        # 4. Resolve device identifier
+        # 4. Resolve tenant name → ID early so all downstream calls use the ID
+        tenants, terr = await resolve_tenants(client, tenants)
+        if terr:
+            return json.dumps(terr)
+
+        # 5. Resolve device identifier
         device_id: Optional[str] = None
         if device is not None:
             if looks_like_id(device):
@@ -752,7 +772,7 @@ async def auvik_get_snmp_poller_history(
                 if err:
                     return json.dumps(err)
 
-        # 5. Build path and params
+        # 6. Build path and params
         path = f"/v1/stat/snmppoller/{value_type}"
 
         raw_params: dict = {

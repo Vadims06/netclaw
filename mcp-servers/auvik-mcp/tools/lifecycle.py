@@ -126,7 +126,13 @@ async def auvik_list_device_lifecycle(
     try:
         base_path = "/v1/inventory/device/lifecycle"
 
-        # 1. Resolve device → single fetch
+        # 1. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 2. Resolve device → single fetch
         if device is not None:
             if looks_like_id(device):
                 device_id = device
@@ -139,7 +145,7 @@ async def auvik_list_device_lifecycle(
             result = await client.get(f"{base_path}/{device_id}")
             return _single_result(result, DeviceLifecycle, raw=raw)
 
-        # 2. Build list params
+        # 3. Build list params
         raw_params: dict = {}
         if sales_availability:
             raw_params["filter[salesAvailability]"] = sales_availability
@@ -152,10 +158,7 @@ async def auvik_list_device_lifecycle(
         if last_support_status:
             raw_params["filter[lastSupportStatus]"] = last_support_status
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -191,7 +194,13 @@ async def auvik_list_device_warranty(
     try:
         base_path = "/v1/inventory/device/warranty"
 
-        # 1. Resolve device → single fetch
+        # 1. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 2. Resolve device → single fetch
         if device is not None:
             if looks_like_id(device):
                 device_id = device
@@ -204,7 +213,7 @@ async def auvik_list_device_warranty(
             result = await client.get(f"{base_path}/{device_id}")
             return _single_result(result, DeviceWarranty, raw=raw)
 
-        # 2. Build list params
+        # 3. Build list params
         raw_params: dict = {}
         if covered_under_warranty is not None:
             raw_params["filter[coveredUnderWarranty]"] = (
@@ -215,10 +224,7 @@ async def auvik_list_device_warranty(
                 "true" if covered_under_service else "false"
             )
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -262,7 +268,13 @@ async def auvik_list_configurations(
             result = await client.get(f"{base_path}/{config_id}")
             return _single_result(result, Configuration, raw=raw)
 
-        # 2. Resolve device → filter[deviceId]
+        # 2. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Resolve device → filter[deviceId]
         raw_params: dict = {}
         if device is not None:
             if looks_like_id(device):
@@ -274,7 +286,7 @@ async def auvik_list_configurations(
                     return json.dumps(err)
             raw_params["filter[deviceId]"] = device_id
 
-        # 3. Build list params
+        # 4. Build list params
         if backup_time_after:
             raw_params["filter[backupTimeAfter]"] = backup_time_after
         if backup_time_before:
@@ -282,10 +294,7 @@ async def auvik_list_configurations(
         if is_running is not None:
             raw_params["filter[isRunning]"] = "true" if is_running else "false"
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 

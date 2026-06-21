@@ -1017,7 +1017,7 @@ class TestGetSnmpPollerHistory:
         client = _client_for(handler)
         result_str = await auvik_get_snmp_poller_history(
             client,
-            tenants="acme",
+            tenants="500001",
             from_time="2024-01-01T00:00:00Z",
             interval="hour",
             value_type="int",
@@ -1042,7 +1042,7 @@ class TestGetSnmpPollerHistory:
         client = _client_for(handler)
         result_str = await auvik_get_snmp_poller_history(
             client,
-            tenants="acme",
+            tenants="500001",
             from_time="2024-01-01T00:00:00Z",
             value_type="string",
         )
@@ -1084,7 +1084,7 @@ class TestGetSnmpPollerHistory:
 
         client = _client_for(handler)
         result_str = await auvik_get_snmp_poller_history(
-            client, tenants="acme", interval="hour"
+            client, tenants="500001", interval="hour"
         )
         await client.close()
 
@@ -1105,7 +1105,7 @@ class TestGetSnmpPollerHistory:
         client = _client_for(handler)
         result_str = await auvik_get_snmp_poller_history(
             client,
-            tenants="acme",
+            tenants="500001",
             from_time="2024-01-01T00:00:00Z",
             value_type="int",
             # interval omitted
@@ -1129,7 +1129,7 @@ class TestGetSnmpPollerHistory:
         client = _client_for(handler)
         result_str = await auvik_get_snmp_poller_history(
             client,
-            tenants="acme",
+            tenants="500001",
             from_time="2024-01-01T00:00:00Z",
             value_type="int",
             interval="weekly",
@@ -1151,7 +1151,7 @@ class TestGetSnmpPollerHistory:
         client = _client_for(handler)
         await auvik_get_snmp_poller_history(
             client,
-            tenants="acme",
+            tenants="500001",
             from_time="2024-01-01T00:00:00Z",
             value_type="string",
             compact=True,
@@ -1174,7 +1174,7 @@ class TestGetSnmpPollerHistory:
         client = _client_for(handler)
         await auvik_get_snmp_poller_history(
             client,
-            tenants="acme",
+            tenants="500001",
             from_time="2024-01-01T00:00:00Z",
             interval="hour",
             value_type="int",
@@ -1195,7 +1195,7 @@ class TestGetSnmpPollerHistory:
         client = _client_for(handler)
         await auvik_get_snmp_poller_history(
             client,
-            tenants="acme",
+            tenants="500001",
             from_time="-1h",
             value_type="int",
             interval="hour",
@@ -1216,7 +1216,7 @@ class TestGetSnmpPollerHistory:
         client = _client_for(handler)
         await auvik_get_snmp_poller_history(
             client,
-            tenants="acme",
+            tenants="500001",
             from_time="2024-01-01T00:00:00Z",
             interval="hour",
             value_type="int",

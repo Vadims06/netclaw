@@ -174,7 +174,13 @@ async def auvik_list_devices(
                 "(Auvik API mandates filter[deviceType] on the extended endpoint)."
             )
 
-        # 2. Resolve device identifier
+        # 2. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Resolve device identifier
         if device is not None:
             if looks_like_id(device):
                 device_id = device
@@ -199,7 +205,7 @@ async def auvik_list_devices(
             result = await client.get(path, params=params or None)
             return _single_result(result, model_cls, raw=raw)
 
-        # 3. Build list path and params
+        # 4. Build list path and params
         if detail_level == "info":
             path = "/v1/inventory/device/info"
             model_cls = Device
@@ -247,10 +253,7 @@ async def auvik_list_devices(
                 raw_params["filter[stateKnown]"] = "true" if state_known else "false"
 
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -302,7 +305,13 @@ async def auvik_list_networks(
             else "/v1/inventory/network/detail"
         )
 
-        # 2. Resolve network identifier
+        # 2. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Resolve network identifier
         if network is not None:
             if looks_like_id(network):
                 network_id = network
@@ -316,7 +325,7 @@ async def auvik_list_networks(
             result = await client.get(path)
             return _single_result(result, Network, raw=raw)
 
-        # 3. Build list params
+        # 4. Build list params
         raw_params: dict = {}
         if network_type:
             raw_params["filter[networkType]"] = network_type
@@ -329,10 +338,7 @@ async def auvik_list_networks(
         if scope and detail_level == "detail":
             raw_params["filter[scope]"] = scope
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -391,7 +397,13 @@ async def auvik_list_interfaces(
                 "Interface-name resolution is not supported; pass the Auvik numeric ID."
             )
 
-        # 2. Resolve parent_device
+        # 2. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Resolve parent_device
         raw_params: dict = {}
         if parent_device is not None:
             if looks_like_id(parent_device):
@@ -403,7 +415,7 @@ async def auvik_list_interfaces(
                     return json.dumps(err)
             raw_params["filter[parentDevice]"] = parent_device_id
 
-        # 3. Build params
+        # 4. Build params
         if interface_type:
             raw_params["filter[interfaceType]"] = interface_type
         if admin_status:
@@ -413,10 +425,7 @@ async def auvik_list_interfaces(
         if modified_after:
             raw_params["filter[modifiedAfter]"] = modified_after
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -463,7 +472,13 @@ async def auvik_list_components(
                 "Component name resolution is not supported; pass the Auvik numeric ID."
             )
 
-        # 2. Resolve device
+        # 2. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Resolve device
         raw_params: dict = {}
         if device is not None:
             if looks_like_id(device):
@@ -475,16 +490,13 @@ async def auvik_list_components(
                     return json.dumps(err)
             raw_params["filter[deviceId]"] = device_id
 
-        # 3. Build params
+        # 4. Build params
         if current_status:
             raw_params["filter[currentStatus]"] = current_status
         if modified_after:
             raw_params["filter[modifiedAfter]"] = modified_after
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -576,7 +588,13 @@ async def auvik_list_entity_notes(
             result = await client.get(f"{base_path}/{entity}")
             return _single_result(result, EntityNote, raw=raw)
 
-        # 2. Resolve entity identifier for filter
+        # 2. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Resolve entity identifier for filter
         raw_params: dict = {}
         if entity is not None:
             # Try device resolution first (most common entity type)
@@ -588,7 +606,7 @@ async def auvik_list_entity_notes(
             else:
                 raw_params["filter[entityId]"] = entity_id
 
-        # 3. Build params
+        # 4. Build params
         if entity_type:
             raw_params["filter[entityType]"] = entity_type
         if last_modified_by:
@@ -596,10 +614,7 @@ async def auvik_list_entity_notes(
         if modified_after:
             raw_params["filter[modifiedAfter]"] = modified_after
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -641,6 +656,12 @@ async def auvik_list_entity_audits(
             result = await client.get(f"{base_path}/{audit_id}")
             return _single_result(result, EntityAudit, raw=raw)
 
+        # Resolve tenant name → ID early
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
         # Build list params
         raw_params: dict = {}
         if user:
@@ -652,10 +673,7 @@ async def auvik_list_entity_audits(
         if modified_after:
             raw_params["filter[modifiedAfter]"] = modified_after
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
@@ -709,7 +727,13 @@ async def auvik_get_usage(
                 "Both from_date and thru_date are required."
             )
 
-        # 3. Build date params (shared)
+        # 3. Resolve tenant name → ID early (client scope only; device scope has no tenants param)
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 4. Build date params (shared)
         date_params: dict = {
             "filter[fromDate]": from_date,
             "filter[thruDate]": thru_date,
@@ -717,10 +741,7 @@ async def auvik_get_usage(
 
         if scope == "client":
             if tenants:
-                resolved_tenants, terr = await resolve_tenants(client, tenants)
-                if terr:
-                    return json.dumps(terr)
-                date_params["tenants"] = resolved_tenants
+                date_params["tenants"] = tenants
             result = await client.get("/v1/billing/usage/client", params=date_params)
             return _single_result(result, Usage, raw=raw)
 

@@ -264,3 +264,146 @@ class TestTenantNameResolutionAlerts:
         alert_calls = [c for c in calls if c["path"] == "/v1/alert/history/info"]
         assert alert_calls
         assert alert_calls[0]["params"].get("tenants") == _FRONTIER_ID
+
+
+# ---------------------------------------------------------------------------
+# Regression test: ordering bug — entity resolution must use resolved tenant ID
+# ---------------------------------------------------------------------------
+
+_CAMPUS_DEVICE_ID = "456789012345678"
+_CAMPUS_DEVICE_NAME = "campus-dininghall-as01v"
+
+_DEVICE_INFO_PAYLOAD_CAMPUS = {
+    "data": [
+        {
+            "id": _CAMPUS_DEVICE_ID,
+            "type": "device",
+            "attributes": {
+                "deviceName": "campus-dininghall-as01v.frontier.edu",
+                "ipAddresses": ["192.168.10.5"],
+                "deviceType": "switch",
+                "onlineStatus": "online",
+                "makeModel": "Aruba",
+                "vendorName": "Aruba",
+            },
+        }
+    ],
+    "links": {},
+    "meta": {},
+}
+
+
+class TestTenantResolvedBeforeEntityResolution:
+    """Regression: auvik_list_devices(device=<name>, tenants=<name>) was broken.
+
+    The bug: resolve_device was called with the raw tenant *name* (e.g. "frontier")
+    instead of the resolved tenant *ID*.  The Auvik API rejects a name in the
+    ``tenants`` query-param with HTTP 400, returning empty items, so the device
+    resolution failed with NotFound even though the device exists.
+
+    The fix: resolve tenants FIRST at the TOP of the tool, then use the resolved
+    ID for all downstream calls (entity resolution AND final query params).
+    """
+
+    async def test_device_found_when_tenant_name_given(self):
+        """auvik_list_devices(device='campus-dininghall-as01v', tenants='frontier')
+        must resolve the tenant name → ID, use that ID during device lookup,
+        find the device, and return it (NOT a NotFound).
+        """
+        # This handler records which tenants= value each outgoing request carries.
+        # The device-info endpoint serves the campus device ONLY when tenants=ID.
+        # When called with tenants=name (the bug), it returns empty (mimics real API).
+        seen_params = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            params = dict(req.url.params)
+            seen_params.append({"path": req.url.path, "params": params})
+
+            if req.url.path == "/v1/tenants":
+                return httpx.Response(200, json=_TENANT_LIST_PAYLOAD)
+
+            if req.url.path == "/v1/inventory/device/info":
+                # Simulate real Auvik: only return device when tenants param is the ID
+                if params.get("tenants") == _FRONTIER_ID:
+                    return httpx.Response(200, json=_DEVICE_INFO_PAYLOAD_CAMPUS)
+                # Name (or missing) → empty result (mimics API rejecting name)
+                return httpx.Response(200, json=_EMPTY_LIST_PAYLOAD)
+
+            # Single-device fetch after name resolution: /v1/inventory/device/info/{id}
+            if req.url.path == f"/v1/inventory/device/info/{_CAMPUS_DEVICE_ID}":
+                return httpx.Response(
+                    200,
+                    json={"data": _DEVICE_INFO_PAYLOAD_CAMPUS["data"][0], "links": {}, "meta": {}},
+                )
+
+            return httpx.Response(404, json={"errors": [{"title": "Not Found"}]})
+
+        client = _client_for(handler)
+        result_str = await auvik_list_devices(
+            client,
+            device=_CAMPUS_DEVICE_NAME,
+            tenants=_FRONTIER_DOMAIN,
+        )
+        await client.close()
+
+        data = json.loads(result_str)
+
+        # The device must be found — not a NotFound error
+        assert "error" not in data, (
+            f"Got error (ordering bug still present): {data}\n"
+            f"Calls made: {seen_params}"
+        )
+
+        # The device-info calls must all carry the resolved tenant ID, never the name
+        device_info_calls = [
+            c for c in seen_params if c["path"] == "/v1/inventory/device/info"
+        ]
+        assert device_info_calls, "Expected at least one call to /v1/inventory/device/info"
+        for call in device_info_calls:
+            tenants_param = call["params"].get("tenants")
+            assert tenants_param == _FRONTIER_ID, (
+                f"device-info call carried tenants={tenants_param!r} "
+                f"instead of ID {_FRONTIER_ID!r} — ordering bug not fixed"
+            )
+
+    async def test_tenant_id_passthrough_with_device_name(self):
+        """When tenants is already an ID, no /v1/tenants call; device still resolves."""
+        seen_params = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            params = dict(req.url.params)
+            seen_params.append({"path": req.url.path, "params": params})
+
+            if req.url.path == "/v1/tenants":
+                return httpx.Response(200, json=_TENANT_LIST_PAYLOAD)
+
+            if req.url.path == "/v1/inventory/device/info":
+                if params.get("tenants") == _FRONTIER_ID:
+                    return httpx.Response(200, json=_DEVICE_INFO_PAYLOAD_CAMPUS)
+                return httpx.Response(200, json=_EMPTY_LIST_PAYLOAD)
+
+            # Single-device fetch after name resolution: /v1/inventory/device/info/{id}
+            if req.url.path == f"/v1/inventory/device/info/{_CAMPUS_DEVICE_ID}":
+                return httpx.Response(
+                    200,
+                    json={"data": _DEVICE_INFO_PAYLOAD_CAMPUS["data"][0], "links": {}, "meta": {}},
+                )
+
+            return httpx.Response(404, json={"errors": [{"title": "Not Found"}]})
+
+        client = _client_for(handler)
+        result_str = await auvik_list_devices(
+            client,
+            device=_CAMPUS_DEVICE_NAME,
+            tenants=_FRONTIER_ID,  # already an ID
+        )
+        await client.close()
+
+        data = json.loads(result_str)
+        assert "error" not in data, f"Unexpected error: {data}"
+
+        # /v1/tenants must NOT have been called (ID is idempotent)
+        tenant_calls = [c for c in seen_params if c["path"] == "/v1/tenants"]
+        assert tenant_calls == [], (
+            f"Expected NO /v1/tenants call when tenants is already an ID; got {tenant_calls}"
+        )

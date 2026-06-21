@@ -156,7 +156,13 @@ async def auvik_list_alerts(
             result = await client.get(f"{base_path}/{alert_id}")
             return _single_result(result, Alert, raw=raw)
 
-        # 2. Resolve entity identifier
+        # 2. Resolve tenant name → ID early so all downstream calls use the ID
+        if tenants:
+            tenants, terr = await resolve_tenants(client, tenants)
+            if terr:
+                return json.dumps(terr)
+
+        # 3. Resolve entity identifier
         raw_params: dict = {}
         if entity is not None:
             if looks_like_id(entity):
@@ -168,7 +174,7 @@ async def auvik_list_alerts(
                     return json.dumps(err)
                 raw_params["filter[entityId]"] = entity_id
 
-        # 3. Build list params
+        # 4. Build list params
         if severity:
             raw_params["filter[severity]"] = severity
         if status:
@@ -187,10 +193,7 @@ async def auvik_list_alerts(
         if alert_specification_id:
             raw_params["filter[alertSpecificationId]"] = alert_specification_id
         if tenants:
-            resolved_tenants, terr = await resolve_tenants(client, tenants)
-            if terr:
-                return json.dumps(terr)
-            raw_params["tenants"] = resolved_tenants
+            raw_params["tenants"] = tenants
         if page_first is not None:
             raw_params["page[first]"] = page_first
 
