@@ -116,5 +116,49 @@
 
 ---
 
+## Turn 3 — Spec revision per operator feedback (ID resolution + pagination)
+
+**Asked**
+
+> The spec often assumes the user knows an Auvik id (device/site) — rarely the
+> case. Restate so tools take what the user gives and find the appropriate
+> id(s). Also ensure tools handle API pagination well — there are often more
+> results than one page allows.
+
+**Decided**
+
+- **Identifier resolution** made a first-class cross-cutting capability
+  (new FR-024/025/026): every single-entity / entity-scoped tool accepts a
+  name / hostname / IP / partial string and resolves it to the Auvik ID
+  internally via `filter[...Name]` / IP endpoints. Ambiguous → return
+  candidate matches for disambiguation (no auto-select); no match → clear
+  message; already-an-ID → use directly. "Site" maps to tenant/client and/or
+  network (Auvik has no first-class site object) — resolver handles both.
+- Rewrote acceptance scenarios across all 4 user stories to use human names
+  (e.g., "core-sw-01", "Gi0/1 on core-sw-01", "the Dallas client",
+  "Guest VLAN network") instead of opaque IDs; added an ambiguous-match
+  disambiguation scenario (US1 #3).
+- **Full pagination** strengthened (new FR-019a): list tools transparently
+  follow the `next` cursor and aggregate ALL pages up to a safety cap
+  (`AUVIK_MAX_PAGES`), never silently returning page one; truncation is
+  flagged with a continuation cursor. Resolution searches walk all pages too
+  (FR-026). New env var `AUVIK_MAX_PAGES`.
+- Added SC-007 (resolution: zero operator-supplied IDs) and SC-008 (multi-page
+  completeness). Added `ResolutionCandidate` internal entity. Updated edge
+  cases (ambiguous / no-match / spans-pages / already-an-ID) and assumptions.
+- Plan-phase note: implies a shared `utils/resolver.py` and robust
+  `utils/pagination.py` (auto-walk) — captured for `plan.md`/`data-model.md`.
+  Tool count unchanged (~20; resolution is internal, not a new tool).
+
+**Created/Modified**
+
+- `specs/036-auvik-mcp-server/spec.md` (revised: FR-019a, FR-024–026, SC-007/008,
+  rewritten scenarios, edge cases, assumptions)
+- `specs/036-auvik-mcp-server/gait-session-log.md` (this file)
+
+**Commit:** `docs(036): revise spec — name/IP id resolution + full pagination`
+
+---
+
 <!-- Subsequent turns (plan/research, implementation, coherence,
      verification) appended below as the session progresses. -->
