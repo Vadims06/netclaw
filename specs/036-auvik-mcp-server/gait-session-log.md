@@ -273,7 +273,7 @@ resolver x3, 2 spec fixes).
   (step 48b, TOTAL_STEPS 55→56), `ui/netclaw-visual/server.js` (catalog+ENV_MAP,
   node-check OK), `README.md` (+1 MCP, +4 skills, counts bumped),
   `SOUL.md`/`SOUL-SKILLS.md`, `TOOLS.md`. `.gitignore` unignore added in Phase A.
-- **Phase H (verification)** — full suite 348 passing; `openclaw.json` valid +
+- **Phase H (verification)** — full suite 356 passing; `openclaw.json` valid +
   auvik-mcp registered with 7 env keys; HUD JS valid; 4 skills present;
   regression: existing suzieq server still parses. Coherence checklist complete.
 - **Milestone (XVII)** — blog draft `docs/blog/2026-06-21-auvik-mcp.md`;
@@ -285,14 +285,34 @@ all other units verified clean by reading the code + tests.
 
 ---
 
+## Turn 7 — Final holistic code review + fixes
+
+- Dispatched a final `pr-review-toolkit:code-reviewer` over the whole server
+  source (`ad541cb..HEAD`). Confirmed read-only invariant, cross-module
+  consistency, contract fidelity, and that tests assert real transport behavior.
+- Three genuine findings fixed (fix implementer + 8 new tests):
+  1. **(critical)** `filter[stateKnown]` was passed as a raw Python bool →
+     serialized `"True"`; now `"true"/"false"` like every other bool filter.
+  2. **(important)** mid-pagination errors from `get_all` were dropped by each
+     module's `_list_result`; now surfaced as `error: {code: UpstreamError}`
+     alongside the partial items.
+  3. **(important)** `auvik_list_components` silently ignored a non-ID
+     `component` name; now returns a `ValidationError` (matching the interface
+     tool), no silent unfiltered query.
+- Result: **356 tests passing**; read-only re-confirmed (no mutating HTTP).
+
+**Commit:** `ef57829`.
+
+---
+
 ## Session summary (Principle IV — session-end commit)
 
 | Field | Value |
 |-------|-------|
 | Feature | 036 — Auvik API MCP server (read-only network monitoring) |
-| Outcome | **Complete.** 20 read-only tools, 4 skills, 348 unit tests passing, all Principle XI artifacts updated; ready for PR. |
+| Outcome | **Complete.** 20 read-only tools, 4 skills, 356 unit tests passing, all Principle XI artifacts updated; ready for PR. |
 | Workflow | SDD (spec→plan→tasks→implement) + superpowers brainstorming/writing-plans/subagent-driven-development |
-| Tests | 348 passing (utils, client w/ MockTransport, resolver, models, 20 tools, server registration/read-only) |
+| Tests | 356 passing (utils, client w/ MockTransport, resolver, models, 20 tools, server registration/read-only) |
 | Constitution | Read-only (I/II), GAIT logged (IV), FastMCP stdio (V), single-purpose skills (VII/XII), coherence (XI), creds-from-env (XIII), no external-comms writes (XIV), no regression (XV), SDD (XVI), blog drafted (XVII) |
 | Open (operator) | Live smoke vs a real Auvik tenant (needs creds); publish blog manually |
 | Commits | `334d3f7` (spec) … `878719d` (coherence) + finalization on branch `claude/epic-heyrovsky-5c9b55` |
