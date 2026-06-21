@@ -243,5 +243,57 @@ resolver x3, 2 spec fixes).
 
 ---
 
-<!-- Subsequent turns (models, tools, server, skills, coherence, verification)
-     appended below. -->
+## Turn 6 — Implementation Phases D–H (subagent-driven) + finalization
+
+**Done (each unit: implementer subagent + controller spec/quality review)**
+
+- **Phase D (models)** — `models/responses.py`: 16 JSON:API→dataclass mappers
+  (`from_resource`) + `to_dict`/`to_json` (TOON). 154 tests.
+- **Phase E (tools, 20 across 4 modules)** — convention: testable
+  `async def auvik_xxx(client, *, params)` cores; ValidationError before any
+  HTTP call; resolver via `resolve_or_error`; TOON output; try/except envelopes.
+  - `tools/inventory.py` (9: devices/networks/interfaces/components/tenants/
+    entity notes+audits/usage/verify) — 215 tests.
+  - `tools/alerts.py` (1) + `tools/lifecycle.py` (3) — alert `detectedTime*`
+    sent as ISO strings despite the boolean spec-bug (explicit test). 274 tests.
+  - `tools/performance.py` (7: device/interface/service/component/oid stats +
+    snmp poller settings/history) — per-category statId enum + required
+    from_time/interval/tenants validation; `_resolve_time` relative shorthand.
+    331 tests.
+- **Phase E server** — `auvik_mcp_server.py`: FastMCP, 20 `@mcp.tool()` wrappers
+  over the cores, singleton client + sliding-window limiter, fail-fast on
+  missing creds. README + server `.env.example`. 348 tests.
+  - *Independent verification (SC-002):* 20 tools, zero write-verb tools,
+    `AuvikClient` has no post/put/delete/patch, source grep finds no mutating
+    HTTP call → read-only confirmed.
+- **Phase F (skills)** — 4 `SKILL.md` (auvik-inventory/network-alerts/
+  lifecycle/performance), house format, gait-session-tracking cross-ref.
+- **Phase G (coherence, Principle XI)** — registered auvik-mcp + 4 skills across
+  `config/openclaw.json` (valid JSON), root `.env.example`, `scripts/install.sh`
+  (step 48b, TOTAL_STEPS 55→56), `ui/netclaw-visual/server.js` (catalog+ENV_MAP,
+  node-check OK), `README.md` (+1 MCP, +4 skills, counts bumped),
+  `SOUL.md`/`SOUL-SKILLS.md`, `TOOLS.md`. `.gitignore` unignore added in Phase A.
+- **Phase H (verification)** — full suite 348 passing; `openclaw.json` valid +
+  auvik-mcp registered with 7 env keys; HUD JS valid; 4 skills present;
+  regression: existing suzieq server still parses. Coherence checklist complete.
+- **Milestone (XVII)** — blog draft `docs/blog/2026-06-21-auvik-mcp.md`;
+  WordPress MCP not configured in this shell → publish manually.
+
+**Review outcomes:** two real defects caught and fixed before propagation
+(hallucinated device/interface enums; non-existent name-filter assumption);
+all other units verified clean by reading the code + tests.
+
+---
+
+## Session summary (Principle IV — session-end commit)
+
+| Field | Value |
+|-------|-------|
+| Feature | 036 — Auvik API MCP server (read-only network monitoring) |
+| Outcome | **Complete.** 20 read-only tools, 4 skills, 348 unit tests passing, all Principle XI artifacts updated; ready for PR. |
+| Workflow | SDD (spec→plan→tasks→implement) + superpowers brainstorming/writing-plans/subagent-driven-development |
+| Tests | 348 passing (utils, client w/ MockTransport, resolver, models, 20 tools, server registration/read-only) |
+| Constitution | Read-only (I/II), GAIT logged (IV), FastMCP stdio (V), single-purpose skills (VII/XII), coherence (XI), creds-from-env (XIII), no external-comms writes (XIV), no regression (XV), SDD (XVI), blog drafted (XVII) |
+| Open (operator) | Live smoke vs a real Auvik tenant (needs creds); publish blog manually |
+| Commits | `334d3f7` (spec) … `878719d` (coherence) + finalization on branch `claude/epic-heyrovsky-5c9b55` |
+
