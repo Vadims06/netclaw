@@ -42,6 +42,7 @@ All credentials are in `~/.openclaw/.env`. Never put credentials in skill files 
 - Token Optimization  → ANTHROPIC_API_KEY (reused), NETCLAW_TOKEN_PRICING_OVERRIDE (optional)
 - GitLab MCP          → GITLAB_PERSONAL_ACCESS_TOKEN, GITLAB_API_URL (default: gitlab.com)
 - Jenkins MCP         → JENKINS_URL, JENKINS_AUTH_BASE64 (remote HTTP, Basic Auth)
+- Auvik              → AUVIK_USERNAME, AUVIK_API_KEY, AUVIK_BASE_URL (optional)
 ```
 
 ## GitLab MCP Server

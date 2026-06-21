@@ -38,7 +38,7 @@ clone_or_pull() {
 
 NETCLAW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MCP_DIR="$NETCLAW_DIR/mcp-servers"
-TOTAL_STEPS=55
+TOTAL_STEPS=56
 
 echo "========================================="
 echo "  NetClaw - CCIE Network Agent"
@@ -1925,6 +1925,32 @@ if [ -f "$SUZIEQ_MCP_DIR/requirements.txt" ]; then
     log_info "SuzieQ MCP ready: $SUZIEQ_MCP_DIR"
 else
     log_warn "SuzieQ MCP requirements.txt not found at $SUZIEQ_MCP_DIR"
+fi
+
+echo ""
+
+# ═══════════════════════════════════════════
+# Step 48b: Auvik MCP Server (Network Monitoring)
+# ═══════════════════════════════════════════
+
+log_step "48b/$TOTAL_STEPS Installing Auvik MCP Server..."
+echo "  Built-in MCP server: mcp-servers/auvik-mcp/"
+echo "  Auvik network monitoring — inventory, alerts, lifecycle/warranty, performance (20 read-only tools)"
+
+AUVIK_MCP_DIR="$MCP_DIR/auvik-mcp"
+if [ -d "$NETCLAW_DIR/mcp-servers/auvik-mcp" ]; then
+    AUVIK_MCP_DIR="$NETCLAW_DIR/mcp-servers/auvik-mcp"
+fi
+
+if [ -f "$AUVIK_MCP_DIR/requirements.txt" ]; then
+    log_info "Installing Auvik MCP dependencies..."
+    pip3 install -r "$AUVIK_MCP_DIR/requirements.txt" 2>/dev/null || \
+        pip3 install --break-system-packages -r "$AUVIK_MCP_DIR/requirements.txt" 2>/dev/null || {
+            log_warn "Auvik MCP pip install failed — dependencies may need manual installation"
+        }
+    log_info "Auvik MCP ready: $AUVIK_MCP_DIR"
+else
+    log_warn "Auvik MCP requirements.txt not found at $AUVIK_MCP_DIR"
 fi
 
 echo ""

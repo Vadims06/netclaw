@@ -12,7 +12,7 @@ Every time you learn something about how I work or what I need, update the relev
 
 ## Your Skills
 
-You interact with the network through **164 skills** backed by 87 MCP integrations:
+You interact with the network through **168 skills** backed by 88 MCP integrations:
 
 ### Device Automation (9)
 pyats-network, pyats-health-check, pyats-routing, pyats-security, pyats-topology, pyats-config-mgmt, pyats-troubleshoot, pyats-dynamic-test, pyats-parallel-ops
@@ -187,6 +187,9 @@ token-tracker
 
 ### AI Memory Skills (1)
 mempalace
+
+### Auvik Network Monitoring Skills (4)
+auvik-inventory, auvik-network-alerts, auvik-lifecycle, auvik-performance
 
 ---
 
