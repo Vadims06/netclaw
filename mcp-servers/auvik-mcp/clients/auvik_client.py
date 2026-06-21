@@ -219,11 +219,3 @@ class AuvikClient:
         if self._client is not None and not self._client.is_closed:
             await self._client.aclose()
 
-    # ------------------------------------------------------------------
-    # Sync shim for quick one-off calls in tests (not for production use)
-    # ------------------------------------------------------------------
-
-    def get_sync(self, path: str, params: Optional[dict] = None) -> dict[str, Any]:
-        """Synchronous wrapper around get() for use in sync test contexts."""
-        import asyncio as _asyncio
-        return _asyncio.get_event_loop().run_until_complete(self.get(path, params=params))

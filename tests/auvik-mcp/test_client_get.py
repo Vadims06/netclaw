@@ -36,7 +36,7 @@ def _decode_basic(auth_header: str) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 
-def test_get_200_returns_success_dict():
+async def test_get_200_returns_success_dict():
     """A 200 response returns success=True with the parsed JSON body."""
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -50,7 +50,8 @@ def test_get_200_returns_success_dict():
         transport=mt,
     )
 
-    result = client.get_sync("/v1/authentication/verify")
+    result = await client.get("/v1/authentication/verify")
+    await client.close()
 
     assert result["success"] is True
     assert result["error"] is None
