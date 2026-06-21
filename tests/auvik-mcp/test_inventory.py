@@ -1183,3 +1183,170 @@ class TestVerifyCredentials:
         await client.close()
 
         assert captured["params"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Fix 1: state_known bool serialized as lowercase string
+# ---------------------------------------------------------------------------
+
+
+class TestStateKnownBoolSerialization:
+    async def test_state_known_true_sends_lowercase_string(self):
+        """state_known=True → filter[stateKnown]='true' (not Python 'True')."""
+        captured = {}
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            captured["params"] = dict(req.url.params)
+            return httpx.Response(200, json=_make_list_payload([]))
+
+        client = _client_for(handler)
+        await auvik_list_devices(client, state_known=True)
+        await client.close()
+
+        assert captured["params"].get("filter[stateKnown]") == "true"
+
+    async def test_state_known_false_sends_lowercase_string(self):
+        """state_known=False → filter[stateKnown]='false' (not Python 'False')."""
+        captured = {}
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            captured["params"] = dict(req.url.params)
+            return httpx.Response(200, json=_make_list_payload([]))
+
+        client = _client_for(handler)
+        await auvik_list_devices(client, state_known=False)
+        await client.close()
+
+        assert captured["params"].get("filter[stateKnown]") == "false"
+
+    async def test_state_known_true_detail_level_detail(self):
+        """state_known=True with detail_level=detail → filter[stateKnown]='true'."""
+        captured = {}
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            captured["params"] = dict(req.url.params)
+            return httpx.Response(200, json=_make_list_payload([]))
+
+        client = _client_for(handler)
+        await auvik_list_devices(client, detail_level="detail", state_known=True)
+        await client.close()
+
+        assert captured["params"].get("filter[stateKnown]") == "true"
+
+    async def test_state_known_true_detail_level_extended(self):
+        """state_known=True with detail_level=extended → filter[stateKnown]='true'."""
+        captured = {}
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            captured["params"] = dict(req.url.params)
+            return httpx.Response(200, json=_make_list_payload([]))
+
+        client = _client_for(handler)
+        await auvik_list_devices(client, detail_level="extended", device_type="switch", state_known=True)
+        await client.close()
+
+        assert captured["params"].get("filter[stateKnown]") == "true"
+
+    async def test_state_known_none_omitted(self):
+        """state_known=None (default) → filter[stateKnown] absent from params."""
+        captured = {}
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            captured["params"] = dict(req.url.params)
+            return httpx.Response(200, json=_make_list_payload([]))
+
+        client = _client_for(handler)
+        await auvik_list_devices(client)
+        await client.close()
+
+        assert "filter[stateKnown]" not in captured["params"]
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: mid-pagination errors surfaced by _list_result
+# ---------------------------------------------------------------------------
+
+
+class TestMidPaginationErrorSurfaced:
+    async def test_mid_pagination_503_surfaced_with_partial_items(self):
+        """Page 1 succeeds (links.next set); page 2 returns 503.
+        Result includes partial items from page 1 AND error with code UpstreamError.
+        """
+        call_count = 0
+        page1_url = f"{DEFAULT_BASE_URL}/v1/inventory/device/info"
+        # The MockTransport does not process base_url; path routing is by req.url.path.
+        # links.next must be an absolute URL that the client will follow as-is.
+        next_page_url = f"{DEFAULT_BASE_URL}/v1/inventory/device/info?page%5Bcursor%5D=abc123"
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First page: one item + links.next to trigger pagination
+                payload = {
+                    "data": [_device_item("111111", "router-01")],
+                    "links": {"next": next_page_url},
+                    "meta": {},
+                }
+                return httpx.Response(200, json=payload)
+            else:
+                # Second page (following links.next): simulate upstream 503
+                return httpx.Response(503, text="Service Unavailable")
+
+        client = _client_for(handler)
+        result_str = await auvik_list_devices(client)
+        await client.close()
+
+        assert call_count == 2, "Handler should be called twice (page 1 + page 2)"
+        data = json.loads(result_str)
+
+        # Partial items from page 1 must be present
+        assert "items" in data
+        assert len(data["items"]) == 1
+        assert data["items"][0]["device_name"] == "router-01"
+
+        # Error must be surfaced
+        assert "error" in data
+        assert data["error"]["code"] == "UpstreamError"
+        assert data["error"]["message"]  # non-empty
+
+
+# ---------------------------------------------------------------------------
+# Fix 3: auvik_list_components rejects non-ID component values
+# ---------------------------------------------------------------------------
+
+
+class TestListComponentsNonIdValidation:
+    async def test_non_id_component_returns_validation_error_no_http_call(self):
+        """component='CPU 0' (not an Auvik ID) → ValidationError, no HTTP call."""
+        called = False
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            nonlocal called
+            called = True
+            return httpx.Response(200, json=_make_single_payload(_component_item()))
+
+        client = _client_for(handler)
+        result_str = await auvik_list_components(client, component="CPU 0")
+        await client.close()
+
+        assert not called, "Handler should NOT be invoked for a non-ID component"
+        data = json.loads(result_str)
+        assert data["error"]["code"] == "ValidationError"
+        assert "Auvik numeric ID" in data["error"]["message"]
+
+    async def test_id_component_makes_single_fetch(self):
+        """component='242216279026467843' (looks like Auvik ID) → GET /component/info/{id}."""
+        captured = {}
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            captured["path"] = req.url.path
+            return httpx.Response(200, json=_make_single_payload(_component_item("242216279026467843")))
+
+        client = _client_for(handler)
+        result_str = await auvik_list_components(client, component="242216279026467843")
+        await client.close()
+
+        assert captured["path"] == "/v1/inventory/component/info/242216279026467843"
+        data = json.loads(result_str)
+        assert "error" not in data

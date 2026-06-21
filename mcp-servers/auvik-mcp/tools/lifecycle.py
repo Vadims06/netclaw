@@ -42,23 +42,36 @@ def _upstream_error(exc: Exception) -> str:
 
 
 def _list_result(page_result: dict, model_cls, raw: bool = False) -> str:
-    """Shape a get_all page_result into a tool response string."""
+    """Shape a get_all page_result into a tool response string.
+
+    If get_all encountered a mid-pagination error, surfaces it as an "error"
+    key alongside any partial items already collected.
+    """
     items = page_result.get("items", [])
 
     if raw:
-        return json.dumps({
+        result = {
             "items": items,
             "truncated": page_result.get("truncated", False),
             "next_cursor": page_result.get("next_cursor"),
-        }, default=str)
+        }
+    else:
+        models = [model_cls.from_resource(item) for item in items]
+        items_dicts = json.loads(to_json(models)) if models else []
+        result = {
+            "items": items_dicts,
+            "truncated": page_result.get("truncated", False),
+            "next_cursor": page_result.get("next_cursor"),
+        }
 
-    models = [model_cls.from_resource(item) for item in items]
-    items_dicts = json.loads(to_json(models)) if models else []
-    return json.dumps({
-        "items": items_dicts,
-        "truncated": page_result.get("truncated", False),
-        "next_cursor": page_result.get("next_cursor"),
-    }, default=str)
+    if page_result.get("error"):
+        result["error"] = {
+            "code": "UpstreamError",
+            "message": page_result["error"],
+            "details": None,
+        }
+
+    return json.dumps(result, default=str)
 
 
 def _single_result(get_result: dict, model_cls, raw: bool = False) -> str:

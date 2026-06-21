@@ -68,24 +68,35 @@ def _list_result(page_result: dict, model_cls, raw: bool = False) -> str:
     When raw=True, return the raw aggregated items list.
     Otherwise, convert each item via model_cls.from_resource and to_json.
     Always includes pagination meta (truncated, next_cursor).
+    If get_all encountered a mid-pagination error, surfaces it as an "error"
+    key alongside any partial items already collected.
     """
     items = page_result.get("items", [])
 
     if raw:
-        return json.dumps({
+        result = {
             "items": items,
             "truncated": page_result.get("truncated", False),
             "next_cursor": page_result.get("next_cursor"),
-        }, default=str)
+        }
+    else:
+        models = [model_cls.from_resource(item) for item in items]
+        # Build the structure manually so we can include pagination meta
+        items_dicts = json.loads(to_json(models)) if models else []
+        result = {
+            "items": items_dicts,
+            "truncated": page_result.get("truncated", False),
+            "next_cursor": page_result.get("next_cursor"),
+        }
 
-    models = [model_cls.from_resource(item) for item in items]
-    # Build the structure manually so we can include pagination meta
-    items_dicts = json.loads(to_json(models)) if models else []
-    return json.dumps({
-        "items": items_dicts,
-        "truncated": page_result.get("truncated", False),
-        "next_cursor": page_result.get("next_cursor"),
-    }, default=str)
+    if page_result.get("error"):
+        result["error"] = {
+            "code": "UpstreamError",
+            "message": page_result["error"],
+            "details": None,
+        }
+
+    return json.dumps(result, default=str)
 
 
 def _single_result(get_result: dict, model_cls, raw: bool = False) -> str:
@@ -218,14 +229,14 @@ async def auvik_list_devices(
             if networks:
                 raw_params["filter[networks]"] = networks
             if state_known is not None:
-                raw_params["filter[stateKnown]"] = state_known
+                raw_params["filter[stateKnown]"] = "true" if state_known else "false"
         elif detail_level == "detail":
             if modified_after:
                 raw_params["filter[modifiedAfter]"] = modified_after
             if not_seen_since:
                 raw_params["filter[notSeenSince]"] = not_seen_since
             if state_known is not None:
-                raw_params["filter[stateKnown]"] = state_known
+                raw_params["filter[stateKnown]"] = "true" if state_known else "false"
         else:  # extended
             raw_params["filter[deviceType]"] = device_type  # already validated non-None
             if modified_after:
@@ -233,7 +244,7 @@ async def auvik_list_devices(
             if not_seen_since:
                 raw_params["filter[notSeenSince]"] = not_seen_since
             if state_known is not None:
-                raw_params["filter[stateKnown]"] = state_known
+                raw_params["filter[stateKnown]"] = "true" if state_known else "false"
 
         if tenants:
             raw_params["tenants"] = tenants
@@ -433,10 +444,15 @@ async def auvik_list_components(
     try:
         base_path = "/v1/inventory/component/info"
 
-        # Single component by ID
-        if component is not None and looks_like_id(component):
-            result = await client.get(f"{base_path}/{component}")
-            return _single_result(result, Component, raw=raw)
+        # Single component by ID — or ValidationError for non-ID names
+        if component is not None:
+            if looks_like_id(component):
+                result = await client.get(f"{base_path}/{component}")
+                return _single_result(result, Component, raw=raw)
+            return _validation_error(
+                f"component={component!r} does not look like an Auvik ID. "
+                "Component name resolution is not supported; pass the Auvik numeric ID."
+            )
 
         # 2. Resolve device
         raw_params: dict = {}
