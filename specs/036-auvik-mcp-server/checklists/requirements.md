@@ -42,7 +42,7 @@
 - [x] SC-006 4 skills resolve tools + TOON output → server registration test (20 tools) + skills reference real tools
 - [x] SC-007 resolution candidates on ambiguity → `test_resolver.py`
 - [x] SC-008 multi-page completeness → `test_client_get_all.py`
-- [ ] SC-001 name/IP ≤3 turns → covered by unit tests; **final confirmation = operator live smoke (H3)**
+- [x] SC-001 name/IP ≤3 turns → unit tests + **live smoke (H3) against a real us2 tenant**: real device/tenant data returned; tenant-name resolution added after smoke found `tenants` needs IDs
 
 ## D. Constitution gates
 - [x] Read-only confirmed (no POST/PUT/DELETE/PATCH tool or client method).
@@ -51,5 +51,5 @@
 - [x] Spec exists (XVI); GAIT logged (IV); milestone blog drafted (XVII).
 
 ## Outstanding (operator)
-- **H3 live smoke** against a real Auvik tenant (needs real `AUVIK_USERNAME`/`AUVIK_API_KEY`) — run `quickstart.md` smokes 1–8, record results in the GAIT log.
+- ~~**H3 live smoke**~~ — DONE: validated against a real us2 tenant (verify, tenants, devices with full attribute mapping); two fixes landed (empty-200 body, tenant-name resolution). See GAIT Turn 8.
 - **Publish** the WordPress blog draft manually (MCP not configured here).

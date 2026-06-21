@@ -46,3 +46,4 @@ python mcp-servers/auvik-mcp/auvik_mcp_server.py
 - **Empty results for a known device** → it may live under a different tenant; pass `tenants` or check `auvik_list_tenants()`.
 - **`ValidationError: device_type required`** → `detail_level="extended"` requires `device_type` (Auvik mandates `filter[deviceType]`).
 - **Truncated list** → raise `AUVIK_MAX_PAGES`, or narrow filters.
+- **Slow / timed-out broad query** (multi-client keys) → an unscoped query across all client tenants can exceed `AUVIK_TIMEOUT`. Scope it with `tenants=` (accepts a tenant **name/domain-prefix** — resolved to the tenant ID automatically — or a raw tenant ID), or raise `AUVIK_TIMEOUT`. Use `auvik_list_tenants` to see available tenants. *(Validated against a live us2 tenant.)*

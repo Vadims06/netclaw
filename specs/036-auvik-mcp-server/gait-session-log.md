@@ -305,12 +305,48 @@ all other units verified clean by reading the code + tests.
 
 ---
 
+## Turn 8 — Live smoke against a real Auvik tenant (H3) + 2 fixes
+
+**Operator provided** real API credentials for tenant region us2 (key NOT
+persisted to any file — passed via env only; verified absent from all files).
+
+**Findings & fixes (live API validated the stack and caught 2 real issues):**
+
+1. **Base URL** — the portal host (`redeyecares.us2.my.auvik.com`) 404s; the
+   API host is `auvikapi.us2.my.auvik.com`. Region configurability (`AUVIK_BASE_URL`)
+   worked; creds authenticated there.
+2. **(fix) Empty/non-JSON 2xx crash** — `/authentication/verify` returns an
+   empty 200 body; the client called `resp.json()` unconditionally →
+   `JSONDecodeError`. Fixed: empty 2xx → `data=None`; non-JSON 2xx →
+   `{"raw": text}`; `verify_credentials` now reports `{"verified": true}`.
+   +2 regression tests. (commit `…` empty-body fix)
+3. **(fix) `tenants` requires IDs, not names** — `tenants=frontier`
+   (domain-prefix) → HTTP 400 "Invalid tenant parameter". The contract promised
+   name resolution but tools passed `tenants` raw. Added `resolve_tenants()` and
+   wired it into all 18 tenant sites (name/domain-prefix → tenant ID; ID
+   passthrough; ambiguous/not-found → error). +20 tests. (commit `5e6f261`)
+   - The final-review **error-surfacing fix** was validated live too: the
+     unscoped device timeout and the tenant-400 both surfaced as
+     `UpstreamError`/`Ambiguous` envelopes, not silent empty results.
+4. **Confirmed working with real data:** `verify` → verified; `list_tenants`
+   → real client tenants with correct field mapping; `list_devices`
+   `tenants=698055778108510973` → a real Cisco C9200L switch fully mapped
+   (device_type/make_model/vendor/IOS/serial/IPs/online_status). TOON shim
+   fell back to JSON cleanly (no `netclaw_tokens` in this shell).
+   - *Operational note:* broad unscoped queries across a multiClient key are
+     slow (>30s) — scope with `tenants=` (now accepts a name) or raise
+     `AUVIK_TIMEOUT`. Documented in quickstart troubleshooting.
+
+**Result:** 378 tests passing; SC-001/H3 live smoke satisfied; read-only intact.
+
+---
+
 ## Session summary (Principle IV — session-end commit)
 
 | Field | Value |
 |-------|-------|
 | Feature | 036 — Auvik API MCP server (read-only network monitoring) |
-| Outcome | **Complete.** 20 read-only tools, 4 skills, 356 unit tests passing, all Principle XI artifacts updated; ready for PR. |
+| Outcome | **Complete.** 20 read-only tools, 4 skills, 378 unit tests passing + live smoke vs a real us2 tenant, all Principle XI artifacts updated; ready for PR. |
 | Workflow | SDD (spec→plan→tasks→implement) + superpowers brainstorming/writing-plans/subagent-driven-development |
 | Tests | 356 passing (utils, client w/ MockTransport, resolver, models, 20 tools, server registration/read-only) |
 | Constitution | Read-only (I/II), GAIT logged (IV), FastMCP stdio (V), single-purpose skills (VII/XII), coherence (XI), creds-from-env (XIII), no external-comms writes (XIV), no regression (XV), SDD (XVI), blog drafted (XVII) |
