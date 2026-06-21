@@ -22,7 +22,7 @@
 | Operator | Ben / John (RedEye Networks) |
 | Spec | `specs/036-auvik-mcp-server/` |
 | Feature | 036 — Auvik API MCP Server (read-only network monitoring) |
-| Status | IN PROGRESS — brainstorming/design |
+| Status | COMPLETE — 356 tests passing, all Principle XI artifacts updated, ready for PR |
 
 ---
 
