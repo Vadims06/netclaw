@@ -341,12 +341,43 @@ persisted to any file — passed via env only; verified absent from all files).
 
 ---
 
+## Turn 9 — Full smoke re-run after fixes (operator-prompted) → caught ordering bug
+
+Operator asked: "Did you rerun the entire smoke test after all of the changes?"
+Honest answer: no — after the tenant-name fix only the unit suite was re-run.
+Ran the **full** live smoke (verify → tenants → tenant-name-scoped devices →
+**device-name + tenant-name together** → alerts → lifecycle → warranty).
+
+**Bug caught at step 4 (device-name + tenant-name):** tools resolved the entity
+identifier (device/network) BEFORE resolving the `tenants` name, so
+`resolve_device(..., tenants="frontier")` sent the raw tenant NAME into its
+internal `/device/info` lookup → Auvik 400 → empty → misleading `NotFound`,
+even though the device exists. The prior fix wired tenant resolution only into
+the final query, not the pre-resolution step.
+
+**Fix (commit `2c183a5`):** resolve `tenants` ONCE at the top of all 17
+tenant-accepting tools (after validation, before entity resolution); downstream
+entity-resolution + query both use the resolved ID. Removed the now-redundant
+per-site resolution. +2 regression tests reproducing the exact step-4 failure.
+
+**Full smoke re-run (post-fix): all 7 steps pass live** — incl. step 4 now
+returning the full device (campus-dininghall-as01v.frontier.edu, C9200L), and
+alerts/lifecycle/warranty returning real scoped data. 380 unit tests pass;
+read-only intact; API key never written to disk; temp smoke artifacts removed.
+
+**Lesson:** unit tests (MockTransport) passed while the live path failed because
+the mock didn't model the API's tenant-name-vs-id rejection feeding the
+resolver — re-running the *full* end-to-end smoke after every change is what
+caught it.
+
+---
+
 ## Session summary (Principle IV — session-end commit)
 
 | Field | Value |
 |-------|-------|
 | Feature | 036 — Auvik API MCP server (read-only network monitoring) |
-| Outcome | **Complete.** 20 read-only tools, 4 skills, 378 unit tests passing + live smoke vs a real us2 tenant, all Principle XI artifacts updated; ready for PR. |
+| Outcome | **Complete.** 20 read-only tools, 4 skills, 380 unit tests passing + live smoke vs a real us2 tenant, all Principle XI artifacts updated; ready for PR. |
 | Workflow | SDD (spec→plan→tasks→implement) + superpowers brainstorming/writing-plans/subagent-driven-development |
 | Tests | 356 passing (utils, client w/ MockTransport, resolver, models, 20 tools, server registration/read-only) |
 | Constitution | Read-only (I/II), GAIT logged (IV), FastMCP stdio (V), single-purpose skills (VII/XII), coherence (XI), creds-from-env (XIII), no external-comms writes (XIV), no regression (XV), SDD (XVI), blog drafted (XVII) |
