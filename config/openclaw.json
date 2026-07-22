@@ -650,10 +650,10 @@
     "cml-mcp": {
       "command": "/usr/bin/python3 -m cml_mcp",
       "env": {
-        "CML_URL": "https://192.168.1.225",
-        "CML_USERNAME": "admin",
-        "CML_PASSWORD": "IhavenoRAM2026!",
-        "CML_VERIFY_SSL": "false"
+        "CML_URL": "${CML_URL}",
+        "CML_USERNAME": "${CML_USERNAME}",
+        "CML_PASSWORD": "${CML_PASSWORD}",
+        "CML_VERIFY_SSL": "${CML_VERIFY_SSL:-false}"
       }
     },
     "nso-mcp": {
