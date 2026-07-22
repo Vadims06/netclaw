@@ -44,6 +44,42 @@ Scripted / non-interactive installs:
 ./scripts/install.sh --list                       # see all components & profiles
 ```
 
+### Agent runtime — OpenClaw or Hermes
+
+NetClaw runs on top of an agent runtime. **OpenClaw** is the default and the
+fully-integrated path. You can instead run NetClaw on
+**[Hermes](https://github.com/NousResearch/hermes-agent)** (Nous Research's
+self-improving agent). The interactive installer asks which runtime to use;
+scripted installs pick it explicitly:
+
+```bash
+./scripts/install.sh --runtime hermes --profile recommended
+NETCLAW_RUNTIME=hermes ./scripts/install.sh --all
+```
+
+| | OpenClaw (default) | Hermes |
+|---|---|---|
+| Install | `npm install -g openclaw@latest` | `curl -fsSL https://hermes-agent.nousresearch.com/install.sh \| bash` |
+| Binary | `openclaw` | `hermes` (`~/.local/bin`) |
+| State dir | `~/.openclaw/` | `~/.hermes/` (override with `$HERMES_HOME`) |
+| Config | `openclaw.json` | `config.yaml` (`mcp_servers:`) |
+| Skills | `workspace/skills/` | `skills/` |
+| Onboard | `openclaw onboard --install-daemon` | `hermes setup` + `hermes gateway install` |
+| Talk to it | `openclaw tui` | `hermes --tui` / `hermes chat` |
+
+On a Hermes install the installer still deploys the same **MCP servers, skills,
+SOUL, and platform credentials** — NetClaw's MCP registrations
+(`config/openclaw.json` → `mcpServers`) are translated into Hermes'
+`mcp_servers:` block by `scripts/openclaw-to-hermes-mcp.py` (paths made
+absolute, `${VAR}` resolved from the shared `.env`, merged non-destructively).
+Inspect the result with `hermes mcp list`.
+
+> **Scope:** the runtime choice covers install, onboarding, gateway, MCP
+> registration, skills, and credentials. The **n2n/iN2N federation subsystem**
+> (mesh daemon, protocol peering, risk federation) is OpenClaw-native and is not
+> yet ported to Hermes — the `netclaw` launcher switches only its `tui` entry and
+> state-dir base to follow the chosen runtime.
+
 ## A Risk of NetClaws (iN2N)
 
 A **risk** is the (real) collective noun for a group of lobsters — and NetClaw is
