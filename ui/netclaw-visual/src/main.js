@@ -2134,15 +2134,22 @@ async function checkGatewayStatus() {
       if (data.online) {
         el.textContent = 'LIVE';
         el.className = 'gateway-indicator online';
+        el.title = 'OpenClaw gateway and chat-completions endpoint are ready';
+      } else if (data.reason === 'chat-completions-disabled') {
+        el.textContent = 'CHAT API DISABLED';
+        el.className = 'gateway-indicator offline';
+        el.title = 'Enable gateway.http.endpoints.chatCompletions.enabled and restart OpenClaw';
       } else {
         el.textContent = 'OFFLINE';
         el.className = 'gateway-indicator offline';
+        el.title = 'OpenClaw gateway is not reachable';
       }
     }
   } catch {
     if (dom.gatewayStatus) {
       dom.gatewayStatus.textContent = 'OFFLINE';
       dom.gatewayStatus.className = 'gateway-indicator offline';
+      dom.gatewayStatus.title = 'OpenClaw gateway status could not be checked';
     }
   }
 }

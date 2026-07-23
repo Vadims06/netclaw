@@ -450,6 +450,27 @@ input {
   gap: 6px;
 }
 
+.canvas-chat-link {
+  border: 1px solid rgba(101, 195, 255, 0.4);
+  border-radius: 8px;
+  padding: 4px 10px;
+  color: var(--accent);
+  background: rgba(101, 195, 255, 0.08);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.35;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.canvas-chat-link:hover {
+  border-color: rgba(101, 195, 255, 0.75);
+  background: rgba(101, 195, 255, 0.16);
+}
+
 .new-session-btn {
   background: rgba(255, 75, 75, 0.1);
   border: 1px solid rgba(255, 75, 75, 0.35);
