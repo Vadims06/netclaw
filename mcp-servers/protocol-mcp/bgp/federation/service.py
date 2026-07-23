@@ -149,6 +149,15 @@ class FederationService:
             "in2n/enroll": self._edge_on_enroll,
             "in2n/hello": self._edge_on_hello,
             "n2n/edge/register_push": self._edge_on_register_push,
+            # feature 067: phone-to-Border command channel. n2n/tasks/* are
+            # the SAME handler functions the existing iN2N member-facing
+            # surface already uses (they're generic over channel.peer_identity,
+            # which EdgeChannel already has post-auth) -- reused as-is, not
+            # reimplemented (research D4).
+            "n2n/edge/ask": self._edge_on_ask,
+            "n2n/tasks/status": self.invoker.handle_task_status,
+            "n2n/tasks/result": self.invoker.handle_task_result,
+            "n2n/tasks/cancel": self.invoker.handle_task_cancel,
         }
 
     def notify_approval(self, invocation_id, peer, target_type, target_name):
@@ -1150,6 +1159,64 @@ class FederationService:
         except ValueError as e:
             raise RpcError(-32602, str(e))
         return {"registered": True}
+
+    async def _edge_on_ask(self, channel, params):
+        """Phone asks the Border something (feature 067, US1/US2/US3): create
+        a delegated_task (feature 053, TaskManager) and run a real agent turn
+        in the background via gateway.run_agent_turn(), mirroring
+        _in2n_member_submit's task-creation shape (not its embedded-mode
+        execution — this runs in gateway mode, like chat.py's peer-chat path).
+
+        untrusted=False (the default): a phone request is the OPERATOR'S OWN
+        device (FR-002's operator-extension trust model — the same unchecked
+        local access Slack/CLI/TUI already have), NOT external eN2N peer
+        input. Do not copy chat.py's untrusted=True unconditionally here.
+
+        The agent's own existing tool-using behavior (n2n_route/n2n_delegate/
+        n2n_invoke) decides whether to answer directly, delegate to an
+        in-risk member, or route over eN2N -- no branching logic exists here
+        for that (research D3); this handler's only job is getting the
+        phone's text into an agent turn and the answer back out."""
+        from .edge import RpcError
+        if not channel.trusted or not channel.member_id:
+            raise RpcError(-32023, "edge node not authenticated")
+        text = params.get("text", "")
+        if not text:
+            raise RpcError(-32602, "text required")
+        member_id = channel.member_id
+        task_id = self.tasks.create(direction="inbound", peer_identity=member_id,
+                                    target_type="edge_ask", target_name="ask",
+                                    input_text=text)
+
+        async def worker(progress):
+            from .gateway import run_agent_turn
+            progress("asking the agent")
+            output, tokens = await run_agent_turn(
+                text, session_key=f"n2n-edge-{member_id}", untrusted=False)
+            return output, tokens
+        worker_task = self.tasks.run(task_id, worker)
+
+        async def _push_result_when_done():
+            # Best-effort: only reaches the phone if it's still connected
+            # when the task finishes (contract §2) -- a disconnected phone
+            # recovers via n2n/tasks/status|result on reconnect instead.
+            try:
+                await worker_task
+            except asyncio.CancelledError:
+                pass
+            result = self.tasks.result(task_id)
+            ch = self.edge_channels.get(member_id)
+            if ch and ch is channel:
+                try:
+                    await ch.notify("n2n/edge/ask_result", {
+                        "task_id": task_id, "state": result.get("state"),
+                        "output_text": result.get("output_text"),
+                        "tokens_used": result.get("tokens_used"),
+                    })
+                except Exception as e:
+                    logger.warning("edge ask_result push to %s failed: %s", member_id, e)
+        asyncio.create_task(_push_result_when_done())
+        return {"task_id": task_id}
 
     def notify_member_quarantine(self, member_id):
         """Surface an auto-quarantine to the operator (in-band; FR-013d). Uses the
