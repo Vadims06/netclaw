@@ -17,10 +17,13 @@
     "js-yaml": "^4.1.0",
     "lil-gui": "^0.19.2",
     "multer": "^2.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "three": "^0.170.0",
     "ws": "^8.16.0"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.0.1",
     "vite": "^5.4.0"
   }

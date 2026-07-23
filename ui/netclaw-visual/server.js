@@ -15,7 +15,10 @@ const ROOT = path.resolve(__dirname, '../..');
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// The branching canvas can include a compact image or an attached text file in
+// its context. Keep the cap explicit so those requests work without making the
+// API an unbounded JSON sink.
+app.use(express.json({ limit: '4mb' }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
@@ -1032,9 +1035,27 @@ app.get('/api/gateway/status', async (req, res) => {
       headers: gw.token ? { 'Authorization': `Bearer ${gw.token}` } : {},
       signal: AbortSignal.timeout(2000),
     });
-    res.json({ online: health.ok, port: gw.port });
+    const reachable = health.ok;
+    const online = reachable && gw.chatCompletionsEnabled;
+    res.json({
+      online,
+      reachable,
+      chatCompletionsEnabled: gw.chatCompletionsEnabled,
+      port: gw.port,
+      reason: !reachable
+        ? 'gateway-unreachable'
+        : !gw.chatCompletionsEnabled
+          ? 'chat-completions-disabled'
+          : null,
+    });
   } catch {
-    res.json({ online: false, port: gw.port });
+    res.json({
+      online: false,
+      reachable: false,
+      chatCompletionsEnabled: gw.chatCompletionsEnabled,
+      port: gw.port,
+      reason: 'gateway-unreachable',
+    });
   }
 });
 
@@ -1105,6 +1126,48 @@ app.put('/api/testbed/raw', (req, res) => {
 // Proxies to the running OpenClaw gateway, falling back to a local
 // heuristic response if the gateway is unavailable.
 const chatHistory = [];
+const CHAT_CONTEXT_LIMIT = 40;
+
+function normalizeChatContent(content) {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return null;
+
+  const parts = content.flatMap((part) => {
+    if (!part || typeof part !== 'object') return [];
+    if (part.type === 'text' && typeof part.text === 'string') {
+      return [{ type: 'text', text: part.text }];
+    }
+    const imageUrl = part.type === 'image_url' && part.image_url?.url;
+    if (typeof imageUrl === 'string') {
+      return [{ type: 'image_url', image_url: { url: imageUrl } }];
+    }
+    return [];
+  });
+
+  return parts.length ? parts : null;
+}
+
+function normalizeChatContext(messages) {
+  if (!Array.isArray(messages)) return null;
+
+  const normalized = messages.slice(-CHAT_CONTEXT_LIMIT).flatMap((entry) => {
+    if (!entry || (entry.role !== 'user' && entry.role !== 'assistant')) return [];
+    const content = normalizeChatContent(entry.content);
+    return content == null ? [] : [{ role: entry.role, content }];
+  });
+
+  return normalized.length ? normalized : null;
+}
+
+function textFromChatContent(content) {
+  if (typeof content === 'string') return content.trim();
+  if (!Array.isArray(content)) return '';
+  return content
+    .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text)
+    .join('\n')
+    .trim();
+}
 
 // Read OpenClaw gateway config for auth
 function getGatewayConfig() {
@@ -1114,26 +1177,42 @@ function getGatewayConfig() {
     return {
       port: config?.gateway?.port || 18789,
       token: config?.gateway?.auth?.token || '',
+      chatCompletionsEnabled:
+        config?.gateway?.http?.endpoints?.chatCompletions?.enabled === true,
     };
   } catch {
-    return { port: 18789, token: '' };
+    return { port: 18789, token: '', chatCompletionsEnabled: false };
   }
 }
 
 app.post('/api/chat', async (req, res) => {
-  const { message } = req.body;
-  if (!message) return res.status(400).json({ error: 'Expected { message: "..." }' });
+  const { message, messages } = req.body || {};
+  const contextMessages = normalizeChatContext(messages);
+  const latestContextMessage = contextMessages
+    ? [...contextMessages].reverse().find((entry) => entry.role === 'user')
+    : null;
+  const contextText = textFromChatContent(latestContextMessage?.content);
+  const userMessage = typeof message === 'string' && message.trim()
+    ? message.trim()
+    : contextText;
+
+  if (!userMessage && !latestContextMessage) {
+    return res.status(400).json({
+      error: 'Expected { message: "..." } or { messages: [{ role, content }] }',
+    });
+  }
 
   const timestamp = new Date().toISOString();
-  chatHistory.push({ role: 'user', text: message, timestamp });
+  const historyText = userMessage || '[attachment]';
+  chatHistory.push({ role: 'user', text: historyText, timestamp });
 
   // Analyze the message to determine which integrations/skills are relevant
   const graph = buildGraph();
-  const activations = resolveActivations(message, graph);
+  const activations = resolveActivations(historyText, graph);
 
   // Broadcast activation events to all WS clients so the 3D scene lights up
   broadcastWS('chat:activations', {
-    message,
+    message: historyText,
     activations,
     timestamp,
   });
@@ -1142,8 +1221,12 @@ app.post('/api/chat', async (req, res) => {
   let responseText = '';
   let fromGateway = false;
   const gw = getGatewayConfig();
+  let gatewayFallback = gw.chatCompletionsEnabled
+    ? 'OpenClaw gateway could not complete the chat request. Check the gateway terminal for details.'
+    : 'OpenClaw is reachable, but its chat compatibility endpoint is disabled. Run `openclaw config set gateway.http.endpoints.chatCompletions.enabled true`, then restart the gateway.';
 
   try {
+    if (!gw.chatCompletionsEnabled) throw new Error('chat-completions-disabled');
     const gwRes = await fetch(`http://127.0.0.1:${gw.port}/v1/chat/completions`, {
       method: 'POST',
       headers: {
@@ -1153,7 +1236,10 @@ app.post('/api/chat', async (req, res) => {
       },
       body: JSON.stringify({
         model: 'openclaw',
-        messages: chatHistory
+        // Existing clients keep the shared linear history. Compatibility
+        // clients can supply an isolated branch history, which prevents turns
+        // from sibling branches (or other browser tabs) bleeding together.
+        messages: contextMessages || chatHistory
           .filter((m) => m.role === 'user' || m.role === 'assistant')
           .slice(-10)
           .map((m) => ({ role: m.role, content: m.text || m.response || '' })),
@@ -1166,13 +1252,17 @@ app.post('/api/chat', async (req, res) => {
       const gwData = await gwRes.json();
       responseText = gwData.choices?.[0]?.message?.content || gwData.choices?.[0]?.text || '';
       fromGateway = true;
+    } else {
+      gatewayFallback = `OpenClaw rejected the chat request (HTTP ${gwRes.status}). Check the gateway terminal for details.`;
     }
-  } catch {
-    // Gateway not reachable — fall back to local heuristic
+  } catch (error) {
+    if (error?.message !== 'chat-completions-disabled') {
+      gatewayFallback = 'OpenClaw gateway could not complete the chat request. Check the gateway terminal for details.';
+    }
   }
 
   if (!responseText) {
-    responseText = buildChatResponse(message, activations, graph);
+    responseText = buildChatResponse(historyText, activations, graph, gatewayFallback);
   }
 
   chatHistory.push({ role: 'assistant', text: responseText, timestamp: new Date().toISOString() });
@@ -1191,6 +1281,7 @@ app.post('/api/chat', async (req, res) => {
     response: responseText,
     activations,
     fromGateway,
+    gatewayIssue: fromGateway ? null : gatewayFallback,
     timestamp,
   });
 });
@@ -1421,7 +1512,7 @@ function resolveActivations(message, graph) {
   return activated;
 }
 
-function buildChatResponse(message, activations, graph) {
+function buildChatResponse(message, activations, graph, gatewayMessage) {
   const integrationNames = activations.integrations
     .map((id) => graph.integrations.find((i) => i.id === id)?.name || id)
     .join(', ');
@@ -1437,7 +1528,7 @@ function buildChatResponse(message, activations, graph) {
   let response = `Routing to: ${integrationNames}.`;
   if (skillNames) response += ` Skills: ${skillNames}.`;
   if (deviceNames) response += ` Devices: ${deviceNames}.`;
-  response += '\n\nOpenClaw gateway is offline. Run `openclaw gateway run` to enable live responses and tool execution.';
+  response += `\n\n${gatewayMessage || 'OpenClaw gateway is offline. Run `openclaw gateway run` to enable live responses and tool execution.'}`;
 
   return response;
 }
