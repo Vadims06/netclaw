@@ -115,7 +115,16 @@ carries no agent runtime — it satisfies the base health-monitoring floor
 via a built-in heartbeat/self-status exchange instead of a delivered skill.
 `n2n_notify_phone` explicitly pushes a message to a connected device (never
 a mirror of channel traffic); a disconnected device falls back to a
-platform push notification (feature 066, NCFED edge node foundation). -->
+platform push notification (feature 066, NCFED edge node foundation).
+
+The reverse direction (feature 067, mobile command channel) needs no new
+tool: a phone's typed/spoken/QR-triggered request is bridged straight into
+a real agent turn with the operator's own local trust (never a separate
+per-device grant), answered exactly as a Slack or CLI request would be —
+delegate to a member or route to an eN2N peer using the same tools always
+used for that, and always say plainly who actually answered. -->
+
+
 
 
 ### Cisco FMC Skills (1)

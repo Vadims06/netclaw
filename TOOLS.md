@@ -140,6 +140,8 @@ NetClaw Mobile edge-node tool (feature 066 — see `mobile/netclaw-mobile/README
 - Config: `N2N_EDGE_WS_PORT` (Border-only, the phone-facing WebSocket listener port); `FCM_SERVICE_ACCOUNT_JSON`/`APNS_KEY_PATH`/`APNS_KEY_ID`/`APNS_TEAM_ID`/`APNS_BUNDLE_ID`/`APNS_USE_SANDBOX` (optional — only needed for the disconnected-device push-notification fallback)
 - No new credentials for the connected-phone path — reuses the same domain-verified/self-signed credential as eN2N/iN2N (feature 060)
 
+NetClaw Mobile command channel (feature 067 — see `specs/067-ncfed-mobile-command-channel/`): **no new MCP tool**. A phone's typed/spoken/QR-triggered request reaches you as a real agent turn over the existing edge connection (`n2n/edge/ask`, wire-level only) — you answer it the same way you'd answer Slack/CLI, calling `n2n_route`/`n2n_delegate`/`n2n_invoke`/`n2n_chat` yourself if the question needs a member or a federated peer. Always state plainly whether you answered directly or are relaying a member's/peer's answer — the phone's conversation view has no other way to know. A phone request never carries elevated or reduced trust versus Slack/CLI/TUI.
+
 ## MemPalace AI Memory
 
 19 MCP tools for persistent, structured, local-only AI memory across sessions ([source](https://github.com/milla-jovovich/mempalace)):

@@ -233,6 +233,32 @@ camera/mic/biometric capture is feature 068 — don't reach for those here.
 4. **Revoke**: the existing `n2n_member_remove(member_id)` unenrolls a phone
    exactly like any other member — no separate mechanism.
 
+## NetClaw Mobile command channel — the phone asks YOU something (feature 067)
+
+The reverse direction from the push above: the operator types (or speaks, or
+scans a device QR) a request on the phone's Chat screen, and it's answered
+exactly as if it arrived from Slack or the TUI — same trust, same
+delegation/eN2N routing, same attribution. There is **no new MCP tool** for
+this — the phone's request text is bridged straight into a real agent turn
+(the same `gateway.run_agent_turn()` mechanism peer-chat already uses), so
+your own existing reasoning and tool calls (`n2n_route`, `n2n_delegate`,
+`n2n_invoke`) are what actually answer it. If a phone request needs to reach
+a member or an external eN2N peer, just do what you'd normally do — there is
+no special "phone mode."
+
+- **Trust**: a phone request is the operator's OWN device — it inherits your
+  local trust exactly like Slack/CLI/TUI, never a separate per-device grant.
+- **Attribution**: always say plainly whether YOU answered, a specific
+  in-risk member did, or a specific federated peer did — the phone's
+  conversation view depends on this to show who actually answered.
+- **Cancellation**: a phone-submitted request that's delegated or routed
+  externally is cancellable via the existing task-cancellation mechanism
+  (`n2n_task_cancel`-equivalent) — nothing new to invoke on your end.
+- **Voice and device-QR/deep-link** requests arrive as ordinary text — voice
+  is transcribed on-device before it reaches you, and a scanned/opened
+  device link resolves to a plain "what is the status of device X" question.
+  Neither is distinguishable from a typed request once it reaches you.
+
 ## Tools used
 
 US1 capability: `n2n_status`, `n2n_consent`, `n2n_kill`, `n2n_peer_capabilities`,

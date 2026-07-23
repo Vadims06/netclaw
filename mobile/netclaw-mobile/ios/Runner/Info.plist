@@ -66,5 +66,25 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- feature 066: mobile_scanner (QR enrollment + device scan) -->
+	<key>NSCameraUsageDescription</key>
+	<string>NetClaw Mobile uses the camera to scan enrollment and device QR codes.</string>
+	<!-- feature 067, US4: speech_to_text on-device voice-to-text -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>NetClaw Mobile uses the microphone to record voice requests to your Border.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>NetClaw Mobile transcribes your voice requests on-device before sending them.</string>
+	<!-- feature 067, US5: netclaw://device/<id> device-status deep link -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>ca.automateyournetwork.netclaw.netclaw_mobile</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>netclaw</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

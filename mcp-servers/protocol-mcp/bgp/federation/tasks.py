@@ -52,9 +52,11 @@ class TaskManager:
         self.manager._conn.commit()
         return task_id
 
-    def run(self, task_id: str, worker: Callable[[Callable[[str], None]], Awaitable]):
+    def run(self, task_id: str, worker: Callable[[Callable[[str], None]], Awaitable]) -> asyncio.Task:
         """Spawn a background worker for task_id. `worker(progress_cb)` awaits the
-        actual work and returns (output_text, tokens_used)."""
+        actual work and returns (output_text, tokens_used). Returns the spawned
+        asyncio.Task so a caller can `await` its completion directly instead of
+        polling internal state (feature 067)."""
         async def _run():
             self._set(task_id, state="working")
             try:
@@ -74,7 +76,9 @@ class TaskManager:
                 logger.warning("Task %s failed: %s", task_id, e)
             finally:
                 self._workers.pop(task_id, None)
-        self._workers[task_id] = asyncio.create_task(_run())
+        t = asyncio.create_task(_run())
+        self._workers[task_id] = t
+        return t
 
     def cancel(self, task_id: str, owner: Optional[str] = None) -> bool:
         if owner is not None and not self._owns(task_id, owner):

@@ -29,12 +29,21 @@ abstract class EdgeMethodSource {
   void on(String method, EdgeMethodHandler handler);
 }
 
+/// `EdgeMethodSource` plus the ability to make outbound calls — what
+/// `EdgeAskClient` (feature 067) needs. A separate, wider interface from
+/// `EdgeMethodSource` so `wireMessageFeed` (which only ever registers a
+/// handler) keeps depending on the narrowest surface it actually needs.
+abstract class EdgeRpcSource implements EdgeMethodSource {
+  Future<Map<String, dynamic>> call(String method, Map<String, dynamic> params,
+      {Duration timeout});
+}
+
 /// One connection to a NetClaw Border over the NCFED edge (WebSocket)
 /// transport (feature 066). Mirrors the Border's own EdgeChannel
 /// (mcp-servers/protocol-mcp/bgp/federation/edge.py) dispatch shape — whole
 /// JSON-RPC 2.0 messages over `.send()`/the message stream, no byte framing
 /// (a WebSocket connection already frames each message).
-class EdgeClient implements EdgeMethodSource {
+class EdgeClient implements EdgeRpcSource {
   final WebSocketChannel _channel;
   final EdgeIdentity identity;
   int _nextId = 0;
@@ -109,6 +118,7 @@ class EdgeClient implements EdgeMethodSource {
     }
   }
 
+  @override
   Future<Map<String, dynamic>> call(String method, Map<String, dynamic> params,
       {Duration timeout = const Duration(seconds: 30)}) {
     _nextId += 1;

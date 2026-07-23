@@ -46,6 +46,18 @@ EDGE_METHODS = (
     "n2n/edge/self_status",
     "n2n/edge/message",
     "n2n/edge/register_push",
+    # feature 067: phone-to-Border command channel. n2n/edge/ask is
+    # phone-initiated (mirrors chat.py's peer-chat pattern via
+    # gateway.run_agent_turn); n2n/edge/ask_result is the Border's
+    # best-effort push of the finished answer. n2n/tasks/* are the SAME
+    # method names (and the SAME handler functions) the existing iN2N
+    # member-facing task surface already uses (Invoker.handle_task_status/
+    # result/cancel) -- reused as-is, not reimplemented, per research D4.
+    "n2n/edge/ask",
+    "n2n/edge/ask_result",
+    "n2n/tasks/status",
+    "n2n/tasks/result",
+    "n2n/tasks/cancel",
 )
 
 # Methods reachable before the channel has authenticated (the handshake itself).
