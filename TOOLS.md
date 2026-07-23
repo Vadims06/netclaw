@@ -126,13 +126,19 @@ For **detailed infrastructure notes on specific MCP servers/skills** (GitLab, Ch
 
 ## N2N Federation MCP Server (NetClaw Native)
 
-37 MCP tools proxying the local `bgp-daemon-v2` HTTP API for claw-to-claw federation over NCFED. Replication-specific tools (feature 065, chroma-to-chroma vector replication — see `workspace/skills/n2n-federation/SKILL.md` for when/how to use them):
+38 MCP tools proxying the local `bgp-daemon-v2` HTTP API for claw-to-claw federation over NCFED. Replication-specific tools (feature 065, chroma-to-chroma vector replication — see `workspace/skills/n2n-federation/SKILL.md` for when/how to use them):
 - `n2n_replicate` — WHEN the user wants a standing local copy of a consenting peer's RAG collection (not just a one-off answer — use `n2n_knowledge_query` for that). Returns a `task_id` immediately; does not block.
 - `n2n_replicate_resync` — WHEN a previously replicated collection needs refreshing to match the source's current content (full replace, same async pattern)
 - `n2n_replicate_delete` — WHEN the user wants a local replica removed entirely (distinct from revoking the grant, which only blocks *future* replication)
 - Requires a `knowledge_replica` grant via `n2n_grant`, distinct from the `knowledge` (query-only) grant feature 064 uses
 - Config: `N2N_REPLICATION_MAX_CHUNKS` (default `20000`) caps the size of a collection replication will transfer; `N2N_REPLICATION_BATCH_SIZE` (default `200`) sizes each page pulled from the source
 - No new credentials — reuses existing NCFED peer identity/consent state
+
+NetClaw Mobile edge-node tool (feature 066 — see `mobile/netclaw-mobile/README.md` and `specs/066-netclaw-mobile-ncfed-edge/`):
+- `n2n_notify_phone(peer, content, kind="text")` — WHEN the operator or agent wants to explicitly push a message to an enrolled phone (`kind`: `text`/`voice`/`image`). Reachable identically from Slack, TUI, HUD, or agent reasoning. NEVER a blanket mirror — only content pushed through this tool ever reaches the phone. Falls back to a platform push notification automatically if the device is disconnected.
+- Enrollment itself is operator-side, not an MCP tool: `netclaw risk token --edge [label]` renders a scannable QR (`scripts/netclaw`)
+- Config: `N2N_EDGE_WS_PORT` (Border-only, the phone-facing WebSocket listener port); `FCM_SERVICE_ACCOUNT_JSON`/`APNS_KEY_PATH`/`APNS_KEY_ID`/`APNS_TEAM_ID`/`APNS_BUNDLE_ID`/`APNS_USE_SANDBOX` (optional — only needed for the disconnected-device push-notification fallback)
+- No new credentials for the connected-phone path — reuses the same domain-verified/self-signed credential as eN2N/iN2N (feature 060)
 
 ## MemPalace AI Memory
 

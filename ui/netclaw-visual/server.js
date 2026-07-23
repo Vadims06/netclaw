@@ -978,11 +978,27 @@ async function fetchN2NState() {
       }
     } catch { /* replication optional (pre-065 daemon) */ }
 
+    // 066: NetClaw Mobile edge nodes are just members with node_type='edge'
+    // (already present in `members` above) and their recent pushes are just
+    // audit rows with target_type='edge_push' — reuse the existing queries
+    // rather than adding new endpoints.
+    const edgeNodes = members.filter((m) => m.node_type === 'edge');
+    let recentPushes = [];
+    try {
+      const aRes = await fetch(`${BGP_API}/n2n/audit`, { signal: AbortSignal.timeout(3000) });
+      if (aRes.ok) {
+        const records = (await aRes.json()).records || [];
+        recentPushes = records.filter((r) => r.target_type === 'edge_push');
+      }
+    } catch { /* edge push audit optional (pre-066 daemon) */ }
+
     return { available: true, identity: status.identity, peers, approvals,
-             risk, members, posture, gait, replicationJobs, generatedAt: new Date().toISOString() };
+             risk, members, posture, gait, replicationJobs, edgeNodes, recentPushes,
+             generatedAt: new Date().toISOString() };
   } catch {
     return { available: false, peers: [], risk: null, members: [],
-             replicationJobs: [], generatedAt: new Date().toISOString() };
+             replicationJobs: [], edgeNodes: [], recentPushes: [],
+             generatedAt: new Date().toISOString() };
   }
 }
 
