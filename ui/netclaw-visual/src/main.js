@@ -1493,10 +1493,11 @@ function renderEdgeNodes() {
   const stCls = (s) => (s === 'active' ? 'federated'
     : s === 'unreachable' ? 'not-federated' : 'consent-pending-local');
   const rows = nodes.slice(0, 8).map((n) => `<li>
+      <span title="NetClaw Mobile edge node">📱</span>
       <strong class="n2n-state-${stCls(n.state)}">${n.state}</strong>
       <span class="n2n-muted">${n.display_name || n.member_id}</span>
       <span class="n2n-muted">· ${(n.updated_at || '').replace('T', ' ').replace('Z', '')}</span></li>`).join('');
-  return `<h4>NetClaw Mobile edge nodes (${nodes.length})</h4><ul class="n2n-list">${rows}</ul>`;
+  return `<h4>📱 NetClaw Mobile edge nodes (${nodes.length})</h4><ul class="n2n-list">${rows}</ul>`;
 }
 
 // 066: recent explicit Border-to-phone pushes (n2n_notify_phone). Renders

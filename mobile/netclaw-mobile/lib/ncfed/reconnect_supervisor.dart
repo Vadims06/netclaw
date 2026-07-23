@@ -27,13 +27,15 @@ class ReconnectSupervisor<T> {
 
   Duration _backoff = initialBackoff;
   bool _stopped = false;
-  bool _connected = false;
+  bool _connected;
 
   ReconnectSupervisor({
     required this.dial,
     required this.onConnected,
     Future<void> Function(Duration duration)? sleep,
-  }) : _sleep = sleep ?? Future.delayed;
+    bool initiallyConnected = false,
+  })  : _sleep = sleep ?? Future.delayed,
+        _connected = initiallyConnected;
 
   /// The backoff duration the next failed dial would wait before retrying
   /// (T034 asserts this stays within [initialBackoff, maxBackoff]).

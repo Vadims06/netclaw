@@ -44,18 +44,25 @@ abstract class EdgeRpcSource implements EdgeMethodSource {
 /// JSON-RPC 2.0 messages over `.send()`/the message stream, no byte framing
 /// (a WebSocket connection already frames each message).
 class EdgeClient implements EdgeRpcSource {
-  final WebSocketChannel _channel;
+  WebSocketChannel _channel;
   final EdgeIdentity identity;
   int _nextId = 0;
   final _pending = <String, Completer<Map<String, dynamic>>>{};
   final _handlers = <String, EdgeMethodHandler>{};
   final _connectionWaiters = <Completer>{};
-  late final StreamSubscription _sub;
+  StreamSubscription? _sub;
   bool _closed = false;
 
-  /// True once close() has run or the connection has failed/closed — the
-  /// reconnect supervisor (T030) uses this to decide whether to re-dial.
+  /// True once the connection has failed/closed (including a call that
+  /// timed out or errored) — the reconnect supervisor uses this, via
+  /// [onDisconnected], to decide when to re-dial.
   bool get isClosed => _closed;
+
+  /// Fires exactly once per dropped connection, right after `_failAll` — the
+  /// reconnect supervisor (068 polish) hooks this instead of polling
+  /// `isClosed`, so a drop is noticed immediately rather than on the next
+  /// poll tick.
+  void Function()? onDisconnected;
 
   /// The Border-computed SHA-256 fingerprint of this device's public key,
   /// returned by the `in2n/enroll` response. The caller (enrollment_screen)
@@ -66,6 +73,10 @@ class EdgeClient implements EdgeRpcSource {
   String? enrollFingerprint;
 
   EdgeClient._(this._channel, this.identity) {
+    _listen();
+  }
+
+  void _listen() {
     _sub = _channel.stream.listen(
       _onMessage,
       onError: (Object error) => _failAll(error),
@@ -87,8 +98,57 @@ class EdgeClient implements EdgeRpcSource {
     for (final c in _pending.values) {
       if (!c.isCompleted) c.completeError(err);
     }
+    _pending.clear();
     for (final c in _connectionWaiters) {
       if (!c.isCompleted) c.completeError(err);
+    }
+    onDisconnected?.call();
+  }
+
+  /// Re-dials the Border and re-proves possession of the pinned key, reusing
+  /// THIS SAME `EdgeClient` object — unlike the static [reconnect] factory,
+  /// which builds a brand-new one at enrollment time. Every wrapper object
+  /// already built around this client (`EdgeAskClient`, `ApprovalClient`,
+  /// `CaptureClient`'s wired handler, `wireMessageFeed`'s registration, ...)
+  /// keeps working transparently after a drop — nothing to rewire, since
+  /// `_handlers` is untouched and callers hold the same object identity.
+  /// Throws on failure; the caller (`ReconnectSupervisor`) is expected to
+  /// catch and back off.
+  Future<void> reconnectInPlace(
+    EnrollmentQrPayload payload, {
+    required String memberId,
+    required String keyFingerprint,
+  }) async {
+    verifyClawDomainBeforeDial(payload);
+    final uri = Uri(scheme: 'wss', host: payload.clawDomain, port: payload.borderPort);
+    final channel = IOWebSocketChannel.connect(uri);
+    await _sub?.cancel();
+    _channel = channel;
+    _closed = false;
+    _listen();
+
+    final challenge = Completer<Uint8List>();
+    _connectionWaiters.add(challenge);
+    on('n2n/edge/challenge', (params) {
+      if (!challenge.isCompleted) {
+        challenge.complete(hexDecode(params['nonce'] as String));
+      }
+      return <String, dynamic>{};
+    });
+    try {
+      final nonce = await challenge.future.timeout(const Duration(seconds: 10));
+      final signature = await identity.sign(nonce);
+      await call('in2n/hello', {
+        'member_id': memberId,
+        'key_fingerprint': keyFingerprint,
+        'signature': hexEncode(signature),
+      });
+      enrollFingerprint = keyFingerprint;
+    } catch (e) {
+      _failAll(e); // the redial itself failed -- let the caller's retry loop handle it
+      rethrow;
+    } finally {
+      _connectionWaiters.remove(challenge);
     }
   }
 
@@ -134,7 +194,7 @@ class EdgeClient implements EdgeRpcSource {
 
   Future<void> close() async {
     _closed = true;
-    await _sub.cancel();
+    await _sub?.cancel();
     await _channel.sink.close();
   }
 

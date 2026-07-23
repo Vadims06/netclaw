@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../ncfed/message_feed.dart';
+import 'empty_state.dart';
 
 /// Renders messages the Border has explicitly pushed (US2/T026), in
 /// chronological order. `voice` playback is out of scope here (shown as a
@@ -36,7 +37,10 @@ class _FeedScreenState extends State<FeedScreen> {
     final messages = List.of(widget.store.messages)
       ..sort((a, b) => a.pushedAt.compareTo(b.pushedAt));
     if (messages.isEmpty) {
-      return const Center(child: Text('No messages from the Border yet.'));
+      return const EmptyState(
+        asset: 'assets/illustrations/empty_feed.png',
+        text: 'No messages from the Border yet.',
+      );
     }
     return ListView.builder(
       itemCount: messages.length,
