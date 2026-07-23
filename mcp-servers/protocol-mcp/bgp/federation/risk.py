@@ -492,6 +492,29 @@ class RiskManager:
             (platform, token, _now(), member_id))
         self._conn.commit()
 
+    # feature 068 (US3/T004): capture-capability advertisement, reusing the
+    # SAME `scope` column RiskRouter.covers()/candidates() already read for
+    # ordinary member capabilities (research D1) -- no new inventory
+    # mechanism. A type omitted here is invisible to routing entirely
+    # (FR-007a), not merely "advertised but refused".
+    CAPTURE_CAPABILITY_NAMES = ("camera.capture", "camera.record_video", "audio.record")
+
+    def set_capture_capabilities(self, member_id: str, capability_names: list):
+        unknown = set(capability_names) - set(self.CAPTURE_CAPABILITY_NAMES)
+        if unknown:
+            raise ValueError(f"unknown capture capability names: {sorted(unknown)}")
+        mem = self.get_member(member_id)
+        if not mem:
+            raise ValueError(f"unknown member {member_id!r}")
+        scope = [e for e in self._scope_list(mem["scope"])
+                if not (isinstance(e, dict) and e.get("name") in self.CAPTURE_CAPABILITY_NAMES)]
+        scope.extend({"name": name, "type": "tool", "tier": "specialty"}
+                    for name in capability_names)
+        self._conn.execute(
+            "UPDATE member SET scope=?, updated_at=? WHERE member_id=?",
+            (json.dumps(scope), _now(), member_id))
+        self._conn.commit()
+
     def update_health(self, member_id: str, **fields):
         mem = self.get_member(member_id)
         if not mem:

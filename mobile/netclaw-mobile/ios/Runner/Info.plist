@@ -66,14 +66,19 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<!-- feature 066: mobile_scanner (QR enrollment + device scan) -->
+	<!-- feature 066: mobile_scanner (QR enrollment + device scan); feature 068,
+	     US2/US3: camera package (photo/video capture) shares this same key -->
 	<key>NSCameraUsageDescription</key>
-	<string>NetClaw Mobile uses the camera to scan enrollment and device QR codes.</string>
-	<!-- feature 067, US4: speech_to_text on-device voice-to-text -->
+	<string>NetClaw Mobile uses the camera to scan QR codes and to capture photos/video for your Border.</string>
+	<!-- feature 067, US4: speech_to_text on-device voice-to-text; feature 068,
+	     US2/US3: camera package's audio track for video capture shares this key -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>NetClaw Mobile uses the microphone to record voice requests to your Border.</string>
+	<string>NetClaw Mobile uses the microphone to record voice requests and audio/video captures for your Border.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>NetClaw Mobile transcribes your voice requests on-device before sending them.</string>
+	<!-- feature 068, US1: local_auth Face ID (Touch ID/Android BiometricPrompt need no key) -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>NetClaw Mobile uses Face ID to confirm approval decisions before sending them to your Border.</string>
 	<!-- feature 067, US5: netclaw://device/<id> device-status deep link -->
 	<key>CFBundleURLTypes</key>
 	<array>

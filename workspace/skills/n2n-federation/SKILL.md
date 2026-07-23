@@ -259,6 +259,31 @@ no special "phone mode."
   device link resolves to a plain "what is the status of device X" question.
   Neither is distinguishable from a typed request once it reaches you.
 
+## NetClaw Mobile biometrics and capture (feature 068)
+
+Two more phone-edge slices, still **no new MCP tool** — both reuse existing
+mechanisms end to end.
+
+- **Biometric approval (US1)**: when your own `notify_approval` hook fires
+  (any tool/skill/delegation approval you already trigger via the normal
+  approval flow), it now ALSO pushes to every connected phone as a distinct
+  push content, alongside the existing CLI/HUD path — not instead of it. The
+  phone's operator resolves it with Face ID/fingerprint before the approval
+  is granted or denied; you never see biometric detail, only the eventual
+  approve/deny outcome via the same `resolve_approval` path CLI approvals use
+  (`via` differs, nothing else does).
+- **Capture, either direction (US2/US3)**: a phone can attach a photo/video/
+  audio capture to its own request (arrives to you as an ordinary `ask`, just
+  with media attached — treat it like any multimodal input). You can also
+  *request* a capture from a phone the same way you'd `n2n_delegate` to any
+  other member — if the phone (an edge node) is the only member advertising
+  a given capture capability, delegation resolves to it automatically via the
+  same `RiskRouter` capability matching every other member uses. A capability
+  the operator has disabled in Settings is simply absent from that phone's
+  advertised scope — you'll route around it exactly as you would for a
+  member lacking any other capability, never a special "capture refused"
+  case to handle.
+
 ## Tools used
 
 US1 capability: `n2n_status`, `n2n_consent`, `n2n_kill`, `n2n_peer_capabilities`,
@@ -272,6 +297,10 @@ US1 capability: `n2n_status`, `n2n_consent`, `n2n_kill`, `n2n_peer_capabilities`
 057 production posture: `n2n_posture`, `n2n_faults`.
 066 NetClaw Mobile edge node: `n2n_notify_phone` (enrollment itself is
 `netclaw risk token --edge`, a CLI action, not an MCP tool).
+067 NetClaw Mobile command channel: no new tool — phone requests reach you
+through the same agent-turn mechanism as any other chat surface.
+068 NetClaw Mobile biometrics and capture: no new tool — reuses your existing
+approval-resolution and `n2n_delegate`/capability-routing paths unchanged.
 
 ## Operator heartbeat — fault isolation (057)
 

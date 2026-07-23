@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 
 import pytest
 import websockets
@@ -290,6 +291,62 @@ async def _edge_ask_task_owner_bound(tmp_path, monkeypatch):
         assert own_status["state"] in ("working", "submitted")
         await phone1.close()
         await phone2.close()
+    finally:
+        server.close()
+    border.manager.close()
+
+
+def test_edge_ask_bare_attachment_still_reaches_agent_turn(tmp_path, monkeypatch):
+    """Closes T016 (feature 068, US2/FR-005): n2n/edge/ask with only an
+    attachment and empty text still reaches run_agent_turn() with a
+    non-empty prompt (folds the attachment in, per the message_file path) --
+    a bare capture with no accompanying text is a valid request."""
+    asyncio.run(_edge_ask_bare_attachment(tmp_path, monkeypatch))
+
+
+async def _edge_ask_bare_attachment(tmp_path, monkeypatch):
+    calls = []
+
+    async def _fake_run_agent_turn(prompt, session_key="n2n", **kwargs):
+        calls.append((prompt, kwargs.get("message_file")))
+        return "I see a rack with a red fault LED.", 42
+    monkeypatch.setattr(gateway, "run_agent_turn", _fake_run_agent_turn)
+
+    border = _border(tmp_path / "border")
+    server, port = await _serve(border)
+    try:
+        phone = await _enroll(border, port)
+        resp = await phone.call("n2n/edge/ask", {
+            "attachment": {"content_type": "image", "content": "ZmFrZSBpbWFnZSBieXRlcw=="}
+        })
+        task_id = resp["task_id"]
+        result = await phone.wait_for_notification("n2n/edge/ask_result")
+        assert result["task_id"] == task_id
+        assert result["state"] == "completed"
+
+        assert len(calls) == 1
+        prompt, message_file = calls[0]
+        assert prompt  # non-empty even though text was never provided
+        assert message_file is not None  # folded via --message-file, not a raw CLI arg
+        assert not os.path.exists(message_file)  # cleaned up after the turn
+        await phone.close()
+    finally:
+        server.close()
+    border.manager.close()
+
+
+def test_edge_ask_neither_text_nor_attachment_refused(tmp_path):
+    asyncio.run(_edge_ask_neither(tmp_path))
+
+
+async def _edge_ask_neither(tmp_path):
+    border = _border(tmp_path / "border")
+    server, port = await _serve(border)
+    try:
+        phone = await _enroll(border, port)
+        with pytest.raises(RuntimeError):
+            await phone.call("n2n/edge/ask", {})
+        await phone.close()
     finally:
         server.close()
     border.manager.close()

@@ -62,8 +62,14 @@ class EdgeAskClient {
   /// reconnect for a task it submitted but never heard back on).
   Stream<TaskUpdate> get updates => _updates.stream;
 
-  Future<String> ask(String text) async {
-    final result = await client.call('n2n/edge/ask', {'text': text});
+  /// `attachment` (feature 068, US2, research D3): an optional
+  /// `{content_type, content}` capture riding the SAME request — `text` may
+  /// be empty when the capture stands alone (FR-005).
+  Future<String> ask(String text, {Map<String, dynamic>? attachment}) async {
+    final result = await client.call('n2n/edge/ask', {
+      'text': text,
+      'attachment': ?attachment,
+    });
     return result['task_id'] as String;
   }
 

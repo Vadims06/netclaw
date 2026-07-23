@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'ncfed/approval_client.dart';
+import 'ncfed/capability_registration.dart';
+import 'ncfed/capture_client.dart';
 import 'ncfed/conversation_store.dart';
 import 'ncfed/device_deep_link.dart';
 import 'ncfed/edge_ask_client.dart';
 import 'ncfed/edge_client.dart';
 import 'ncfed/edge_identity.dart';
 import 'ncfed/message_feed.dart';
+import 'screens/approvals_screen.dart';
+import 'screens/capture_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/device_scan_screen.dart';
 import 'screens/enrollment_screen.dart';
 import 'screens/feed_screen.dart';
+import 'screens/settings_screen.dart';
 
 void main() {
   runApp(const NetClawMobileApp());
@@ -70,20 +76,31 @@ class _HomeShellState extends State<HomeShell> {
   MessageFeedStore? _feedStore;
   EdgeAskClient? _askClient;
   ConversationStore? _conversationStore;
+  ApprovalClient? _approvalClient;
+  CapabilityRegistration? _capabilities;
   DeviceDeepLinkListener? _deepLinkListener;
 
   @override
   void initState() {
     super.initState();
-    getApplicationDocumentsDirectory().then((dir) {
+    getApplicationDocumentsDirectory().then((dir) async {
       final feedStore = MessageFeedStore(dir);
-      wireMessageFeed(widget.client, feedStore);
       final askClient = EdgeAskClient(widget.client);
       final conversationStore = ConversationStore(dir);
+      final approvalClient = ApprovalClient(widget.client);
+      final capabilities = CapabilityRegistration(widget.client);
+      wireMessageFeed(widget.client, feedStore, onApproval: approvalClient.receiveApproval);
+      CaptureClient(
+        askClient: askClient,
+        capture: (type) => CaptureScreen.capture(context, type),
+      ).wire(widget.client);
+      await capabilities.register();
       setState(() {
         _feedStore = feedStore;
         _askClient = askClient;
         _conversationStore = conversationStore;
+        _approvalClient = approvalClient;
+        _capabilities = capabilities;
       });
       // T022: a cold-start-from-link and a foreground-tap both land on
       // ChatScreen with the auto-submitted request visible.
@@ -101,6 +118,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     _askClient?.dispose();
+    _approvalClient?.dispose();
     super.dispose();
   }
 
@@ -116,18 +134,26 @@ class _HomeShellState extends State<HomeShell> {
     ));
   }
 
+  static const _titles = ['Chat', 'Feed', 'Approvals', 'Settings'];
+
   @override
   Widget build(BuildContext context) {
-    if (_feedStore == null || _askClient == null || _conversationStore == null) {
+    if (_feedStore == null ||
+        _askClient == null ||
+        _conversationStore == null ||
+        _approvalClient == null ||
+        _capabilities == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final pages = [
       ChatScreen(askClient: _askClient!, store: _conversationStore!),
       FeedScreen(store: _feedStore!),
+      ApprovalsScreen(approvalClient: _approvalClient!),
+      SettingsScreen(capabilities: _capabilities!),
     ];
     return Scaffold(
       appBar: AppBar(
-        title: Text(_tab == 0 ? 'Chat' : 'Feed'),
+        title: Text(_titles[_tab]),
         actions: [
           IconButton(icon: const Icon(Icons.qr_code_scanner), onPressed: _scanDevice),
         ],
@@ -139,6 +165,8 @@ class _HomeShellState extends State<HomeShell> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.chat), label: 'Chat'),
           NavigationDestination(icon: Icon(Icons.notifications), label: 'Feed'),
+          NavigationDestination(icon: Icon(Icons.verified_user), label: 'Approvals'),
+          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
