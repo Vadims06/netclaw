@@ -72,3 +72,76 @@ are fully covered by the automated tests above and don't need to be repeated
 manually. Steps 2-4, 6-7 (the actual push arriving, a real biometric
 success/failure, and a real photo reaching the Border) require the Mac/iOS
 session or a properly provisioned Android device and should be run there.
+
+## Post-implementation hardening (same session, after T001-T030)
+
+A few real gaps surfaced from actually trying to run the app end-to-end, fixed
+before wrap-up:
+
+- **App identity**: the app shipped the stock Flutter template icon/splash and
+  launcher label (`netclaw_mobile`) on both platforms. Fixed: a real claw-mark
+  icon (`assets/icon/icon.png`, generated via `flutter_launcher_icons`/
+  `flutter_native_splash`, see `ASSETS.md`), the launcher label changed to
+  "NetClaw" (`AndroidManifest.xml`/`Info.plist`), and the `MaterialApp` theme
+  seed changed from an arbitrary `Colors.deepPurple` to the icon's own orange
+  (`#E65733`). `empty_feed.png`/`empty_approvals.png` illustrations wired into
+  `FeedScreen`/`ApprovalsScreen`'s empty states via a new shared `EmptyState`
+  widget.
+- **Persistence/reconnect/push were built but never wired into `main.dart`**:
+  `main.dart`'s `EnrollmentGate` generated a brand-new `memberId` on every
+  launch (no persisted identity at all), and `ReconnectSupervisor`/
+  `PushRegistration` — both fully implemented and unit-tested since 066 —
+  were never actually constructed anywhere in the running app. Fixed: a new
+  `EnrollmentStore` persists `{member_id, key_fingerprint, border_host,
+  border_port, claw_domain}` across restarts; `EnrollmentGate` reconnects via
+  the persisted record instead of re-enrolling every launch;
+  `EdgeClient.reconnectInPlace()` (new) lets a dropped connection redial
+  using the SAME `EdgeClient` object, so no downstream wrapper needs
+  rebuilding; `HomeShell` wires a `ReconnectSupervisor` to it and attempts
+  best-effort push registration (safe no-op with no real Firebase project
+  configured, same as before).
+- **Real end-to-end verification, bypassing the QR-scan camera bug**: a new
+  `integration_test/enrollment_and_ask_test.dart` calls the app's real
+  `attemptEnrollmentFromQr` directly on a real Android emulator (real
+  AndroidKeyStore key generation/signing, real `wss://` TLS dial, real
+  `in2n/enroll` handshake, real `n2n/edge/ask` submission) — it deliberately
+  skips only the camera-frame-to-QR-string decode step. That step could not
+  be exercised for real in this environment: the Android emulator's
+  `-camera-back imagefile` mode renders any fed image shrunk/mis-positioned
+  regardless of source size/aspect ratio (confirmed against multiple image
+  shapes), which is a genuine, unreported emulator-camera-HAL quirk (checked
+  `mobile_scanner`'s GitHub/changelog — no newer version, no matching issue;
+  `mobile_scanner`'s own `PreviewView` config is already correct,
+  `BoxFit.cover`); no virtual-webcam workaround is available either (no
+  `v4l2loopback`/`/dev/video*` in this WSL2 environment). This test was run
+  successfully against the **real production Border** (with the operator's
+  explicit go-ahead): `N2N_EDGE_WS_PORT=8443` added to
+  `~/.openclaw/mesh.systemd.env` and `netclaw-mesh.service` restarted
+  (federation fully recovered — same 5 peers, same states, before/after
+  compared). Real enrollment + a real `ask()` round-trip both succeeded,
+  confirmed independently in `journalctl --user -u netclaw-mesh.service` and
+  the daemon's own `/n2n/members` listing. Test member rows were removed via
+  `/n2n/members/remove` afterward — no residue left on production.
+- **A real (minor, separate) bug surfaced by that test**: `ask()`'s agent-turn
+  response came back as `GatewayClientRequestError: Invalid session ID:
+  n2n-edge-risk/integration-test-...` — `gateway.run_agent_turn()`'s
+  `session_key=f"n2n-edge-{member_id}"` (067) produces a session ID
+  containing a literal `/` when `member_id` itself contains one (every
+  `risk/...`-style member ID does), which `openclaw agent`'s session-ID
+  validation rejects. Submission/routing itself worked correctly — this is a
+  session-key-format bug, not a NCFED protocol bug — logged here rather than
+  fixed under time pressure; worth a small follow-up (e.g., sanitize the
+  session key, or use only the member's local id segment).
+- **HUD**: the existing "NetClaw Mobile edge nodes" panel
+  (`ui/netclaw-visual/src/main.js`'s `renderEdgeNodes()`) had no phone glyph,
+  just plain state/name text. Added a 📱 to the section header and each row,
+  matching the HUD's existing sparse-emoji convention (●/○ liveness dots, 🔒
+  for cert mode) — picked up live by the Vite dev server, no HUD restart
+  needed.
+- **Enrollment UX gap identified, not fixed this pass**: `EnrollmentGate`
+  goes straight to the QR scanner with no "enter Border details manually"
+  fallback at all — a deliberate 066 design choice (the QR atomically bundles
+  `border_host`/`border_port`/`claw_domain`/`enrollment_token` so the
+  domain-mismatch check always has everything together), but one that never
+  accounted for "camera unavailable/impractical" as a real case. Worth a
+  small dedicated follow-up spec.

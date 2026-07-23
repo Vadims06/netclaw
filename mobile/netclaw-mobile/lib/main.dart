@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -9,7 +12,10 @@ import 'ncfed/device_deep_link.dart';
 import 'ncfed/edge_ask_client.dart';
 import 'ncfed/edge_client.dart';
 import 'ncfed/edge_identity.dart';
+import 'ncfed/enrollment_store.dart';
 import 'ncfed/message_feed.dart';
+import 'ncfed/push_registration.dart';
+import 'ncfed/reconnect_supervisor.dart';
 import 'screens/approvals_screen.dart';
 import 'screens/capture_screen.dart';
 import 'screens/chat_screen.dart';
@@ -29,43 +35,119 @@ class NetClawMobileApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'NetClaw Mobile',
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple)),
+      // The claw mark's own orange (assets/icon/icon.png) — matches the
+      // brand, not an arbitrary Material default.
+      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE65733))),
       home: const EnrollmentGate(),
     );
   }
 }
 
-/// Shows the enrollment flow first; once enrolled, hands the connected
-/// EdgeClient to the main app shell (Chat + Feed tabs).
+/// Shows the enrollment flow first time through; on every later launch,
+/// reconnects using the persisted enrollment instead (068 polish) — without
+/// this, every cold start generated a fresh `memberId` and re-showed the QR
+/// scanner, federating a brand-new edge member on every single launch
+/// rather than reconnecting as the same one.
 class EnrollmentGate extends StatefulWidget {
-  const EnrollmentGate({super.key});
+  /// Injectable so tests never touch the real `path_provider` platform
+  /// channel (mirrors `VoiceTranscription`/`ReconnectSupervisor`'s existing
+  /// injectable-function-with-production-default pattern).
+  final Future<Directory> Function() documentsDirectory;
+
+  const EnrollmentGate({super.key, this.documentsDirectory = getApplicationDocumentsDirectory});
 
   @override
   State<EnrollmentGate> createState() => _EnrollmentGateState();
 }
 
+enum _GateState { loading, reconnecting, needsEnrollment }
+
 class _EnrollmentGateState extends State<EnrollmentGate> {
   static const _identity = EdgeIdentity();
+  final String _newMemberId = 'risk/${DateTime.now().millisecondsSinceEpoch}';
+  EnrollmentStore? _store;
+  _GateState _state = _GateState.loading;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    final dir = await widget.documentsDirectory();
+    final store = EnrollmentStore(dir);
+    final stored = await store.load();
+    if (!mounted) return;
+    _store = store;
+    if (stored == null) {
+      setState(() => _state = _GateState.needsEnrollment);
+      return;
+    }
+    setState(() => _state = _GateState.reconnecting);
+    try {
+      final client = await EdgeClient.reconnect(
+        stored.toPayload(),
+        memberId: stored.memberId,
+        keyFingerprint: stored.keyFingerprint,
+        identity: _identity,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => HomeShell(client: client, stored: stored)),
+      );
+    } catch (_) {
+      // Revoked, or the Border is genuinely unreachable right now -- fall
+      // back to the QR scanner rather than getting stuck on a spinner
+      // forever. A transient outage costs a rescan today; distinguishing
+      // "revoked" from "temporarily down" would need a richer error type
+      // than EdgeClientException currently carries.
+      await store.clear();
+      if (mounted) setState(() => _state = _GateState.needsEnrollment);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return EnrollmentScreen(
-      memberId: 'risk/${DateTime.now().millisecondsSinceEpoch}', // operator picks a real id in a future task
-      identity: _identity,
-      onEnrolled: (client, payload) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => HomeShell(client: client)),
-        );
-      },
-    );
+    if (_state == _GateState.needsEnrollment) {
+      return EnrollmentScreen(
+        memberId: _newMemberId,
+        identity: _identity,
+        onEnrolled: (client, payload) async {
+          final navigator = Navigator.of(context); // captured before the async gap below
+          final fingerprint = client.enrollFingerprint;
+          StoredEnrollment? stored;
+          if (fingerprint != null) {
+            stored = StoredEnrollment(
+              memberId: _newMemberId,
+              keyFingerprint: fingerprint,
+              borderHost: payload.borderHost,
+              borderPort: payload.borderPort,
+              clawDomain: payload.clawDomain,
+            );
+            await _store!.save(stored);
+          }
+          if (!mounted) return;
+          navigator.pushReplacement(
+            MaterialPageRoute(builder: (_) => HomeShell(client: client, stored: stored)),
+          );
+        },
+      );
+    }
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
 
-/// Chat + Feed tabs, once enrolled and connected (feature 066/067).
+/// Chat + Feed + Approvals + Settings tabs, once enrolled and connected
+/// (feature 066/067/068). `stored` is null only when the fingerprint wasn't
+/// returned on enroll (defensive; shouldn't happen in practice) — in that
+/// case reconnect/push simply aren't available for this session, same as
+/// today's behavior, rather than crashing.
 class HomeShell extends StatefulWidget {
   final EdgeClient client;
+  final StoredEnrollment? stored;
 
-  const HomeShell({super.key, required this.client});
+  const HomeShell({super.key, required this.client, this.stored});
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -73,12 +155,14 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _tab = 0;
+  bool _connected = true;
   MessageFeedStore? _feedStore;
   EdgeAskClient? _askClient;
   ConversationStore? _conversationStore;
   ApprovalClient? _approvalClient;
   CapabilityRegistration? _capabilities;
   DeviceDeepLinkListener? _deepLinkListener;
+  ReconnectSupervisor<void>? _reconnectSupervisor;
 
   @override
   void initState() {
@@ -112,11 +196,55 @@ class _HomeShellState extends State<HomeShell> {
         },
       );
       _deepLinkListener!.start();
+      _wireReconnect();
+      _tryRegisterPush();
     });
+  }
+
+  /// Auto-redials on a dropped connection (068 polish, ports 066's
+  /// `ReconnectSupervisor` from a tested-in-isolation class into the actual
+  /// running app) — reuses the SAME `EdgeClient` object via
+  /// `reconnectInPlace`, so nothing built above (askClient, feedStore's
+  /// wiring, capture/approval handlers) needs to be rebuilt after a drop.
+  void _wireReconnect() {
+    final stored = widget.stored;
+    if (stored == null) return; // no persisted identity to redial with
+    final supervisor = ReconnectSupervisor<void>(
+      dial: () => widget.client.reconnectInPlace(
+        stored.toPayload(),
+        memberId: stored.memberId,
+        keyFingerprint: stored.keyFingerprint,
+      ),
+      onConnected: (_) {
+        if (mounted) setState(() => _connected = true);
+      },
+      initiallyConnected: true,
+    );
+    widget.client.onDisconnected = () {
+      supervisor.notifyDisconnected();
+      if (mounted) setState(() => _connected = false);
+    };
+    supervisor.run(); // permanent retry loop; stopped in dispose()
+    _reconnectSupervisor = supervisor;
+  }
+
+  /// Best-effort FCM/APNs token registration (066 US3) — safe to attempt
+  /// with no real Firebase project configured (nothing in this repo ships
+  /// `google-services.json`/`GoogleService-Info.plist`): any failure here
+  /// just means the push-notification fallback isn't available yet, never
+  /// something that blocks or crashes the rest of the app.
+  Future<void> _tryRegisterPush() async {
+    try {
+      await Firebase.initializeApp();
+      await PushRegistration(widget.client).registerCurrentToken();
+    } catch (e) {
+      debugPrint('push registration unavailable (no Firebase project configured?): $e');
+    }
   }
 
   @override
   void dispose() {
+    _reconnectSupervisor?.stop();
     _askClient?.dispose();
     _approvalClient?.dispose();
     super.dispose();
@@ -155,6 +283,17 @@ class _HomeShellState extends State<HomeShell> {
       appBar: AppBar(
         title: Text(_titles[_tab]),
         actions: [
+          if (!_connected)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
           IconButton(icon: const Icon(Icons.qr_code_scanner), onPressed: _scanDevice),
         ],
       ),

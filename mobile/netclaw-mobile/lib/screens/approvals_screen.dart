@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../ncfed/approval_client.dart';
+import 'empty_state.dart';
 
 /// Pending approvals with biometric approve/deny (feature 068, US1/T010).
 /// `n2n/edge/approval_resolve` is sent ONLY after `LocalAuthentication.
@@ -46,7 +47,10 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
   @override
   Widget build(BuildContext context) {
     if (_approvals.isEmpty) {
-      return const Center(child: Text('No pending approvals.'));
+      return const EmptyState(
+        asset: 'assets/illustrations/empty_approvals.png',
+        text: 'No pending approvals.',
+      );
     }
     return ListView.builder(
       itemCount: _approvals.length,
