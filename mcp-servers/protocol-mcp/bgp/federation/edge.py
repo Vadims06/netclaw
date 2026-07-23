@@ -58,6 +58,15 @@ EDGE_METHODS = (
     "n2n/tasks/status",
     "n2n/tasks/result",
     "n2n/tasks/cancel",
+    # feature 068: biometric-gated approvals + bidirectional capture.
+    # n2n/edge/register_capabilities is phone-initiated (declares which
+    # capture types are currently enabled); n2n/edge/capture is
+    # Border-initiated (mirrors push_to_edge's call-out shape, contract §2);
+    # n2n/edge/approval_resolve is phone-initiated, calling the EXISTING
+    # Authorizer.resolve_approval(..., via="biometric") unchanged.
+    "n2n/edge/register_capabilities",
+    "n2n/edge/capture",
+    "n2n/edge/approval_resolve",
 )
 
 # Methods reachable before the channel has authenticated (the handshake itself).

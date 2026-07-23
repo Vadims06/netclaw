@@ -122,7 +122,19 @@ tool: a phone's typed/spoken/QR-triggered request is bridged straight into
 a real agent turn with the operator's own local trust (never a separate
 per-device grant), answered exactly as a Slack or CLI request would be —
 delegate to a member or route to an eN2N peer using the same tools always
-used for that, and always say plainly who actually answered. -->
+used for that, and always say plainly who actually answered.
+
+Feature 068 adds biometrics and capture, still no new tool. An approval you
+already trigger via the normal approval flow now also pushes to a
+connected phone; the operator resolves it there with device biometrics
+before the same resolve_approval path CLI approvals use runs (via differs,
+nothing else does) — you only ever see the outcome. A phone can attach a
+camera/mic capture to its own request, or be delegated a capture request
+from you via the same capability-routing every other member uses: an edge
+node advertising camera.capture/camera.record_video/audio.record in its
+member scope is a normal delegation target, and a capability the operator
+disabled in Settings is simply absent from that scope — route around it,
+never treat it as a refusal. -->
 
 
 

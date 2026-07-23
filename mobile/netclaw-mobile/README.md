@@ -9,8 +9,10 @@ Feature 066 (this repo's `specs/066-netclaw-mobile-ncfed-edge/`) covers the prot
 foundation: enrollment and the Border-to-phone push channel. Feature 067
 (`specs/067-ncfed-mobile-command-channel/`) adds the reverse direction — asking the
 Border something from the phone (text, voice, or a scanned device QR/deep link).
-Direction 3 (biometrics/camera/mic capture, `specs/068-ncfed-mobile-biometrics-capture/`)
-builds on top of both, in a separate spec.
+Feature 068 (`specs/068-ncfed-mobile-biometrics-capture/`) adds two more slices on
+top of both: Border-triggered approvals resolved on the phone with device
+biometrics (Face ID/fingerprint), and camera/mic capture in either direction
+(attach a photo to your own request, or let the Border request one from you).
 
 ## Structure
 
@@ -29,13 +31,19 @@ lib/
     conversation_store.dart   # per-device persisted chat history (067)
     voice_transcription.dart  # on-device speech-to-text -> ask() (067, US4)
     device_deep_link.dart     # netclaw://device/<id> / QR -> ask() (067, US5)
+    approval_client.dart      # tracks pushed approvals + approval_resolve (068, US1)
+    capability_registration.dart # advertises/toggles capture capabilities (068, US3)
+    capture_client.dart       # phone-initiated attach + Border-requested capture handler (068, US2/US3)
   screens/
     enrollment_screen.dart    # "Scan Border QR Code" (one-time, pre-enrollment)
     feed_screen.dart          # renders pushed messages (066)
-    chat_screen.dart          # request/answer history, cancel, voice (067)
+    chat_screen.dart          # request/answer history, cancel, voice, camera (067/068)
     device_scan_screen.dart   # "Scan Device" -- any time, post-enrollment (067, US5)
-  main.dart                   # EnrollmentGate -> HomeShell (Chat + Feed tabs)
-android/app/src/main/kotlin/.../MainActivity.kt  # AndroidKeyStore EdgeIdentity plugin
+    approvals_screen.dart     # pending approvals, Face ID/fingerprint gate (068, US1)
+    settings_screen.dart      # per-capture-type enable/disable toggles (068, US3)
+    capture_screen.dart       # live camera preview + shutter (068, US2/US3)
+  main.dart                   # EnrollmentGate -> HomeShell (Chat/Feed/Approvals/Settings tabs)
+android/app/src/main/kotlin/.../MainActivity.kt  # FlutterFragmentActivity (local_auth needs a FragmentActivity host) + AndroidKeyStore EdgeIdentity plugin
 ios/Runner/EdgeIdentityPlugin.swift               # Secure Enclave EdgeIdentity plugin
 ios/Runner/X509SelfSigned.swift                    # manual self-signed cert builder
 ```
@@ -65,6 +73,15 @@ flutter test
   (AndroidKeyStore-backed) links and runs without crashing; its actual key
   generation/signing behavior has not been separately exercised end-to-end (no QR
   containing a real payload was presented to the emulator's synthetic camera feed).
+  Feature 068 was verified the same way: a fresh debug APK (now linking `local_auth`
+  and `camera` on top of everything above, and with `MainActivity` changed to
+  `FlutterFragmentActivity`) built, installed, and launched cleanly on the same
+  emulator — `logcat` showed no Dart/Flutter exception and the activity reached
+  `topResumedActivity`, confirming the new native plugins don't crash on startup.
+  Biometric approval and a real photo capture were NOT exercised here — this
+  emulator has no provisioned fingerprint/Face-unlock enrollment and its virtual
+  camera only produces a synthetic test pattern, not a real capture; both need
+  either a real device or a properly provisioned emulator, done in a later pass.
 - **iOS**: building, signing, and running the app — and exercising
   `EdgeIdentityPlugin.swift`'s Secure Enclave key generation — **requires Xcode,
   which only runs on macOS.** That code was written and reviewed without a Mac
@@ -83,3 +100,11 @@ flutter test
   (`app_links`, feature 067 US5) are wired in and pass their unit tests, but — like
   push notifications — haven't been exercised against a real microphone or a real
   tapped/scanned link on either platform.
+- Feature 068's `local_auth`/`camera` packages need no manual `AndroidManifest.xml`
+  permission entries — both merge their own required permissions (`CAMERA`,
+  `RECORD_AUDIO`, `USE_BIOMETRIC`) in automatically via Gradle manifest merging;
+  `AndroidManifest.xml` itself declares zero `<uses-permission>` for either. On
+  iOS, `local_auth`'s Face ID needs `NSFaceIDUsageDescription` (Touch ID/Android's
+  BiometricPrompt need no key at all) — added to `Info.plist` alongside the
+  existing camera/microphone keys, which now also cover the `camera` package's
+  photo/video capture use (not exercised on iOS, same Xcode/Mac caveat as above).

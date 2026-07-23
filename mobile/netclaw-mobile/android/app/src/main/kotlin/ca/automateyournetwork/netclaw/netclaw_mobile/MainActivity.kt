@@ -3,7 +3,7 @@ package ca.automateyournetwork.netclaw.netclaw_mobile
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.security.KeyPairGenerator
@@ -28,7 +28,7 @@ private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
  * exercise on real Android hardware (or an emulator with Keystore support)
  * before relying on it.
  */
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, EDGE_IDENTITY_CHANNEL)

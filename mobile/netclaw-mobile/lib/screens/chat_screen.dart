@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../ncfed/capture_client.dart';
 import '../ncfed/conversation_store.dart';
 import '../ncfed/edge_ask_client.dart';
 import '../ncfed/voice_transcription.dart';
+import 'capture_screen.dart';
 
 /// Chat screen (feature 067, FR-006): request/answer history, in-progress
 /// state while a task is pending, and a cancel action per in-progress turn
@@ -63,6 +65,20 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _capturePhoto() async {
+    // feature 068, US2: a bare capture with no accompanying text is a valid
+    // request (FR-005) -- captureAndAsk() sends nothing at all if the
+    // operator declines/cancels (CaptureScreen returns null).
+    final client = CaptureClient(
+      askClient: widget.askClient,
+      capture: (type) => CaptureScreen.capture(context, type),
+    );
+    final taskId = await client.captureAndAsk('camera.capture');
+    if (taskId == null) return;
+    await widget.store.addPending(taskId, '[Photo]');
+    if (mounted) setState(() {});
+  }
+
   Future<void> _cancel(String taskId) async {
     await widget.askClient.cancel(taskId);
     // The Border pushes n2n/edge/ask_result with state='cancelled' once the
@@ -102,6 +118,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     onSubmitted: (_) => _send(),
                   ),
                 ),
+                IconButton(icon: const Icon(Icons.camera_alt), onPressed: _capturePhoto),
                 IconButton(icon: const Icon(Icons.mic), onPressed: _recordVoice),
                 IconButton(icon: const Icon(Icons.send), onPressed: _send),
               ],

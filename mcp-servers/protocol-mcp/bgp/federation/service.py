@@ -158,6 +158,9 @@ class FederationService:
             "n2n/tasks/status": self.invoker.handle_task_status,
             "n2n/tasks/result": self.invoker.handle_task_result,
             "n2n/tasks/cancel": self.invoker.handle_task_cancel,
+            # feature 068: biometric-gated approvals + capability advertisement.
+            "n2n/edge/register_capabilities": self._edge_on_register_capabilities,
+            "n2n/edge/approval_resolve": self._edge_on_approval_resolve,
         }
 
     def notify_approval(self, invocation_id, peer, target_type, target_name):
@@ -169,6 +172,40 @@ class FederationService:
                 self.approval_notifier(invocation_id, peer, target_type, target_name)
             except Exception as e:
                 logger.warning("approval notifier failed: %s", e)
+        # feature 068 (US1/FR-001): the first real delivery mechanism behind
+        # this hook — push to every connected edge node via the EXISTING
+        # push_to_edge() (066/US2), including its existing disconnected-
+        # device FCM/APNs fallback (066/US3). No "reason" field exists in
+        # the current approval_request/remote_invocation_record schema (this
+        # hook has only ever carried invocation_id/peer/target_type/
+        # target_name, confirmed by grepping every call site) -- not
+        # fabricated here.
+        if not self.edge_channels:
+            return
+        row = self.manager._conn.execute(
+            "SELECT id FROM approval_request WHERE invocation_id=? AND status='pending' "
+            "ORDER BY id DESC LIMIT 1", (invocation_id,)).fetchone()
+        if not row:
+            return
+        approval_id = row["id"]
+        risk_name = (self.risk.get_risk() or {}).get("risk_name")
+        payload = {
+            "content_type": "approval",
+            "approval_id": approval_id,
+            "target_type": target_type,
+            "target_name": target_name,
+            "requesting_agent": peer,
+            "risk_name": risk_name,
+            "pushed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        for member_id in list(self.edge_channels.keys()):
+            asyncio.create_task(self._push_approval_best_effort(member_id, payload))
+
+    async def _push_approval_best_effort(self, member_id, payload):
+        try:
+            await self.push_to_edge(member_id, payload)
+        except Exception as e:
+            logger.warning("approval push to edge %s failed: %s", member_id, e)
 
     def notify_key_change(self, ident):
         """Surface an NCFED key change for a federated peer (possible
@@ -1160,6 +1197,39 @@ class FederationService:
             raise RpcError(-32602, str(e))
         return {"registered": True}
 
+    async def _edge_on_register_capabilities(self, channel, params):
+        """An enrolled, connected edge node declares which capture types it
+        currently allows (feature 068, US3/FR-007a) — written into the SAME
+        member.scope column RiskRouter already reads (research D1); a type
+        omitted here is invisible to routing entirely, not merely refused."""
+        from .edge import RpcError
+        if not channel.trusted or not channel.member_id:
+            raise RpcError(-32023, "edge node not authenticated")
+        capabilities = params.get("capabilities", [])
+        try:
+            self.risk.set_capture_capabilities(channel.member_id, capabilities)
+        except ValueError as e:
+            raise RpcError(-32602, str(e))
+        return {"registered": True}
+
+    async def _edge_on_approval_resolve(self, channel, params):
+        """The phone resolves a pushed approval via biometric authentication
+        (feature 068, US1). Calls the EXISTING Authorizer.resolve_approval()
+        unchanged (research D6) -- no biometric proof travels over the wire;
+        the Border trusts the phone's report the same way it trusts any
+        other edge-node action (research D7). The existing 'first resolution
+        wins' behavior (resolve_approval's WHERE status='pending' clause)
+        applies unmodified if the CLI/HTTP path resolved it first."""
+        from .edge import RpcError
+        if not channel.trusted or not channel.member_id:
+            raise RpcError(-32023, "edge node not authenticated")
+        approval_id = params.get("approval_id")
+        action = params.get("action")
+        if approval_id is None or action not in ("approve", "deny"):
+            raise RpcError(-32602, "approval_id and action ('approve'|'deny') required")
+        self.authz.resolve_approval(int(approval_id), action, via="biometric")
+        return {"approval_id": approval_id, "resolved": True}
+
     async def _edge_on_ask(self, channel, params):
         """Phone asks the Border something (feature 067, US1/US2/US3): create
         a delegated_task (feature 053, TaskManager) and run a real agent turn
@@ -1181,8 +1251,12 @@ class FederationService:
         if not channel.trusted or not channel.member_id:
             raise RpcError(-32023, "edge node not authenticated")
         text = params.get("text", "")
-        if not text:
-            raise RpcError(-32602, "text required")
+        # feature 068 (US2/research D3): a capture may stand alone with no
+        # accompanying text (FR-005) -- text is required only in the
+        # ABSENCE of an attachment.
+        attachment = params.get("attachment")
+        if not text and not attachment:
+            raise RpcError(-32602, "text or attachment required")
         member_id = channel.member_id
         task_id = self.tasks.create(direction="inbound", peer_identity=member_id,
                                     target_type="edge_ask", target_name="ask",
@@ -1191,8 +1265,31 @@ class FederationService:
         async def worker(progress):
             from .gateway import run_agent_turn
             progress("asking the agent")
-            output, tokens = await run_agent_turn(
-                text, session_key=f"n2n-edge-{member_id}", untrusted=False)
+            prompt = text
+            message_file = None
+            if attachment:
+                content_type = attachment.get("content_type", "image")
+                content = attachment.get("content", "")
+                if not prompt:
+                    prompt = f"[Operator sent a {content_type} capture with no additional text]"
+                # A capture can be large enough (up to NCFED's 16 MiB
+                # aggregate bound, FR-005a) to exceed a safe CLI-argument
+                # length -- fold it into a file and use --message-file
+                # (research D3/gateway.py), never a raw CLI argument.
+                import tempfile
+                fd, message_file = tempfile.mkstemp(suffix=".txt", prefix="netclaw-capture-")
+                with os.fdopen(fd, "w") as f:
+                    f.write(f"{prompt}\n\n[Attached {content_type}, base64-encoded]\n{content}\n")
+            try:
+                output, tokens = await run_agent_turn(
+                    prompt, session_key=f"n2n-edge-{member_id}", untrusted=False,
+                    message_file=message_file)
+            finally:
+                if message_file:
+                    try:
+                        os.remove(message_file)
+                    except OSError:
+                        pass
             return output, tokens
         worker_task = self.tasks.run(task_id, worker)
 
@@ -1267,13 +1364,54 @@ class FederationService:
 
     async def route_and_delegate(self, capability: str, input_text: str) -> dict:
         """Select the owning member (deterministic) and delegate the work as an
-        async task over its channel. Returns {task_id, member_id} or an error."""
+        async task over its channel. Returns {task_id, member_id} or an error.
+
+        feature 068 (US3/research D1/D2): a capability may resolve to an edge
+        node (a phone advertising a capture capability via its scope, exactly
+        like any agent member) — RiskRouter.select_member() already handles
+        this with zero changes. What differs is HOW the selected target is
+        invoked: an edge node has no skill to run via n2n/tasks/submit, so it
+        branches to delegate_to_edge() (n2n/edge/capture) instead of
+        delegate_to_member() (n2n/tasks/submit)."""
         from .router import NoCapableMember
         try:
             member_id = self.router.select_member(capability)["member_id"]
         except NoCapableMember as e:
             return {"error": "IN2N_ERR_NO_CAPABLE_MEMBER", "message": str(e)}
+        member = self.risk.get_member(member_id)
+        if member and member.get("node_type") == "edge":
+            return await self.delegate_to_edge(member_id, capability)
         return await self.delegate_to_member(member_id, capability, input_text)
+
+    async def delegate_to_edge(self, member_id: str, capability: str) -> dict:
+        """Border-requested capture (feature 068, US3): mirrors
+        delegate_to_member()'s call-out shape for an edge node. No production
+        posture/component-scan preflight applies — there is no skill to scan,
+        only a device-native capability. Tracked via the SAME self.tasks
+        pattern _edge_on_ask (067) already established, so
+        n2n_task_status/result/cancel work unchanged regardless of whether
+        the target was an agent member or an edge node (research D2)."""
+        ch = self.edge_channels.get(member_id)
+        if ch is None:
+            return {"error": "member_unreachable", "member_id": member_id,
+                    "message": f"edge node {member_id} is not connected"}
+        task_id = self.tasks.create(direction="outbound", peer_identity=member_id,
+                                    target_type="capture", target_name=capability)
+
+        async def worker(progress):
+            progress("requesting capture")
+            result = await ch.call("n2n/edge/capture", {"capability": capability},
+                                   timeout=120.0)
+            if result.get("decision") != "captured":
+                raise RuntimeError(result.get("reason", "capture declined"))
+            return result, 0
+        self.tasks.run(task_id, worker)
+        self.audit.record(direction="outbound", peer_identity=member_id,
+                          target_type="capture", target_name=capability,
+                          request_id=task_id, decision="requested",
+                          outcome="submitted", channel_kind="in2n",
+                          event="delegation", actor=self._audit_actor())
+        return {"member_id": member_id, "task_id": task_id, "state": "submitted"}
 
     async def ensure_member_up(self, member_id: str, wait_s: float = 30.0):
         """Cold/on-demand: if a member has no live channel, bring it up and wait
