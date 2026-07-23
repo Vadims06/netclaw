@@ -16,15 +16,9 @@ already reads. No new MCP tool for either capability.
 
 ## Technical Context
 
-**Language/Version**: Python 3.10+ (daemon + `bgp/federation/*`, matching 052–067); Dart 3.x /
-Flutter 3.x (extends `mobile/netclaw-mobile/`)
-**Primary Dependencies**: Python: none new — reuses `push_to_edge()`, `resolve_approval()`,
-`RiskRouter`/`member.scope`, `TaskManager`. Dart: `local_auth` (biometric gating, US1), `camera`
-(photo/video capture, US2/US3) — exact audio-recording package (distinct from 067's
-speech-to-text, which discards audio after transcribing) is a Phase 2 task detail.
-**Storage**: No new tables — `member.scope` gains capture-capability entries (same column,
-same JSON shape 066/067 already write); `approval_request`'s existing `resolved_via` column
-gains a new value (`"biometric"`), no schema change.
+**Language/Version**: Python 3.10+ (daemon + `bgp/federation/*`, matching 052–067); Dart 3.x / Flutter 3.x (extends `mobile/netclaw-mobile/`)
+**Primary Dependencies**: Python: none new — reuses `push_to_edge()`, `resolve_approval()`, `RiskRouter`/`member.scope`, `TaskManager`. Dart: `local_auth` (biometric gating, US1), `camera` (photo/video capture, US2/US3) — exact audio-recording package (distinct from 067's speech-to-text, which discards audio after transcribing) is a Phase 2 task detail.
+**Storage**: No new tables — `member.scope` gains capture-capability entries (same column, same JSON shape 066/067 already write); `approval_request`'s existing `resolved_via` column gains a new value (`"biometric"`), no schema change.
 **Testing**: `python3 -m pytest tests/n2n -q` (new: `tests/n2n/test_edge_approval.py`,
 `tests/n2n/test_edge_capture.py`); `flutter analyze` + `flutter test`
 **Target Platform**: Same Android(buildable/testable here)/iOS(Xcode-only) split as 066/067

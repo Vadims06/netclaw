@@ -18,21 +18,10 @@ wire protocol never changes shape between typed and spoken requests.
 
 ## Technical Context
 
-**Language/Version**: Python 3.10+ (daemon + `bgp/federation/*`, matching 052–066); Dart 3.x /
-Flutter 3.x (extends `mobile/netclaw-mobile/`, the same codebase 066 established)
-**Primary Dependencies**: Python: none new — reuses `gateway.run_agent_turn()`, `tasks.py`'s
-`TaskManager`, `edge.py`'s `EdgeChannel`/`EDGE_METHODS`, `invocation.py`'s
-`handle_task_status`/`result`/`cancel` exactly as-is. Dart: an on-device speech-to-text package
-for US4 (voice → text before sending, research D7) and (for US5) reuses `mobile_scanner`
-(already added in 066) for the QR half of the device deep link; the `netclaw://device/<id>`
-URI-scheme half needs a deep-link/app-links package (e.g. `app_links` or platform intent
-filters) — exact package choice is a Phase 2 task detail, not fixed here.
-**Storage**: No Border-side schema change — `session_key=f"n2n-edge-{member_id}"` passed to
-`run_agent_turn` already gives each enrolled device its own agent session (research D6); the
-per-device conversation history itself (FR-007) is entirely on-device, a second JSON-Lines
-store mirroring 066's `MessageFeedStore` pattern (`ConversationStore`).
-**Testing**: `python3 -m pytest tests/n2n -q` (new: `tests/n2n/test_edge_ask.py`); `flutter
-analyze` + `flutter test` in `mobile/netclaw-mobile/`
+**Language/Version**: Python 3.10+ (daemon + `bgp/federation/*`, matching 052–066); Dart 3.x / Flutter 3.x (extends `mobile/netclaw-mobile/`, the same codebase 066 established)
+**Primary Dependencies**: Python: none new — reuses `gateway.run_agent_turn()`, `tasks.py`'s `TaskManager`, `edge.py`'s `EdgeChannel`/`EDGE_METHODS`, `invocation.py`'s `handle_task_status`/`result`/`cancel` exactly as-is. Dart: an on-device speech-to-text package for US4 (voice → text before sending, research D7) and (for US5) reuses `mobile_scanner` (already added in 066) for the QR half of the device deep link; the `netclaw://device/<id>` URI-scheme half needs a deep-link/app-links package (e.g. `app_links` or platform intent filters) — exact package choice is a Phase 2 task detail, not fixed here.
+**Storage**: No Border-side schema change — `session_key=f"n2n-edge-{member_id}"` passed to `run_agent_turn` already gives each enrolled device its own agent session (research D6); the per-device conversation history itself (FR-007) is entirely on-device, a second JSON-Lines store mirroring 066's `MessageFeedStore` pattern (`ConversationStore`).
+**Testing**: `python3 -m pytest tests/n2n -q` (new: `tests/n2n/test_edge_ask.py`); `flutter analyze` + `flutter test` in `mobile/netclaw-mobile/`
 **Target Platform**: Same as 066 — Android (buildable/testable in this environment once the
 SDK is installed) and iOS (Xcode/macOS-only for build/run; no new native platform code needed
 here beyond what 066 already added, since this spec introduces no new secure-hardware
