@@ -206,6 +206,33 @@ Profiles are derived from the installed catalog by `scripts/in2n-profiles.py`
 (cml, pyats, ipfabric, forward, itential, viz, security). A member repeatedly
 failing auth/health is **auto-quarantined** and surfaced to the operator.
 
+## NetClaw Mobile — an edge node in the risk (feature 066)
+
+A phone is a member of the risk too, but of a distinct **`node_type='edge'`**
+— it carries no agent runtime, no skills, and cannot reach BGP/eN2N/inventory
+methods at all (a dedicated, narrower WebSocket transport and handler map).
+This spec's slice is enrollment + Border-to-phone push only; asking the
+Border something *from* the phone is feature 067's command channel, and
+camera/mic/biometric capture is feature 068 — don't reach for those here.
+
+1. **Enroll**: on the Border, `netclaw risk token --edge [label]` renders a
+   scannable QR (no MCP tool for this — it's an operator/CLI action). The
+   phone scans it, verifies the Border's certified domain matches before
+   dialing at all, and completes the same possession-proof handshake agent
+   members use — just over `wss://` instead of raw TCP.
+2. **Push**: `n2n_notify_phone(peer, content, kind="text"|"voice"|"image")` is
+   the ONLY way content reaches the phone — reachable identically from Slack,
+   the TUI, the HUD, or your own reasoning. Never mirror ordinary channel
+   traffic to a phone; only call this when the operator explicitly wants
+   something delivered there. If the device is disconnected, delivery falls
+   back to a platform push notification automatically.
+3. **Health**: the phone satisfies the same member-health guarantee agent
+   members get from `member_heartbeat`, via a different, built-in mechanism
+   (periodic heartbeat + on-demand self-status) — nothing to call for this,
+   it's automatic once enrolled.
+4. **Revoke**: the existing `n2n_member_remove(member_id)` unenrolls a phone
+   exactly like any other member — no separate mechanism.
+
 ## Tools used
 
 US1 capability: `n2n_status`, `n2n_consent`, `n2n_kill`, `n2n_peer_capabilities`,
@@ -217,6 +244,8 @@ US1 capability: `n2n_status`, `n2n_consent`, `n2n_kill`, `n2n_peer_capabilities`
 056 iN2N (risk): `n2n_risk_status`, `n2n_member_list`, `n2n_member_health`,
 `n2n_member_add`, `n2n_enroll_token`, `n2n_member_remove`, `n2n_route`.
 057 production posture: `n2n_posture`, `n2n_faults`.
+066 NetClaw Mobile edge node: `n2n_notify_phone` (enrollment itself is
+`netclaw risk token --edge`, a CLI action, not an MCP tool).
 
 ## Operator heartbeat — fault isolation (057)
 

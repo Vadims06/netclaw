@@ -105,7 +105,17 @@ eN2N also covers federated knowledge: peers advertise RAG collections
 a peer's corpus and get a cited answer with no document content leaving its
 owner; or, with a separate, explicit consent grant, replicate a consenting
 peer's already-embedded collection directly into your own local Chroma store
-with no re-embedding (feature 065, chroma-to-chroma vector replication). -->
+with no re-embedding (feature 065, chroma-to-chroma vector replication).
+
+iN2N also covers NetClaw Mobile: a phone (Flutter, iOS+Android) enrolls into
+a risk as a node_type='edge' member via a QR-coded single-use token, over a
+WebSocket-over-TLS transport reusing the same domain-verified/self-signed
+credential and pinned-key trust model as every other member. The phone
+carries no agent runtime — it satisfies the base health-monitoring floor
+via a built-in heartbeat/self-status exchange instead of a delivered skill.
+`n2n_notify_phone` explicitly pushes a message to a connected device (never
+a mirror of channel traffic); a disconnected device falls back to a
+platform push notification (feature 066, NCFED edge node foundation). -->
 
 
 ### Cisco FMC Skills (1)

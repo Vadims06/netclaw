@@ -1484,6 +1484,33 @@ function renderReplicationJobs() {
   return `<h4>Replication jobs (chroma-to-chroma)</h4><ul class="n2n-list">${rows}</ul>`;
 }
 
+// 066: NetClaw Mobile edge nodes (node_type='edge' members) — connection
+// state at a glance. Renders nothing on a pre-066 daemon or when no phone
+// has ever enrolled.
+function renderEdgeNodes() {
+  const nodes = state.n2n?.edgeNodes || [];
+  if (!nodes.length) return '';
+  const stCls = (s) => (s === 'active' ? 'federated'
+    : s === 'unreachable' ? 'not-federated' : 'consent-pending-local');
+  const rows = nodes.slice(0, 8).map((n) => `<li>
+      <strong class="n2n-state-${stCls(n.state)}">${n.state}</strong>
+      <span class="n2n-muted">${n.display_name || n.member_id}</span>
+      <span class="n2n-muted">· ${(n.updated_at || '').replace('T', ' ').replace('Z', '')}</span></li>`).join('');
+  return `<h4>NetClaw Mobile edge nodes (${nodes.length})</h4><ul class="n2n-list">${rows}</ul>`;
+}
+
+// 066: recent explicit Border-to-phone pushes (n2n_notify_phone). Renders
+// nothing on a pre-066 daemon or when no push has ever been sent.
+function renderRecentPushes() {
+  const pushes = state.n2n?.recentPushes || [];
+  if (!pushes.length) return '';
+  const rows = pushes.slice(0, 8).map((p) => `<li>
+      <strong>${p.target_name || 'text'}</strong>
+      <span class="n2n-muted">→ ${p.peer_identity || ''}</span>
+      <span class="n2n-muted">· ${(p.requested_at || '').replace('T', ' ').replace('Z', '')}</span></li>`).join('');
+  return `<h4>Recent phone pushes</h4><ul class="n2n-list">${rows}</ul>`;
+}
+
 // 057: recent GAIT immutable audit events (delegation/enrollment/removal/quarantine).
 function renderGaitTrail() {
   const events = state.n2n?.gait || [];
@@ -1649,6 +1676,8 @@ function setDetail(kind, payload, related = []) {
       <p>${state.n2n?.identity || 'local claw'}</p>
       ${renderRiskSection()}
       ${renderReplicationJobs()}
+      ${renderEdgeNodes()}
+      ${renderRecentPushes()}
     `;
     return;
   }

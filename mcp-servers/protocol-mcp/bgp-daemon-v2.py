@@ -20,6 +20,7 @@ import sys
 import urllib.parse
 from ipaddress import IPv4Network
 import struct
+import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -688,6 +689,41 @@ async def handle_n2n(method, path, body):
             out = await fed.route_and_delegate(capability, body.get("request_text", ""))
             return (200 if "error" not in out else 409), out
 
+        if path == "/n2n/edge/push" and method == "POST":
+            # feature 066 (US2/FR-008): explicit Border-to-phone push, driven
+            # by n2n_notify_phone. Never triggered by ordinary channel
+            # traffic -- this route is the only caller of push_to_edge().
+            member_id = body.get("member_id")
+            content_type = body.get("content_type", "text")
+            content = body.get("content")
+            if not member_id or content is None:
+                return 400, {"error": "member_id and content required"}
+            if content_type not in ("text", "voice", "image"):
+                return 400, {"error": f"unsupported content_type {content_type!r}"}
+            push = {
+                "content_type": content_type,
+                "content": content,
+                "designated_by": "agent",
+                "pushed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            try:
+                result = await fed.push_to_edge(member_id, push)
+                return 200, {"delivered": True, "member_id": member_id, "result": result}
+            except ValueError:
+                # Not connected -- platform push-notification fallback
+                # (FR-011, US3/T031).
+                from bgp.federation import push_notify
+                member = fed.risk.get_member(member_id)
+                if not member:
+                    return 404, {"error": f"unknown member {member_id}"}
+                try:
+                    result = await push_notify.send_push_notification(member, push)
+                    return 200, {"delivered": True, "via": "push_notification",
+                                "member_id": member_id, "result": result}
+                except Exception as e:
+                    logger.warning("Push-notification fallback failed for %s: %s", member_id, e)
+                    return 200, {"delivered": False, "reason": str(e), "member_id": member_id}
+
         return 404, {"error": f"unknown n2n route {path}"}
     except Exception as e:
         logger.error("N2N route error %s %s: %s", method, path, e)
@@ -769,6 +805,39 @@ async def _start_in2n(fed):
                         risk["border_endpoint"], risk.get("self_member_id"))
     except Exception as e:
         logger.error("iN2N start error: %s", e)
+
+
+async def _start_edge(fed):
+    """feature 066: NCFED Edge Node — a Border-role claw with N2N_EDGE_WS_PORT
+    set accepts WebSocket connections from NetClaw Mobile devices. Reuses the
+    same domain-verified/self-signed credential as eN2N/iN2N via
+    host_credential() + tls.server_context() (research D1) — deliberately NOT
+    internal_channel.build_ssl_contexts, which is the older risk-CA/self-signed
+    path and does not carry the domain-verified cert."""
+    try:
+        if not (fed.risk.is_border() and fed.risk.stack_enabled("in2n")):
+            return
+        port = int(os.environ.get("N2N_EDGE_WS_PORT", "0") or 0)
+        if not port:
+            logger.info("Edge (NetClaw Mobile): set N2N_EDGE_WS_PORT to accept phone dial-ins")
+            return
+        import websockets
+        from bgp.federation import tls as _tls
+        cert_pem, key_pem = fed.host_credential()
+        ctx = _tls.server_context(cert_pem, key_pem)
+
+        async def _on_ws(ws):
+            try:
+                await fed.accept_edge_ws(ws)
+            except Exception as e:
+                logger.warning("Edge WS accept failed: %s", e)
+
+        server = await websockets.serve(_on_ws, "0.0.0.0", port, ssl=ctx)
+        fed._edge_server = server  # keep a ref
+        logger.info("Edge (NetClaw Mobile) WS listener on 0.0.0.0:%d (risk=%s)",
+                   port, fed.risk.get_risk().get("risk_name"))
+    except Exception as e:
+        logger.error("Edge WS start error: %s", e)
 
 
 async def _start_cert_lifecycle(fed):
@@ -1253,6 +1322,9 @@ async def main():
         # iN2N (feature 056): start the internal-federation listener (Border) or
         # dialer (Member) per this claw's role. Members dial outbound only.
         asyncio.create_task(_start_in2n(_federation))
+        # NCFED Edge Node (feature 066): a Border listens for phone dial-ins
+        # over a WebSocket transport if N2N_EDGE_WS_PORT is set.
+        asyncio.create_task(_start_edge(_federation))
         # Claw certification (feature 060): obtain/refresh the domain-verified
         # credential (if configured) and run the automatic renewal scheduler.
         asyncio.create_task(_start_cert_lifecycle(_federation))

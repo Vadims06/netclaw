@@ -111,6 +111,11 @@ class FederationService:
         self.risk = RiskManager(self.manager)
         self.router = RiskRouter(self.risk)
         self.member_channels: Dict[str, object] = {}   # border side: member_id -> InternalChannel
+        # feature 066: border side, node_type='edge' members (phones) — a
+        # separate registry from member_channels because edge nodes never
+        # carry agent-member capabilities (no BGP/eN2N/inventory dispatch,
+        # FR-012) and are addressed by push_to_edge(), not delegate_to_member().
+        self.edge_channels: Dict[str, object] = {}
         self.border_channel = None                      # member side: our channel to the Border
         self.member_last_activity = time.time()         # member side: for cold/on-demand idle-exit
         self._spawning = set()                          # border side: members mid cold-start
@@ -135,6 +140,15 @@ class FederationService:
             "n2n/tasks/status": self.invoker.handle_task_status,
             "n2n/tasks/result": self.invoker.handle_task_result,
             "n2n/tasks/cancel": self.invoker.handle_task_cancel,
+        }
+        # feature 066: Border-side handlers for edge (phone) connections. Only
+        # the handshake + built-in health methods (FR-012) — never BGP/eN2N/
+        # inventory. n2n/edge/message has no server-side handler because it is
+        # Border-initiated only (push_to_edge calls it; nothing calls it on us).
+        self._edge_border_handlers = {
+            "in2n/enroll": self._edge_on_enroll,
+            "in2n/hello": self._edge_on_hello,
+            "n2n/edge/register_push": self._edge_on_register_push,
         }
 
     def notify_approval(self, invocation_id, peer, target_type, target_name):
@@ -922,6 +936,220 @@ class FederationService:
         if channel.member_id:
             self.risk.update_health(channel.member_id, inventory_at=time.time())
         return {"accepted": True}
+
+    # ---- feature 066: edge (phone) connections -------------------------
+    # WebSocket transport instead of raw TCP (research D2); same trust model
+    # (pinned-key possession over a Border-issued nonce) and same wire method
+    # names (in2n/enroll, in2n/hello) as agent-member iN2N enrollment (contract
+    # §2) — only consume_token()'s new node_type="edge" argument (T006) and a
+    # separate registry (self.edge_channels, T008) distinguish it.
+
+    def _register_edge_channel(self, member_id, ch):
+        """Track an edge node's channel; deregister on close and start its
+        Border-driven heartbeat loop (T011) — the BASE_FLOOR-equivalent
+        health-monitoring guarantee for a member that never runs a skill
+        (D5/T010)."""
+        def _deregister(closed_ch):
+            if self.edge_channels.get(member_id) is closed_ch:
+                self.edge_channels.pop(member_id, None)
+                self.risk.mark_unreachable(member_id)
+                logger.info("Edge node %s channel closed — deregistered", member_id)
+        ch.on_close = _deregister
+        self.edge_channels[member_id] = ch
+        asyncio.create_task(self._edge_heartbeat_loop(member_id, ch))
+
+    async def _edge_heartbeat_once(self, member_id: str, ch) -> bool:
+        """One heartbeat check (contract §4): call n2n/edge/heartbeat on the
+        connected phone and record liveness in member.health, exactly as
+        member_heartbeat does for agent members. This is the entire
+        BASE_FLOOR-equivalent guarantee (D5/T010) for a node_type='edge'
+        member with zero skills delivered — extracted from the loop below so
+        it's directly callable/testable without waiting on real timers."""
+        try:
+            await ch.call("n2n/edge/heartbeat", {})
+            self.risk.update_health(member_id, last_heartbeat=time.time())
+            return True
+        except Exception as e:
+            logger.warning("Edge node %s: heartbeat failed (%s)", member_id, e)
+            return False
+
+    async def _edge_heartbeat_loop(self, member_id, ch):
+        """Border-initiated heartbeat (contract §4): periodically run
+        _edge_heartbeat_once; after NCFED_HEARTBEAT_MISS_LIMIT consecutive
+        misses, closes the channel (which deregisters it and marks the
+        member unreachable, US3/SC-006). Reuses the same interval/miss-limit
+        as eN2N/iN2N channel liveness (NCFED_HEARTBEAT_INTERVAL/_MISS_LIMIT)
+        so there is one heartbeat-miss window across the whole daemon, not a
+        second constant to keep in sync."""
+        from ..constants import NCFED_HEARTBEAT_INTERVAL, NCFED_HEARTBEAT_MISS_LIMIT
+        misses = 0
+        while self.edge_channels.get(member_id) is ch and not ch._closed:
+            await asyncio.sleep(NCFED_HEARTBEAT_INTERVAL)
+            if self.edge_channels.get(member_id) is not ch or ch._closed:
+                break
+            if await self._edge_heartbeat_once(member_id, ch):
+                misses = 0
+            else:
+                misses += 1
+                if misses >= NCFED_HEARTBEAT_MISS_LIMIT:
+                    await ch.close()
+                    break
+
+    async def push_to_edge(self, member_id: str, content: dict, timeout: float = 30.0) -> dict:
+        """Explicitly push content to a connected edge node (US2/FR-008),
+        mirroring delegate_to_member()'s existing call-out shape (D8). Called
+        ONLY from an explicit operator/agent action (n2n_notify_phone → the
+        daemon's POST /n2n/edge/push route) — there is no other code path
+        that calls this, so no ordinary channel traffic is ever mirrored to
+        a phone. Raises ValueError if the edge node is not currently
+        connected; the caller (the HTTP route) is responsible for the
+        platform push-notification fallback (FR-011, US3)."""
+        ch = self.edge_channels.get(member_id)
+        if not ch:
+            raise ValueError(f"edge node {member_id} not connected")
+        result = await ch.call("n2n/edge/message", content, timeout=timeout)
+        # Audit every explicit push (Constitution IV) so the HUD/operator can
+        # see recent phone deliveries via the existing /n2n/audit query,
+        # exactly like every other iN2N action.
+        self.audit.record(direction="outbound", peer_identity=member_id,
+                          target_type="edge_push", target_name=content.get("content_type"),
+                          decision="pushed", outcome="success", channel_kind="in2n")
+        return result
+
+    async def edge_self_status(self, member_id: str, timeout: float = 30.0) -> dict:
+        """On-demand self-status (contract §4) — the edge-node analogue of
+        member_report_audit, scoped to what's meaningful for a device rather
+        than a process."""
+        ch = self.edge_channels.get(member_id)
+        if not ch:
+            raise ValueError(f"edge node {member_id} not connected")
+        status = await ch.call("n2n/edge/self_status", {}, timeout=timeout)
+        self.risk.update_health(member_id, self_status=status, self_status_at=time.time())
+        return status
+
+    async def accept_edge_ws(self, ws):
+        """Border side: a phone dialed our edge WS listener. Challenge it with
+        a nonce (the WS-transport equivalent of send_border_preamble's raw
+        IN2N_MAGIC+nonce for agent members — WS has no bytes-before-the-
+        protocol channel, so the challenge is the first JSON-RPC notification),
+        then run an EdgeChannel; it authenticates via in2n/enroll (first time)
+        or in2n/hello (pinned-key proof)."""
+        from .edge import EdgeChannel
+        nonce = secrets.token_bytes(IN2N_NONCE_SIZE)
+        ch = EdgeChannel(ws, local_identity=self.local_identity,
+                         handlers=self._edge_border_handlers)
+        ch.nonce = nonce
+        await ch.notify("n2n/edge/challenge", {"nonce": nonce.hex()})
+        await ch.start()
+        logger.info("Accepted edge WS dial-in (awaiting device auth)")
+        if ch._read_task:
+            await ch._read_task
+
+    async def _edge_on_enroll(self, channel, params):
+        """First-time edge enrollment: verify possession + consume the token
+        with node_type='edge' (T006/D9) so the resulting member row carries no
+        BASE_FLOOR skill names (D5/T010) — the edge node satisfies that
+        guarantee via n2n/edge/heartbeat + n2n/edge/self_status instead."""
+        from .internal_channel import _ERR_NOT_TRUSTED, _ERR_NOT_A_BORDER
+        from .edge import RpcError
+        if not self.risk.is_border():
+            raise RpcError(_ERR_NOT_A_BORDER, "this claw is not a Border")
+        token = params.get("token", "")
+        member_id = params.get("member_id", "")
+        cert_pem = params.get("cert_pem", "")
+        signature = bytes.fromhex(params.get("signature", "") or "")
+        if not self.risk.verify_possession(cert_pem, channel.nonce, signature):
+            raise RpcError(_ERR_NOT_TRUSTED, "key possession proof failed")
+        try:
+            res = self.risk.consume_token(
+                token, member_id, cert_pem,
+                scope=[],
+                runtime_kind=params.get("runtime_kind", "mobile"),
+                display_name=params.get("display_name"),
+                transport_binding="edge-ws",
+                node_type="edge")
+        except ValueError as e:
+            from ..constants import IN2N_ERR_ENROLL_TOKEN_INVALID, IN2N_ERR_MEMBER_ID_TAKEN
+            msg = str(e)
+            if "TRUSTED" in msg:
+                code = _ERR_NOT_TRUSTED
+            elif "MEMBER_ID_TAKEN" in msg:
+                code = IN2N_ERR_MEMBER_ID_TAKEN
+            else:
+                code = IN2N_ERR_ENROLL_TOKEN_INVALID
+            raise RpcError(code, msg)
+        channel.member_id = member_id
+        channel.peer_identity = member_id
+        channel.trusted = True
+        self.risk.verify_member(member_id, self.risk.fingerprint_of(cert_pem))
+        self._register_edge_channel(member_id, channel)
+        self.audit.record(direction="inbound", peer_identity=member_id,
+                          target_type="enroll", target_name=member_id,
+                          decision="enrolled", outcome="success", channel_kind="in2n")
+        logger.info("Edge node %s enrolled + active — confirm fingerprint out of band: %s",
+                   member_id, res.get("enroll_fingerprint"))
+        return res
+
+    async def _edge_on_hello(self, channel, params):
+        """Reconnect: authenticate against the pinned key, mirroring
+        _in2n_on_hello, but additionally refuses a non-edge member_id
+        (defense in depth — an agent member's credentials must never grant
+        access to the phone-facing listener, even though EdgeChannel's own
+        handler map already excludes every method an agent identity could
+        otherwise reach, FR-012)."""
+        from .internal_channel import _ERR_NOT_TRUSTED
+        from .edge import RpcError
+        member_id = params.get("member_id", "")
+        fingerprint = params.get("key_fingerprint", "")
+        signature = bytes.fromhex(params.get("signature", "") or "")
+        mem = self.risk.get_member(member_id)
+        if not mem or not mem.get("pinned_key") or mem.get("node_type") != "edge":
+            raise RpcError(_ERR_NOT_TRUSTED, "unknown or unpinned edge node")
+        ok = (mem["key_fingerprint"] == fingerprint
+              and self.risk.verify_possession(mem["pinned_key"], channel.nonce, signature)
+              and self.risk.verify_member(member_id, fingerprint))
+        if not ok:
+            src = self._edge_channel_source(channel)
+            est = (self.edge_channels.get(member_id) and
+                   self._edge_channel_source(self.edge_channels[member_id]))
+            quarantined = self.risk.record_auth_failure(
+                member_id, source=src, established_source=est)
+            if quarantined:
+                self.notify_member_quarantine(member_id)
+            raise RpcError(_ERR_NOT_TRUSTED, "pinned-key auth failed")
+        channel.member_id = member_id
+        channel.peer_identity = member_id
+        channel.trusted = True
+        self._register_edge_channel(member_id, channel)
+        return {"risk": self.risk.get_risk().get("risk_name"), "trusted": True,
+               "member_state": "active"}
+
+    @staticmethod
+    def _edge_channel_source(channel) -> Optional[str]:
+        """Best-effort remote address of an edge (WebSocket) channel."""
+        try:
+            addr = channel.ws.remote_address
+            return f"{addr[0]}:{addr[1]}" if addr else None
+        except Exception:
+            return None
+
+    async def _edge_on_register_push(self, channel, params):
+        """An enrolled, connected edge node registers its platform push
+        token (US3/T031) so push_to_edge's fallback can reach it while
+        disconnected — called once after the app obtains an FCM/APNs token,
+        and again whenever the platform rotates it."""
+        from .edge import RpcError
+        if not channel.trusted or not channel.member_id:
+            raise RpcError(-32023, "edge node not authenticated")
+        platform = params.get("platform", "")
+        token = params.get("token", "")
+        if not token:
+            raise RpcError(-32602, "token required")
+        try:
+            self.risk.register_push(channel.member_id, platform, token)
+        except ValueError as e:
+            raise RpcError(-32602, str(e))
+        return {"registered": True}
 
     def notify_member_quarantine(self, member_id):
         """Surface an auto-quarantine to the operator (in-band; FR-013d). Uses the
