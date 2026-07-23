@@ -84,11 +84,23 @@ class MessageFeedStore {
   }
 }
 
-/// Registers the `n2n/edge/message` handler (T023) on an already-enrolled
-/// edge connection so every Border-initiated push is appended to `store`
-/// and acknowledged, per contracts/edge-enrollment-and-push.md §3.
-void wireMessageFeed(EdgeMethodSource client, MessageFeedStore store) {
+/// Registers the SINGLE `n2n/edge/message` handler for the whole app —
+/// `EdgeClient.on()` only ever keeps the LAST handler registered per
+/// method, so this must be the only place that calls `client.on('n2n/edge/
+/// message', ...)`. Every Border-initiated push with `content_type`
+/// text/voice/image is appended to `store` (066, contracts/
+/// edge-enrollment-and-push.md §3); a push with `content_type='approval'`
+/// (068, research D5) is instead handed to `onApproval` — never both.
+void wireMessageFeed(
+  EdgeMethodSource client,
+  MessageFeedStore store, {
+  void Function(Map<String, dynamic> params)? onApproval,
+}) {
   client.on('n2n/edge/message', (params) async {
+    if (params['content_type'] == 'approval') {
+      onApproval?.call(params);
+      return {'received': true};
+    }
     await store.append(EdgeMessage.fromWire(params));
     return {'received': true};
   });

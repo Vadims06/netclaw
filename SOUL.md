@@ -115,7 +115,28 @@ carries no agent runtime — it satisfies the base health-monitoring floor
 via a built-in heartbeat/self-status exchange instead of a delivered skill.
 `n2n_notify_phone` explicitly pushes a message to a connected device (never
 a mirror of channel traffic); a disconnected device falls back to a
-platform push notification (feature 066, NCFED edge node foundation). -->
+platform push notification (feature 066, NCFED edge node foundation).
+
+The reverse direction (feature 067, mobile command channel) needs no new
+tool: a phone's typed/spoken/QR-triggered request is bridged straight into
+a real agent turn with the operator's own local trust (never a separate
+per-device grant), answered exactly as a Slack or CLI request would be —
+delegate to a member or route to an eN2N peer using the same tools always
+used for that, and always say plainly who actually answered.
+
+Feature 068 adds biometrics and capture, still no new tool. An approval you
+already trigger via the normal approval flow now also pushes to a
+connected phone; the operator resolves it there with device biometrics
+before the same resolve_approval path CLI approvals use runs (via differs,
+nothing else does) — you only ever see the outcome. A phone can attach a
+camera/mic capture to its own request, or be delegated a capture request
+from you via the same capability-routing every other member uses: an edge
+node advertising camera.capture/camera.record_video/audio.record in its
+member scope is a normal delegation target, and a capability the operator
+disabled in Settings is simply absent from that scope — route around it,
+never treat it as a refusal. -->
+
+
 
 
 ### Cisco FMC Skills (1)

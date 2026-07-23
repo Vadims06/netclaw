@@ -6,28 +6,44 @@ Border Claw, advertises device-native capabilities (camera, biometric approval,
 location, etc.), and renders whatever the Border sends back.
 
 Feature 066 (this repo's `specs/066-netclaw-mobile-ncfed-edge/`) covers the protocol
-foundation: enrollment and the Border-to-phone push channel. Direction 2 (phone asks
-the Border something, `specs/067-ncfed-mobile-command-channel/`) and Direction 3
-(biometrics/camera/mic capture, `specs/068-ncfed-mobile-biometrics-capture/`) build on
-top of this, in separate specs.
+foundation: enrollment and the Border-to-phone push channel. Feature 067
+(`specs/067-ncfed-mobile-command-channel/`) adds the reverse direction — asking the
+Border something from the phone (text, voice, or a scanned device QR/deep link).
+Feature 068 (`specs/068-ncfed-mobile-biometrics-capture/`) adds two more slices on
+top of both: Border-triggered approvals resolved on the phone with device
+biometrics (Face ID/fingerprint), and camera/mic capture in either direction
+(attach a photo to your own request, or let the Border request one from you).
 
 ## Structure
 
 ```
 lib/
-  ncfed/                    # protocol layer -- no UI
-    edge_identity.dart       # platform Keystore/Secure Enclave keygen + sign
+  ncfed/                     # protocol layer -- no UI
+    edge_identity.dart        # platform Keystore/Secure Enclave keygen + sign
     enrollment_qr_payload.dart
-    edge_client.dart         # WebSocket JSON-RPC client (mirrors edge.py's EdgeChannel)
-    enrollment_flow.dart     # QR -> parse -> domain check -> dial -> outcome
-    message_feed.dart        # local persisted store for Border-pushed messages
+    edge_client.dart          # WebSocket JSON-RPC client (mirrors edge.py's EdgeChannel)
+    enrollment_flow.dart      # QR -> parse -> domain check -> dial -> outcome
+    message_feed.dart         # local persisted store for Border-pushed messages (066)
     reconnect_supervisor.dart # generic bounded-retry loop (ports _in2n_member_dialer)
-    push_registration.dart   # FCM/APNs token registration
+    push_registration.dart    # FCM/APNs token registration
     notification_deep_link.dart
+    edge_ask_client.dart      # n2n/edge/ask + task status/result/cancel (067)
+    conversation_store.dart   # per-device persisted chat history (067)
+    voice_transcription.dart  # on-device speech-to-text -> ask() (067, US4)
+    device_deep_link.dart     # netclaw://device/<id> / QR -> ask() (067, US5)
+    approval_client.dart      # tracks pushed approvals + approval_resolve (068, US1)
+    capability_registration.dart # advertises/toggles capture capabilities (068, US3)
+    capture_client.dart       # phone-initiated attach + Border-requested capture handler (068, US2/US3)
   screens/
-    enrollment_screen.dart   # "Scan Border QR Code"
-    feed_screen.dart         # renders pushed messages
-android/app/src/main/kotlin/.../MainActivity.kt  # AndroidKeyStore EdgeIdentity plugin
+    enrollment_screen.dart    # "Scan Border QR Code" (one-time, pre-enrollment)
+    feed_screen.dart          # renders pushed messages (066)
+    chat_screen.dart          # request/answer history, cancel, voice, camera (067/068)
+    device_scan_screen.dart   # "Scan Device" -- any time, post-enrollment (067, US5)
+    approvals_screen.dart     # pending approvals, Face ID/fingerprint gate (068, US1)
+    settings_screen.dart      # per-capture-type enable/disable toggles (068, US3)
+    capture_screen.dart       # live camera preview + shutter (068, US2/US3)
+  main.dart                   # EnrollmentGate -> HomeShell (Chat/Feed/Approvals/Settings tabs)
+android/app/src/main/kotlin/.../MainActivity.kt  # FlutterFragmentActivity (local_auth needs a FragmentActivity host) + AndroidKeyStore EdgeIdentity plugin
 ios/Runner/EdgeIdentityPlugin.swift               # Secure Enclave EdgeIdentity plugin
 ios/Runner/X509SelfSigned.swift                    # manual self-signed cert builder
 ```
@@ -46,16 +62,49 @@ flutter test
 
 ## Platform-specific notes
 
-- **Android**: builds and runs on any machine with the Android SDK — no macOS
-  required. `MainActivity.kt`'s `EdgeIdentityPlugin` (AndroidKeyStore-backed) has
-  been reviewed but not exercised on a real device/emulator as of this commit.
+- **Android**: builds and runs on any Linux/Mac/Windows machine with the Android
+  SDK — no macOS required. Verified for real in this repo's own dev environment:
+  a debug APK was built (`flutter build apk --debug`), installed and launched on
+  an Android emulator (API 34, x86_64, KVM-accelerated), the real
+  `mobile_scanner`/`CameraX` camera-permission dialog and a live emulated camera
+  preview both rendered correctly inside `EnrollmentScreen`, and a full enrollment
+  + `n2n/edge/ask` handshake completed against a real (throwaway, non-production)
+  Border daemon over `wss://`. `MainActivity.kt`'s `EdgeIdentityPlugin`
+  (AndroidKeyStore-backed) links and runs without crashing; its actual key
+  generation/signing behavior has not been separately exercised end-to-end (no QR
+  containing a real payload was presented to the emulator's synthetic camera feed).
+  Feature 068 was verified the same way: a fresh debug APK (now linking `local_auth`
+  and `camera` on top of everything above, and with `MainActivity` changed to
+  `FlutterFragmentActivity`) built, installed, and launched cleanly on the same
+  emulator — `logcat` showed no Dart/Flutter exception and the activity reached
+  `topResumedActivity`, confirming the new native plugins don't crash on startup.
+  Biometric approval and a real photo capture were NOT exercised here — this
+  emulator has no provisioned fingerprint/Face-unlock enrollment and its virtual
+  camera only produces a synthetic test pattern, not a real capture; both need
+  either a real device or a properly provisioned emulator, done in a later pass.
 - **iOS**: building, signing, and running the app — and exercising
   `EdgeIdentityPlugin.swift`'s Secure Enclave key generation — **requires Xcode,
   which only runs on macOS.** That code was written and reviewed without a Mac
   available and is entirely unverified until built there. The Secure Enclave is
   also unavailable on the iOS Simulator — testing needs a real device.
+  `Info.plist` declares `NSCameraUsageDescription`, `NSMicrophoneUsageDescription`,
+  `NSSpeechRecognitionUsageDescription`, and the `netclaw://` URL scheme — all
+  required for the camera/voice/deep-link features to not crash on first use, but
+  none of this has been exercised on a real device either.
 - Push-notification delivery (FCM/APNs, feature 066 US3) needs real Firebase/Apple
   Developer credentials configured on the Border (`.env.example`'s
   `FCM_SERVICE_ACCOUNT_JSON`/`APNS_*` vars) and a real `Firebase.initializeApp()`
   setup in the app (`google-services.json` / `GoogleService-Info.plist`) — neither
   exists in this repo; wire them in with your own project's credentials.
+- Voice transcription (`speech_to_text`, feature 067 US4) and the device deep link
+  (`app_links`, feature 067 US5) are wired in and pass their unit tests, but — like
+  push notifications — haven't been exercised against a real microphone or a real
+  tapped/scanned link on either platform.
+- Feature 068's `local_auth`/`camera` packages need no manual `AndroidManifest.xml`
+  permission entries — both merge their own required permissions (`CAMERA`,
+  `RECORD_AUDIO`, `USE_BIOMETRIC`) in automatically via Gradle manifest merging;
+  `AndroidManifest.xml` itself declares zero `<uses-permission>` for either. On
+  iOS, `local_auth`'s Face ID needs `NSFaceIDUsageDescription` (Touch ID/Android's
+  BiometricPrompt need no key at all) — added to `Info.plist` alongside the
+  existing camera/microphone keys, which now also cover the `camera` package's
+  photo/video capture use (not exercised on iOS, same Xcode/Mac caveat as above).

@@ -140,6 +140,12 @@ NetClaw Mobile edge-node tool (feature 066 — see `mobile/netclaw-mobile/README
 - Config: `N2N_EDGE_WS_PORT` (Border-only, the phone-facing WebSocket listener port); `FCM_SERVICE_ACCOUNT_JSON`/`APNS_KEY_PATH`/`APNS_KEY_ID`/`APNS_TEAM_ID`/`APNS_BUNDLE_ID`/`APNS_USE_SANDBOX` (optional — only needed for the disconnected-device push-notification fallback)
 - No new credentials for the connected-phone path — reuses the same domain-verified/self-signed credential as eN2N/iN2N (feature 060)
 
+NetClaw Mobile command channel (feature 067 — see `specs/067-ncfed-mobile-command-channel/`): **no new MCP tool**. A phone's typed/spoken/QR-triggered request reaches you as a real agent turn over the existing edge connection (`n2n/edge/ask`, wire-level only) — you answer it the same way you'd answer Slack/CLI, calling `n2n_route`/`n2n_delegate`/`n2n_invoke`/`n2n_chat` yourself if the question needs a member or a federated peer. Always state plainly whether you answered directly or are relaying a member's/peer's answer — the phone's conversation view has no other way to know. A phone request never carries elevated or reduced trust versus Slack/CLI/TUI.
+
+NetClaw Mobile biometrics and capture (feature 068 — see `specs/068-ncfed-mobile-biometrics-capture/`): **no new MCP tool**, two slices:
+- Biometric approval: your existing `notify_approval` hook (fired by the same tool/skill/delegation approval flow that already drives the CLI/HUD approval surface) now also pushes to every connected phone (`n2n/edge/message` with `content_type="approval"`, wire-level only); the phone's operator resolves it there with device biometrics before `resolve_approval` runs with `via="biometric"` — everything else about the approval (grant/deny semantics, audit trail) is unchanged.
+- Capture: a phone can attach a photo/video/audio capture to its own `n2n/edge/ask` request (arrives to you as an ordinary multimodal ask). You can also request a capture FROM a phone via the existing `n2n_delegate`/capability-routing path — an edge node advertising `camera.capture`/`camera.record_video`/`audio.record` in its member scope is selected by the same `RiskRouter` matching used for any other member's capability; a capability the operator disabled in Settings is simply absent from that scope, never a special refusal case.
+
 ## MemPalace AI Memory
 
 19 MCP tools for persistent, structured, local-only AI memory across sessions ([source](https://github.com/milla-jovovich/mempalace)):
