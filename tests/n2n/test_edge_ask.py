@@ -350,3 +350,38 @@ async def _edge_ask_neither(tmp_path):
     finally:
         server.close()
     border.manager.close()
+
+
+def test_edge_ask_session_key_never_contains_a_slash(tmp_path, monkeypatch):
+    """Every edge member_id is risk-scoped ("risk/<label>") and openclaw
+    agent's --session-id/--session-key rejects a value containing "/" with
+    "Invalid session ID" -- confirmed via a real device against a real
+    Border (068 polish). session_key must be sanitized before reaching
+    run_agent_turn(), not just prefixed."""
+    asyncio.run(_edge_ask_session_key_sanitized(tmp_path, monkeypatch))
+
+
+async def _edge_ask_session_key_sanitized(tmp_path, monkeypatch):
+    seen_session_keys = []
+
+    async def _fake_run_agent_turn(prompt, session_key="n2n", **kwargs):
+        seen_session_keys.append(session_key)
+        return "ok", 0
+
+    monkeypatch.setattr(gateway, "run_agent_turn", _fake_run_agent_turn)
+
+    border = _border(tmp_path / "border")
+    server, port = await _serve(border)
+    try:
+        phone = await _enroll(border, port, member_id="risk/has-a-slash")
+        resp = await phone.call("n2n/edge/ask", {"text": "hello"})
+        result = await phone.wait_for_notification("n2n/edge/ask_result")
+        assert result["task_id"] == resp["task_id"]
+        await phone.close()
+    finally:
+        server.close()
+    border.manager.close()
+
+    assert seen_session_keys, "run_agent_turn was never called"
+    assert "/" not in seen_session_keys[0], seen_session_keys[0]
+    assert seen_session_keys[0] == "n2n-edge-risk_has-a-slash"

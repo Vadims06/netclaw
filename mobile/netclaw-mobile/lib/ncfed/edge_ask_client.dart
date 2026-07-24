@@ -83,6 +83,19 @@ class EdgeAskClient {
     return TaskUpdate(taskId: taskId, state: _parseTaskState(result['state'] as String?));
   }
 
+  /// Fetches the full answer for a task that already finished — unlike
+  /// [status], which only reports state. Needed for recovery: a task that
+  /// completes while this device is disconnected (or its `ask_result` push
+  /// simply never arrives) has no other way to reach the phone, since the
+  /// Border never re-pushes a result spontaneously (contracts/
+  /// edge-ask-command-channel.md: "a disconnected phone recovers via
+  /// n2n/tasks/status|result on reconnect"). The response shape matches
+  /// `ask_result`'s exactly (`task_id`/`state`/`output_text`/`tokens_used`).
+  Future<TaskUpdate> result(String taskId) async {
+    final result = await client.call('n2n/tasks/result', {'task_id': taskId});
+    return TaskUpdate.fromAskResult(result);
+  }
+
   void dispose() {
     _updates.close();
   }

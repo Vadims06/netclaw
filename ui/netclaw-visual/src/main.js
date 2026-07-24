@@ -577,6 +577,15 @@ const CORE_POSITIONS = {
   peer1: new THREE.Vector3(52, 0, -28),
   peer2: new THREE.Vector3(52, 0, 28),
   peer3: new THREE.Vector3(18, 0, -56),
+  // NetClaw Mobile edge nodes (068 polish): a close, prominent orbit near
+  // the centroid like peers get, mirroring peer3's radius but on the
+  // opposite (+Z) side so the two groups read as visually distinct
+  // clusters rather than overlapping -- deliberately NOT the far-south
+  // member-spoke fan every other iN2N member uses, since a phone is the
+  // one member type an operator actually wants to spot at a glance.
+  edge1: new THREE.Vector3(18, -6, 56),
+  edge2: new THREE.Vector3(52, -6, 84),
+  edge3: new THREE.Vector3(-14, -6, 84),
 };
 const CORE_CENTROID = new THREE.Vector3(12, 0, 0);
 
@@ -1218,6 +1227,57 @@ function deduplicatePeers(peers) {
 
 // 056: render this risk's member claws as spokes SOUTH of the Border, each a
 // core with its own orbiting skills, colored by class. Additive + guarded.
+// The per-member spoke itself is factored out into spawnMemberCore() so a
+// later-arriving member (e.g. a phone enrolling well after the HUD tab was
+// already open) can be added incrementally via refreshRiskMembers() without
+// re-running this whole function or touching any already-built spoke.
+function spawnMemberCore(m, i, n, C, R, col) {
+  const isEdge = m.node_type === 'edge';
+  const dead = (m.state === 'quarantined' || m.state === 'removed');
+  const cold = !m.live;
+  let pos, tint, name, speed;
+  if (isEdge) {
+    // NetClaw Mobile edge nodes get the same close, prominent orbit as
+    // peers instead of the far-south member fan -- an operator wants to
+    // spot their phone at a glance, not hunt for it among every other
+    // member. Cycles through 3 fixed slots by how many edge cores already
+    // exist (a 4th+ phone falls back to the last slot rather than
+    // colliding with anything -- good enough until this ever needs more).
+    const edgeSlots = [CORE_POSITIONS.edge1, CORE_POSITIONS.edge2, CORE_POSITIONS.edge3];
+    const edgeIndex = (state.memberCores || []).filter((c) => c.memberPayload?.node_type === 'edge').length;
+    pos = edgeSlots[Math.min(edgeIndex, edgeSlots.length - 1)].clone();
+    tint = dead ? (col.memberQuarantined || 0xff5d6c) : (cold ? 0x3a6ea5 : 0xe65733); // the mobile app's own brand orange
+    const label = String(m.member_id || 'phone').split('/').pop();
+    name = `PHONE ${label}`.trim();
+    speed = 0.0007;
+  } else {
+    const frac = n > 1 ? i / (n - 1) : 0.5;
+    const spread = (frac - 0.5) * Math.PI * 1.25;               // wide fan across the south
+    const px = C.x + Math.sin(spread) * R * 3.0;                // spread far out in X
+    const pz = C.z - (R + 40) - Math.abs(Math.cos(spread)) * R * 0.9; // push well south (-Z)
+    const py = -6 - (i % 5) * 7;                                // deeper vertical stagger
+    pos = new THREE.Vector3(px, py, pz);
+    tint = dead ? (col.memberQuarantined || 0xff5d6c) : (cold ? 0x3a6ea5 : (col.member || 0x68f5b2));
+    name = String(m.member_id || 'member').split('/').pop().toUpperCase();
+    speed = 0.0004;
+  }
+  const core = buildCore(state.graph.identity, pos, name, tint);
+  core.isMember = true;
+  core.memberPayload = m;
+  core.orbit = { center: C.clone(), radius: pos.distanceTo(C),
+    angle: Math.atan2(pos.z - C.z, pos.x - C.x), y: pos.y, speed };
+  // orbiting skills only for LIVE members (keep the scene light for cold ones)
+  const names = (m.live ? (m.skills || []) : []).slice(0, 12);
+  core.skillSprites = createSkillSprites(pos, names.map((s) => ({ name: s, id: s })), tint, pos);
+  // Show member tools by default (don't hide behind a click like integrations).
+  core.skillSprites.forEach((sp) => {
+    if (sp.mesh) sp.mesh.visible = true;
+    if (sp.wire) sp.wire.visible = true;
+  });
+  state.cores.push(core);
+  state.memberCores.push(core);
+}
+
 function buildRiskMembers() {
   try {
     const risk = state.n2n && state.n2n.risk;
@@ -1229,36 +1289,39 @@ function buildRiskMembers() {
     const R = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.tierRadius) || 46;
     const col = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.colors) || {};
     const n = members.length;
-    members.forEach((m, i) => {
-      const frac = n > 1 ? i / (n - 1) : 0.5;
-      const spread = (frac - 0.5) * Math.PI * 1.25;               // wide fan across the south
-      const px = C.x + Math.sin(spread) * R * 3.0;                // spread far out in X
-      const pz = C.z - (R + 40) - Math.abs(Math.cos(spread)) * R * 0.9; // push well south (-Z)
-      const py = -6 - (i % 5) * 7;                                // deeper vertical stagger
-      const pos = new THREE.Vector3(px, py, pz);
-      const dead = (m.state === 'quarantined' || m.state === 'removed');
-      const cold = !m.live;
-      const tint = dead ? (col.memberQuarantined || 0xff5d6c)
-                        : (cold ? 0x3a6ea5 : (col.member || 0x68f5b2));
-      const name = String(m.member_id || 'member').split('/').pop().toUpperCase();
-      const core = buildCore(state.graph.identity, pos, name, tint);
-      core.isMember = true;
-      core.memberPayload = m;
-      core.orbit = { center: C.clone(), radius: pos.distanceTo(C),
-        angle: Math.atan2(pos.z - C.z, pos.x - C.x), y: pos.y, speed: 0.0004 };
-      // orbiting skills only for LIVE members (keep the scene light for cold ones)
-      const names = (m.live ? (m.skills || []) : []).slice(0, 12);
-      core.skillSprites = createSkillSprites(pos, names.map((s) => ({ name: s, id: s })), tint, pos);
-      // Show member tools by default (don't hide behind a click like integrations).
-      core.skillSprites.forEach((sp) => {
-        if (sp.mesh) sp.mesh.visible = true;
-        if (sp.wire) sp.wire.visible = true;
-      });
-      state.cores.push(core);
-      state.memberCores.push(core);
-    });
+    members.forEach((m, i) => spawnMemberCore(m, i, n, C, R, col));
   } catch (e) {
     console.warn('buildRiskMembers failed (non-fatal):', e);
+  }
+}
+
+// Incremental counterpart to buildRiskMembers(), called on every state.n2n
+// poll (FR-026): a member that enrolls AFTER the HUD was already loaded
+// (the exact case that made a freshly-enrolled phone invisible until a full
+// page reload) gets its spoke added on the next poll, with no reload
+// needed. Deliberately additive-only, never removing/disposing a spoke for
+// a member that disappears -- a disconnected member already renders "cold"
+// (dim blue, no orbiting skills) via the same tint logic, which is the
+// right visual for that case anyway, and skips the real complexity/risk of
+// safely disposing a live THREE.js core (shaders, sprites, orbit state)
+// out from under an in-progress render loop.
+function refreshRiskMembers() {
+  try {
+    const risk = state.n2n && state.n2n.risk;
+    if (!risk || risk.role !== 'border') return;
+    const members = (state.n2n.members) || [];
+    if (!members.length) return;
+    state.memberCores = state.memberCores || [];
+    const known = new Set(state.memberCores.map((c) => c.memberPayload && c.memberPayload.member_id));
+    const arrivals = members.filter((m) => !known.has(m.member_id));
+    if (!arrivals.length) return;
+    const C = CORE_CENTROID;
+    const R = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.tierRadius) || 46;
+    const col = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.colors) || {};
+    const n = members.length;
+    arrivals.forEach((m) => spawnMemberCore(m, members.indexOf(m), n, C, R, col));
+  } catch (e) {
+    console.warn('refreshRiskMembers failed (non-fatal):', e);
   }
 }
 
@@ -3311,6 +3374,15 @@ async function boot() {
     // Refresh N2N federation state so claw nodes reflect consent/inventory/sever (FR-026)
     setInterval(async () => {
       try { state.n2n = await (await fetch('/api/n2n')).json(); } catch { /* keep last */ }
+      // The detail panel only renders on click (setDetail is never called
+      // again just because state.n2n refreshed) -- if "This NetClaw" is the
+      // panel currently open, re-render it in place so edge-node liveness/
+      // approvals/replication jobs don't require a manual re-click to see.
+      if (state.selected?.kind === 'local-core') setDetail('local-core');
+      // A member (e.g. a phone) that enrolls after this page already loaded
+      // never got a 3D spoke, since buildRiskMembers() only ran once at
+      // boot -- add spokes for any newly-arrived members on every poll.
+      refreshRiskMembers();
     }, 30000);
     animate();
 

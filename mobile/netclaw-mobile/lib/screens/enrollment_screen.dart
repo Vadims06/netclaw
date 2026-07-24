@@ -5,6 +5,7 @@ import '../ncfed/edge_client.dart';
 import '../ncfed/edge_identity.dart';
 import '../ncfed/enrollment_flow.dart';
 import '../ncfed/enrollment_qr_payload.dart';
+import 'manual_enrollment_screen.dart';
 
 /// "Scan Border QR Code" — feature 066, US1/T014. Explicit error states for
 /// domain-mismatch, expired/already-used tokens, and any other enrollment
@@ -61,6 +62,16 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
     }
   }
 
+  Future<void> _enterManually() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ManualEnrollmentScreen(
+        memberId: widget.memberId,
+        identity: widget.identity,
+        onEnrolled: widget.onEnrolled,
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -68,6 +79,19 @@ class _EnrollmentScreenState extends State<EnrollmentScreen> {
       body: Stack(
         children: [
           MobileScanner(onDetect: _onDetect),
+          Positioned(
+            left: 16,
+            right: 16,
+            top: 16,
+            child: Center(
+              child: TextButton(
+                onPressed: _busy ? null : _enterManually,
+                style: TextButton.styleFrom(backgroundColor: Colors.black54),
+                child: const Text("Can't scan? Enter manually",
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ),
           if (_errorText != null)
             Positioned(
               left: 16,

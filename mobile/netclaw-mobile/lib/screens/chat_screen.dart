@@ -32,20 +32,50 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    widget.store.load().then((_) {
+    widget.store.load().then((_) async {
       if (mounted) setState(() => _loading = false);
+      await _reconcileStaleTurns();
     });
     widget.askClient.updates.listen((update) async {
-      final stateName = switch (update.state) {
-        TaskState.completed => 'completed',
-        TaskState.failed => 'failed',
-        TaskState.cancelled => 'cancelled',
-        TaskState.working => 'working',
-        _ => 'pending',
-      };
-      await widget.store.updateState(update.taskId, stateName, answerText: update.outputText);
-      if (mounted) setState(() {});
+      await _applyUpdate(update);
     });
+  }
+
+  Future<void> _applyUpdate(TaskUpdate update) async {
+    final stateName = switch (update.state) {
+      TaskState.completed => 'completed',
+      TaskState.failed => 'failed',
+      TaskState.cancelled => 'cancelled',
+      TaskState.working => 'working',
+      _ => 'pending',
+    };
+    await widget.store.updateState(update.taskId, stateName, answerText: update.outputText);
+    if (mounted) setState(() {});
+  }
+
+  /// A task that finishes while this device is disconnected (or whose
+  /// `ask_result` push simply never arrives — e.g. a connection already
+  /// going stale by the time the answer was ready) has no other way to
+  /// reach the phone; the Border never re-pushes a result spontaneously.
+  /// Called once after the store loads: for every turn still `pending`/
+  /// `working` locally, ask the Border directly whether it actually
+  /// finished already.
+  Future<void> _reconcileStaleTurns() async {
+    final staleTaskIds = widget.store.turns
+        .where((t) => t.state == 'pending' || t.state == 'working')
+        .map((t) => t.taskId)
+        .toList();
+    for (final taskId in staleTaskIds) {
+      try {
+        final update = await widget.askClient.result(taskId);
+        if (update.state != TaskState.pending && update.state != TaskState.unknown) {
+          await _applyUpdate(update);
+        }
+      } catch (_) {
+        // Still disconnected, or the Border is unreachable right now --
+        // the next reconnect will retry; never blocks the rest of the UI.
+      }
+    }
   }
 
   Future<void> _send() async {
