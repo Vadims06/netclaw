@@ -13,11 +13,33 @@ import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
 import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import gsap from 'gsap';
+import { KnowledgePanel } from './panels/KnowledgePanel.js';
 
 // ── Quality budget modes ───────────────────────────────────────────
 // Focus: minimal effects, best perf. Balanced: default. Broadcast: all effects.
 const QUALITY_MODES = ['focus', 'balanced', 'broadcast'];
 const QUALITY_LABELS = { focus: 'FOCUS', balanced: 'BALANCED', broadcast: 'BROADCAST' };
+
+// ── iN2N "risk" HUD layout (feature 056) ────────────────────────────
+// Design (per operator): the Border Claw sits at the CENTER of the universe;
+// EXTERNAL (eN2N) peer claws arc to the NORTH (+Z); INTERNAL member claws arc to
+// the SOUTH (-Z). Every claw — local, remote peer, and member — carries its own
+// orbiting skill sprites. Distinct colors per class. Spacing is widened so the
+// three tiers read clearly. This config is consumed by the scene-layout pass
+// (createMemberCores / positionClawsByRole) — tune live against the HUD.
+const RISK_LAYOUT = {
+  spacing: 34,             // widened inter-claw spacing (was ~18); tune live
+  borderAtOrigin: true,    // Border = center of the universe
+  externalAxis: +1,        // eN2N peer claws to the north (+Z)
+  memberAxis: -1,          // internal member claws to the south (-Z)
+  tierRadius: 46,          // distance of each tier ring from the Border
+  colors: {
+    border:   0xffd166,    // amber — the one you talk to, center of the universe
+    member:   0x68f5b2,    // neon green — internal, trusted, focused specialists
+    external: 0x38e8ff,    // cyan — external peer risks (other operators)
+    memberQuarantined: 0xff5d6c,  // red — an auto-quarantined / removed member
+  },
+};
 
 const state = {
   graph: null,
@@ -63,6 +85,7 @@ const state = {
   terminalCards: [],
   // BGP topology
   bgp: null,
+  n2n: null,
   // Chat session focus mode
   chatSession: {
     active: false,               // true when user has sent a message
@@ -1193,6 +1216,52 @@ function deduplicatePeers(peers) {
   return [...seen.values()];
 }
 
+// 056: render this risk's member claws as spokes SOUTH of the Border, each a
+// core with its own orbiting skills, colored by class. Additive + guarded.
+function buildRiskMembers() {
+  try {
+    const risk = state.n2n && state.n2n.risk;
+    if (!risk || risk.role !== 'border') return;
+    const members = (state.n2n.members) || [];
+    if (!members.length) return;
+    state.memberCores = state.memberCores || [];
+    const C = CORE_CENTROID;
+    const R = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.tierRadius) || 46;
+    const col = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.colors) || {};
+    const n = members.length;
+    members.forEach((m, i) => {
+      const frac = n > 1 ? i / (n - 1) : 0.5;
+      const spread = (frac - 0.5) * Math.PI * 1.25;               // wide fan across the south
+      const px = C.x + Math.sin(spread) * R * 3.0;                // spread far out in X
+      const pz = C.z - (R + 40) - Math.abs(Math.cos(spread)) * R * 0.9; // push well south (-Z)
+      const py = -6 - (i % 5) * 7;                                // deeper vertical stagger
+      const pos = new THREE.Vector3(px, py, pz);
+      const dead = (m.state === 'quarantined' || m.state === 'removed');
+      const cold = !m.live;
+      const tint = dead ? (col.memberQuarantined || 0xff5d6c)
+                        : (cold ? 0x3a6ea5 : (col.member || 0x68f5b2));
+      const name = String(m.member_id || 'member').split('/').pop().toUpperCase();
+      const core = buildCore(state.graph.identity, pos, name, tint);
+      core.isMember = true;
+      core.memberPayload = m;
+      core.orbit = { center: C.clone(), radius: pos.distanceTo(C),
+        angle: Math.atan2(pos.z - C.z, pos.x - C.x), y: pos.y, speed: 0.0004 };
+      // orbiting skills only for LIVE members (keep the scene light for cold ones)
+      const names = (m.live ? (m.skills || []) : []).slice(0, 12);
+      core.skillSprites = createSkillSprites(pos, names.map((s) => ({ name: s, id: s })), tint, pos);
+      // Show member tools by default (don't hide behind a click like integrations).
+      core.skillSprites.forEach((sp) => {
+        if (sp.mesh) sp.mesh.visible = true;
+        if (sp.wire) sp.wire.visible = true;
+      });
+      state.cores.push(core);
+      state.memberCores.push(core);
+    });
+  } catch (e) {
+    console.warn('buildRiskMembers failed (non-fatal):', e);
+  }
+}
+
 function buildPeerRoutes(peerCore, peer) {
   const routes = peer.adjRibIn || [];
   peerCore.routeDendrites = [];
@@ -1354,7 +1423,291 @@ function revealSkills(entry) {
   });
 }
 
+// ── N2N Federation view (feature 052) ────────────────────────────
+// Finds the federation record for a claw peer by matching AS number.
+function findFederationPeer(peer) {
+  if (!state.n2n?.available) return null;
+  return (state.n2n.peers || []).find((fp) => {
+    const asMatch = fp.identity && peer.as && fp.identity.startsWith(`as${peer.as}-`);
+    return asMatch;
+  }) || null;
+}
+
+// 056 iN2N: this claw's own risk view (role + members) for the local-core panel.
+function renderRiskSection() {
+  const risk = state.n2n?.risk;
+  if (!risk || risk.role === 'standalone') {
+    return `<div class="n2n-section"><h3>Risk (iN2N)</h3>
+      <p class="n2n-muted">Standalone claw — a risk of one, its own Border.</p></div>`;
+  }
+  if (risk.role === 'member') {
+    return `<div class="n2n-section"><h3>Risk: ${risk.risk_name} (Member)</h3>
+      <div class="detail-row"><span>Member</span><strong>${risk.self_member_id || '—'}</strong></div>
+      <p class="n2n-muted">Focused specialist — dials the Border; not internet-facing.</p></div>`;
+  }
+  // Border: hub with member spokes
+  const members = state.n2n?.members || [];
+  const postureHtml = renderPostureBadge();
+  const rows = members.map((m) => {
+    const dot = m.live ? '<span class="n2n-fresh">●</span>' : '<span class="n2n-muted">○</span>';
+    const stCls = m.state === 'active' ? 'federated'
+      : (m.state === 'quarantined' || m.state === 'removed') ? 'not-federated' : 'consent-pending-local';
+    return `<li>${dot} ${m.member_id}
+      <span class="n2n-muted">(${m.profile || 'custom'})</span>
+      <strong class="n2n-state-${stCls}">${m.state}</strong>
+      <span class="n2n-muted">· ${m.specialty_count} specialty</span></li>`;
+  }).join('') || '<li class="n2n-muted">no members — add with `netclaw risk add`</li>';
+  return `<div class="n2n-section n2n-federated">
+      <h3>Risk: ${risk.risk_name} (Border)</h3>
+      ${postureHtml}
+      <div class="detail-row"><span>Stacks</span><strong>${risk.enabled_stacks || '—'}</strong></div>
+      <div class="detail-row"><span>Members</span><strong>${risk.members_active ?? 0}/${risk.member_count ?? 0} active</strong></div>
+      <h4>Member spokes (${members.length})</h4>
+      <ul class="n2n-list">${rows}</ul>
+      ${renderGaitTrail()}
+    </div>`;
+}
+
+// 065: chroma-to-chroma replication jobs — status/progress for in-flight and
+// recent n2n_replicate/n2n_replicate_resync runs. Renders nothing on a
+// pre-065 daemon or when no job has ever run.
+function renderReplicationJobs() {
+  const jobs = state.n2n?.replicationJobs || [];
+  if (!jobs.length) return '';
+  const stCls = (s) => (s === 'completed' ? 'federated'
+    : s === 'failed' ? 'not-federated' : 'consent-pending-local');
+  const rows = jobs.slice(0, 8).map((j) => `<li>
+      <strong class="n2n-state-${stCls(j.state)}">${j.state}</strong>
+      <span class="n2n-muted">${j.target_name || ''} · ${j.peer_identity || ''}</span>
+      ${j.progress ? `<span class="n2n-muted">· ${j.progress}</span>` : ''}
+      <span class="n2n-muted">· ${(j.updated_at || '').replace('T', ' ').replace('Z', '')}</span></li>`).join('');
+  return `<h4>Replication jobs (chroma-to-chroma)</h4><ul class="n2n-list">${rows}</ul>`;
+}
+
+// 066: NetClaw Mobile edge nodes (node_type='edge' members) — connection
+// state at a glance. Renders nothing on a pre-066 daemon or when no phone
+// has ever enrolled.
+function renderEdgeNodes() {
+  const nodes = state.n2n?.edgeNodes || [];
+  if (!nodes.length) return '';
+  const stCls = (s) => (s === 'active' ? 'federated'
+    : s === 'unreachable' ? 'not-federated' : 'consent-pending-local');
+  const rows = nodes.slice(0, 8).map((n) => `<li>
+      <span title="NetClaw Mobile edge node">📱</span>
+      <strong class="n2n-state-${stCls(n.state)}">${n.state}</strong>
+      <span class="n2n-muted">${n.display_name || n.member_id}</span>
+      <span class="n2n-muted">· ${(n.updated_at || '').replace('T', ' ').replace('Z', '')}</span></li>`).join('');
+  return `<h4>📱 NetClaw Mobile edge nodes (${nodes.length})</h4><ul class="n2n-list">${rows}</ul>`;
+}
+
+// 066: recent explicit Border-to-phone pushes (n2n_notify_phone). Renders
+// nothing on a pre-066 daemon or when no push has ever been sent.
+function renderRecentPushes() {
+  const pushes = state.n2n?.recentPushes || [];
+  if (!pushes.length) return '';
+  const rows = pushes.slice(0, 8).map((p) => `<li>
+      <strong>${p.target_name || 'text'}</strong>
+      <span class="n2n-muted">→ ${p.peer_identity || ''}</span>
+      <span class="n2n-muted">· ${(p.requested_at || '').replace('T', ' ').replace('Z', '')}</span></li>`).join('');
+  return `<h4>Recent phone pushes</h4><ul class="n2n-list">${rows}</ul>`;
+}
+
+// 057: recent GAIT immutable audit events (delegation/enrollment/removal/quarantine).
+function renderGaitTrail() {
+  const events = state.n2n?.gait || [];
+  if (!events.length) return '';
+  const rows = events.slice(0, 8).map((e) => `<li>
+      <strong>${e.event}</strong> <span class="n2n-muted">${e.subject || ''}</span>
+      <span class="n2n-muted">· ${(e.ts || '').replace('T', ' ').replace('Z', '')}</span></li>`).join('');
+  return `<h4>Audit trail (GAIT · immutable)</h4><ul class="n2n-list">${rows}</ul>`;
+}
+
+// 057: production posture badge — enforced (green) / degraded (amber, names the
+// missing controls) / testing (grey). The Border NEVER shows enforced while a
+// control is missing (FR-002). Renders nothing on a pre-057 daemon.
+function renderPostureBadge() {
+  const p = state.n2n?.posture;
+  if (!p || !p.state) return '';
+  const controls = (p.controls || [])
+    .map((c) => `${c.available ? '✓' : '✗'} ${c.name}`).join(' · ');
+  let cls = 'consent-pending-local', label = p.summary || p.state;
+  if (p.state === 'enforced') cls = 'federated';
+  else if (p.state === 'degraded') cls = 'not-federated';
+  const model = p.model && p.model.primary
+    ? `<div class="detail-row"><span>Model</span><strong>${p.model.primary}${p.model.guarded ? ' 🛡️' : ''}</strong></div>`
+    : '';
+  return `<div class="detail-row"><span>Posture</span>
+      <strong class="n2n-state-${cls}">${label}</strong></div>
+    <div class="detail-row"><span>Controls</span><span class="n2n-muted">${controls}</span></div>
+    ${model}
+    ${renderChannelSecurity()}`;
+}
+
+// 060: channel-security summary — trust models in use, degraded/legacy channels,
+// and credentials aging into amber (<30d) / red (<14d). Renders nothing on a
+// pre-060 daemon or when cert_mode is off.
+function renderChannelSecurity() {
+  const cs = state.n2n?.posture?.channel_security;
+  if (!cs || !cs.mode || cs.mode === 'off') return '';
+  const models = Object.entries(cs.by_trust_model || {})
+    .map(([m, n]) => `${m}:${n}`).join(' · ') || 'none';
+  const aging = [];
+  if (cs.red) aging.push(`<span class="n2n-state-not-federated">${cs.red} red</span>`);
+  if (cs.amber) aging.push(`<span class="consent-pending-local">${cs.amber} amber</span>`);
+  if (cs.renewals_failing) aging.push(`${cs.renewals_failing} renewals failing`);
+  const degraded = cs.degraded
+    ? `<span class="n2n-state-not-federated">${cs.degraded} degraded/legacy</span>` : 'all secured';
+  return `<div class="detail-row"><span>Channel security</span>
+      <strong class="n2n-state-federated">🔒 ${cs.mode}</strong></div>
+    <div class="detail-row"><span>Trust models</span><span class="n2n-muted">${models}</span></div>
+    <div class="detail-row"><span>Channels</span><span class="n2n-muted">${degraded}</span></div>
+    ${aging.length ? `<div class="detail-row"><span>Certs</span><span class="n2n-muted">${aging.join(' · ')}</span></div>` : ''}`;
+}
+
+// 057: a federated peer advertises its production posture + LLM capability in its
+// A2A card — surface them so an operator sees a neighbour's security + model.
+function renderPeerPostureLlm(inv) {
+  let html = '';
+  const p = inv.posture;
+  if (p && p.state) {
+    let cls = 'consent-pending-local';
+    if (p.state === 'enforced') cls = 'federated';
+    else if (p.state === 'degraded') cls = 'not-federated';
+    html += `<div class="detail-row"><span>Peer posture</span>
+      <strong class="n2n-state-${cls}">${p.summary || p.state}</strong></div>`;
+  }
+  const l = inv.llm;
+  if (l && l.primary_model) {
+    html += `<div class="detail-row"><span>Peer model</span>
+      <strong>${l.primary_model}${l.guarded ? ' 🛡️' : ''}</strong></div>`;
+  }
+  return html;
+}
+
+function renderFederationSection(peer) {
+  const fp = findFederationPeer(peer);
+  if (!state.n2n?.available) {
+    return `<div class="n2n-section"><h3>N2N Federation</h3>
+      <p class="n2n-muted">Federation layer not enabled on this claw.</p></div>`;
+  }
+  if (!fp || fp.state !== 'federated') {
+    const st = fp?.state || 'not federated';
+    return `<div class="n2n-section"><h3>N2N Federation</h3>
+      <div class="detail-row"><span>Status</span><strong class="n2n-state-${st.replace(/_/g,'-')}">${st.replace(/_/g,' ')}</strong></div>
+      <p class="n2n-muted">Not federated — no capability inventory. Mutually consent to exchange skills &amp; tools.</p></div>`;
+  }
+  const inv = fp.inventory?.inventory || {};
+  const badges = (inv.badges || []).map((b) => `<span class="n2n-badge">${b}</span>`).join('') || '<span class="n2n-muted">none</span>';
+  const skills = (inv.skills || []).map((s) => `<li>${s.name}</li>`).join('') || '<li class="n2n-muted">none advertised</li>';
+  const servers = (inv.mcp_servers || []).map((s) =>
+    `<li>${s.name} <span class="n2n-muted">(${(s.tools || []).length} tools)</span></li>`).join('') || '<li class="n2n-muted">none advertised</li>';
+  const fresh = fp.stale ? `<span class="n2n-stale">STALE</span>` : `<span class="n2n-fresh">fresh</span>`;
+  const recv = fp.inventory_received_at || '—';
+  // 053 US6: channel health + in-flight delegated tasks
+  const chState = fp.channel_state || 'up';
+  const chBadge = `<strong class="n2n-state-${chState === 'up' ? 'federated' : (chState === 'reconnecting' ? 'consent-pending-local' : 'not-federated')}">${chState}</strong>`;
+  const tasks = fp.in_flight_tasks || [];
+  const tasksHtml = tasks.length ? `
+      <h4>In-flight tasks (${tasks.length})</h4>
+      <ul class="n2n-list">${tasks.map((t) =>
+        `<li>${t.target || t.task_id.slice(0, 8)} — <span class="n2n-fresh">${t.state}</span>${t.progress ? ` · ${t.progress}` : ''}</li>`).join('')}</ul>` : '';
+  return `
+    <div class="n2n-section n2n-federated">
+      <h3>N2N Federation ${fresh}</h3>
+      <div class="detail-row"><span>Status</span><strong class="n2n-state-federated">federated</strong></div>
+      <div class="detail-row"><span>Channel</span>${chBadge}</div>
+      <div class="detail-row"><span>Inventory</span><strong>v${inv.version ?? '—'} · ${recv}</strong></div>
+      ${renderPeerPostureLlm(inv)}
+      <div class="n2n-badges">${badges}</div>
+      ${tasksHtml}
+      <h4>Skills (${(inv.skills || []).length})</h4>
+      <ul class="n2n-list">${skills}</ul>
+      <h4>MCP Servers (${(inv.mcp_servers || []).length})</h4>
+      <ul class="n2n-list">${servers}</ul>
+      ${fp.chat_enabled ? `
+        <h4>Claw-to-Claw Chat</h4>
+        <div class="n2n-chat" id="n2n-chat-log"></div>
+        <div class="n2n-chat-input">
+          <input type="text" id="n2n-chat-text" placeholder="Ask ${fp.display_name || fp.identity}'s claw…" />
+          <button id="n2n-chat-send">Send</button>
+        </div>
+      ` : `<p class="n2n-muted">Chat disabled for this peer.</p>`}
+    </div>`;
+}
+
+function wireFederationChat(peer) {
+  const fp = findFederationPeer(peer);
+  if (!fp || fp.state !== 'federated' || !fp.chat_enabled) return;
+  const btn = document.getElementById('n2n-chat-send');
+  const input = document.getElementById('n2n-chat-text');
+  const log = document.getElementById('n2n-chat-log');
+  if (!btn || !input || !log) return;
+  let sessionId = null;
+  const send = async () => {
+    const text = input.value.trim();
+    if (!text) return;
+    log.innerHTML += `<div class="n2n-msg n2n-me"><strong>you:</strong> ${text}</div>`;
+    input.value = '';
+    log.innerHTML += `<div class="n2n-msg n2n-pending" id="n2n-pending">…</div>`;
+    log.scrollTop = log.scrollHeight;
+    try {
+      const r = await fetch('/api/n2n/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peer: fp.identity, text, session_id: sessionId }),
+      });
+      const data = await r.json();
+      sessionId = data.session_id || sessionId;
+      document.getElementById('n2n-pending')?.remove();
+      const reply = data.text || data.error || '(no response)';
+      log.innerHTML += `<div class="n2n-msg n2n-peer"><strong>${fp.display_name || fp.identity}:</strong> ${reply}</div>`;
+      log.scrollTop = log.scrollHeight;
+    } catch (e) {
+      document.getElementById('n2n-pending')?.remove();
+      log.innerHTML += `<div class="n2n-msg n2n-err">error: ${e.message}</div>`;
+    }
+  };
+  btn.addEventListener('click', send);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
+}
+
 function setDetail(kind, payload, related = []) {
+  if (kind === 'local-core') {
+    dom.detailPanel.innerHTML = `
+      <h2>This NetClaw</h2>
+      <p>${state.n2n?.identity || 'local claw'}</p>
+      ${renderRiskSection()}
+      ${renderReplicationJobs()}
+      ${renderEdgeNodes()}
+      ${renderRecentPushes()}
+    `;
+    return;
+  }
+
+  if (kind === 'member-core') {
+    const m = payload || {};
+    const st = m.state || 'unknown';
+    const stCls = m.live ? 'federated'
+      : (st === 'quarantined' || st === 'removed') ? 'not-federated' : 'consent-pending-local';
+    const skills = (m.skills || []).map((s) => `<li>${s}</li>`).join('')
+      || '<li class="n2n-muted">—</li>';
+    dom.detailPanel.innerHTML = `
+      <h2>Member Claw</h2>
+      <p>${m.member_id || '—'}</p>
+      <div class="detail-grid">
+        <div class="detail-row"><span>Risk</span><strong>${(state.n2n?.risk?.risk_name) || '—'}</strong></div>
+        <div class="detail-row"><span>Profile</span><strong>${m.profile || '—'}</strong></div>
+        <div class="detail-row"><span>State</span><strong class="n2n-state-${stCls}">${st}${m.live ? ' · live' : ''}</strong></div>
+        <div class="detail-row"><span>Transport</span><strong>${m.transport_binding || '—'}</strong></div>
+        <div class="detail-row"><span>Specialty skills</span><strong>${m.specialty_count ?? (m.skills || []).length}</strong></div>
+      </div>
+      <div class="n2n-section">
+        <h4>Scope (${(m.skills || []).length})</h4>
+        <ul class="n2n-list">${skills}</ul>
+        <p class="n2n-muted">Delegated to over the internal transport; runs its own scoped model. No external comms.</p>
+      </div>`;
+    return;
+  }
+
   if (kind === 'integration') {
     dom.detailPanel.innerHTML = `
       <h2>${payload.name}</h2>
@@ -1443,6 +1796,7 @@ function setDetail(kind, payload, related = []) {
         <div class="detail-row"><span>Peer IP</span><strong>${peer.peerIp || '—'}</strong></div>
         <div class="detail-row"><span>Routes</span><strong>${peer.routesReceived}</strong></div>
       </div>
+      ${isClaw ? renderFederationSection(peer) : ''}
       ${routes.length ? `
         <div class="bgp-routes-section">
           <h3>Adj-RIB-In</h3>
@@ -1453,6 +1807,7 @@ function setDetail(kind, payload, related = []) {
         </div>
       ` : ''}
     `;
+    if (isClaw) wireFederationChat(peer);
     return;
   }
 
@@ -1780,15 +2135,22 @@ async function checkGatewayStatus() {
       if (data.online) {
         el.textContent = 'LIVE';
         el.className = 'gateway-indicator online';
+        el.title = 'OpenClaw gateway and chat-completions endpoint are ready';
+      } else if (data.reason === 'chat-completions-disabled') {
+        el.textContent = 'CHAT API DISABLED';
+        el.className = 'gateway-indicator offline';
+        el.title = 'Enable gateway.http.endpoints.chatCompletions.enabled and restart OpenClaw';
       } else {
         el.textContent = 'OFFLINE';
         el.className = 'gateway-indicator offline';
+        el.title = 'OpenClaw gateway is not reachable';
       }
     }
   } catch {
     if (dom.gatewayStatus) {
       dom.gatewayStatus.textContent = 'OFFLINE';
       dom.gatewayStatus.className = 'gateway-indicator offline';
+      dom.gatewayStatus.title = 'OpenClaw gateway status could not be checked';
     }
   }
 }
@@ -2313,6 +2675,15 @@ function onClick(event) {
     if (hitCore === state.localCore) {
       clearSelection();
       focusTarget(state.localCore.position.clone());
+      setDetail('local-core');            // 056: show this claw's risk view (role + member spokes)
+      state.selected = { kind: 'local-core' };
+    } else if (hitCore.isMember) {
+      // 056: member claw selected — focus it and show its detail
+      clearSelection();
+      hitCore.nucleus.material.emissiveIntensity = 1.8;
+      focusTarget(hitCore.position.clone());
+      setDetail('member-core', hitCore.memberPayload);
+      state.selected = { kind: 'member-core', member: hitCore.memberPayload?.member_id };
     } else {
       // Peer core selected — show detail
       clearSelection();
@@ -2499,6 +2870,15 @@ function connectSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
   state.socket = socket;
+
+  // Knowledge (RAG) panel — mounted once, rebound to each new socket on reconnect
+  if (!state.knowledgePanel) {
+    state.knowledgePanel = new KnowledgePanel(socket);
+    document.body.appendChild(state.knowledgePanel.render());
+  } else {
+    state.knowledgePanel.socket = socket;
+    state.knowledgePanel.connectSocket();
+  }
 
   socket.addEventListener('open', () => {
     dom.footerSocket.textContent = 'CONNECTED';
@@ -2809,13 +3189,37 @@ async function boot() {
       state.bgp = await bgpRes.json();
     } catch { state.bgp = null; }
 
+    // N2N federation state (feature 052) — optional, degrades gracefully
+    try {
+      const n2nRes = await fetch('/api/n2n');
+      state.n2n = await n2nRes.json();
+    } catch { state.n2n = null; }
+
     setLoading(36, 'Spinning up scene');
     initScene();
 
-    // Build local core — shifted left to make room for peer cores
-    const hasPeers = state.bgp?.available && state.bgp.peers.length > 0;
+    // Build local core — shifted left to make room for peer cores.
+    // NCFED overlay claws with a live channel render as claw cores even when
+    // their direct BGP session is down: the overlay (not BGP) carries chat/
+    // tasks/inventory, and claw BGP sessions are inbound-only here — so a
+    // fully federated claw was invisible whenever the BGP leg was down.
+    const bgpScenePeers = state.bgp?.available ? state.bgp.peers : [];
+    const overlayScenePeers = (state.n2n?.peers || [])
+      .filter((p) => p.channel_state === 'up')
+      .map((p) => {
+        const m = /^as(\d+)-(.+)$/.exec(p.identity || '') || [];
+        return { type: 'claw', as: Number(m[1]) || undefined,
+                 routerId: m[2] || p.identity, peer: p.identity,
+                 displayName: p.display_name, state: 'Overlay', overlayOnly: true };
+      })
+      .filter((p) => p.as && !bgpScenePeers.some((b) => Number(b.as) === Number(p.as)));
+    const scenePeers = [...bgpScenePeers, ...overlayScenePeers];
+    const hasPeers = scenePeers.length > 0;
     const localPos = hasPeers ? CORE_POSITIONS.local : new THREE.Vector3(0, 0, 0);
-    const localCore = buildCore(state.graph.identity, localPos, state.graph.identity.name.toUpperCase(), 0x66ccff);
+    // 056: a Border claw is the amber center of its risk; else default cyan.
+    const _isBorder = state.n2n?.risk?.role === 'border';
+    const _localTint = _isBorder ? RISK_LAYOUT.colors.border : 0x66ccff;
+    const localCore = buildCore(state.graph.identity, localPos, state.graph.identity.name.toUpperCase(), _localTint);
     // Orbit data for local core — orbits around the centroid
     const lcDist = localPos.distanceTo(CORE_CENTROID);
     localCore.orbit = {
@@ -2831,7 +3235,7 @@ async function boot() {
 
     // Build peer cores as equal central nodes
     if (hasPeers) {
-      const uniquePeers = deduplicatePeers(state.bgp.peers);
+      const uniquePeers = deduplicatePeers(scenePeers);
       const peerPositions = [CORE_POSITIONS.peer1, CORE_POSITIONS.peer2, CORE_POSITIONS.peer3];
       uniquePeers.slice(0, 3).forEach((peer, i) => {
         const isClaw = peer.type === 'claw';
@@ -2862,7 +3266,20 @@ async function boot() {
     }
 
     setLoading(58, 'Rendering integration lattice');
-    buildIntegrations(state.graph);
+    // 056: a Border orbits ONLY its broker skills — the domain integrations moved
+    // to their member spokes, so the Border is no longer the 190-skill monolith.
+    const BORDER_KEEP = new Set(['gait', 'protocol', 'n2n', 'memory', 'mempalace',
+      'humanrail', 'slack', 'webex', 'servicenow', 'pagerduty', 'twilio', 'twitter',
+      'msgraph', 'subnet-calculator', 'subnet', 'rfc', 'wikipedia', 'token-tracker']);
+    const _graphForBorder = (state.n2n?.risk?.role === 'border')
+      ? { ...state.graph, integrations: state.graph.integrations.filter((i) => BORDER_KEEP.has(i.id)) }
+      : state.graph;
+    buildIntegrations(_graphForBorder);
+
+    // 056: iN2N risk — render member claws as spokes SOUTH of the Border, each
+    // with its own orbiting skills, colored by class (green member / red
+    // quarantined / dim cold). Additive + guarded: no-op for standalone claws.
+    buildRiskMembers();
 
     setLoading(72, 'Placing device ring');
     buildDevices(state.graph);
@@ -2891,6 +3308,10 @@ async function boot() {
     connectSocket();
     checkGatewayStatus();
     setInterval(checkGatewayStatus, 15000);
+    // Refresh N2N federation state so claw nodes reflect consent/inventory/sever (FR-026)
+    setInterval(async () => {
+      try { state.n2n = await (await fetch('/api/n2n')).json(); } catch { /* keep last */ }
+    }, 30000);
     animate();
 
     setLoading(100, 'Visual layer online');

@@ -38,12 +38,24 @@ yarn-error.log*
 # OpenClaw
 .openclaw/
 
+# iN2N keys/certs (feature 056) — runtime-generated self-signed keys, never committed.
+# Live path is ~/.openclaw/n2n/keys/ (already covered by .openclaw/); guard repo-local copies.
+**/n2n/keys/
+
+# Local agent state and audit harnesses
+.gait/
+memory/
+.pytest_cache/
+
 # Diagrams (generated)
 *.drawio.bak
 
 # Cloned MCP servers (installed by install.sh)
 mcp-servers/*
+# Directory-level documentation (tracked in repo)
+!mcp-servers/README.md
 # Built-in MCP servers (tracked in repo)
+!mcp-servers/n2n-mcp/
 !mcp-servers/protocol-mcp/
 !mcp-servers/suzieq-mcp/
 !mcp-servers/azure-network-mcp/
@@ -61,6 +73,17 @@ mcp-servers/*
 !mcp-servers/nautobot-routing-mcp/
 !mcp-servers/memory-mcp/
 !mcp-servers/auvik-mcp/
+!mcp-servers/rag-mcp/
+!mcp-servers/claroty-mcp/
+!mcp-servers/ollama-mcp/
+!mcp-servers/twitter-mcp/
+!mcp-servers/twilio-voice-mcp/
+!mcp-servers/atlassian-mcp/
+!mcp-servers/chrome-devtools-mcp/
+# Documented as built-in but never committed (installers expect them) —
+# whitelisted so the upstream fix that adds them isn't silently re-ignored
+!mcp-servers/packet-buddy-mcp/
+!mcp-servers/tts-mcp/
 
 # Traces
 trace.json
@@ -71,3 +94,31 @@ docs/blogs/
 .amazonq
 workspace/node_modules/
 .dev-secrets/
+
+# Sensitive config files (contain phone numbers, etc.)
+config/twilio-voice.json
+
+# Generated topology visualizations and downloaded/cached 3D assets (spec 046)
+# — regenerated on demand by output.py/assets.py, never checked in.
+workspace/output/
+
+# iN2N migration scaffold (contains per-member .env slices — never commit)
+migration-staging/
+
+# iN2N production enforcement + durable runtime (feature 057).
+# Live/generated state belongs under ~/.openclaw (already ignored) or
+# ~/.config/systemd/user — NEVER in the repo. Guard against repo-local copies:
+#   - the GAIT immutable audit trail (git repo of federation events)
+#   - generated systemd units / env (the checked-in TEMPLATE scripts/systemd/*.service stays)
+#   - any member scoped .env slices
+federation-events.jsonl
+gait/
+*.systemd.env
+mesh.systemd.env
+
+# NCFED Internet-Draft (feature 059) — generated build outputs; keep the .md source
+docs/ietf/*.xml
+docs/ietf/*.txt
+docs/ietf/*.html
+docs/ietf/.refcache/
+docs/ietf/kdrfc-err.txt

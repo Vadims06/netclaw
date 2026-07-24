@@ -189,6 +189,104 @@ NCTUN_OVERLAY_PREFIX = "fd00:cc::"  # /48 overlay prefix for tunnel point-to-poi
 NCTUN_FRAME_HEADER_SIZE = 2       # 2-byte big-endian length prefix per IP packet
 NCTUN_MAX_PACKET_SIZE = 1400      # Maximum IP packet size in tunnel frame
 
+# NetClaw N2N Federation Constants (feature 052)
+# Third protocol on the mesh port: after peeking 'N', the next 4 bytes are
+# "CTUN" (tunnel) or "CFED" (federation). See bgp/agent.py discrimination.
+NCFED_MAGIC = b'NCFED'            # 5-byte magic for federation channel discrimination
+NCFED_FRAME_HEADER_SIZE = 5       # 4-byte big-endian payload length + 1-byte flags
+NCFED_MAX_PAYLOAD = 65536         # 64 KB max per frame; larger messages chunk
+NCFED_FLAG_CONTINUATION = 0x01    # payload is a chunk; concatenate until flag clear
+NCFED_HEARTBEAT_INTERVAL = 30     # seconds of silence before sending an empty frame
+NCFED_HEARTBEAT_MISS_LIMIT = 3    # missed heartbeats before channel considered down
+NCFED_MAX_MESSAGE = 16 * 1024 * 1024  # aggregate reassembled-message bound (NCFED -00 §7/§14.7)
+NCFED_REASSEMBLY_TIMEOUT = 30.0   # seconds a partial reassembly may stay open before close
+
+
+def ncfed_initiates(local_as: int, local_router_id: str,
+                    peer_as: int, peer_router_id: str) -> bool:
+    """Deterministic-initiator rule (NCFED -00 §5): peers are ordered by the
+    tuple (AS, router-id), router-ids compared as unsigned 32-bit integers in
+    network byte order. The numerically lower tuple dials; the other accepts.
+    Equal tuples are a configuration error (two peers MUST NOT share both) —
+    neither side dials, so the misconfiguration surfaces instead of colliding."""
+    import socket
+    import struct
+
+    def _rid(rid: str) -> int:
+        try:
+            return struct.unpack("!I", socket.inet_aton(rid))[0]
+        except OSError:
+            return 0
+    return (local_as, _rid(local_router_id)) < (peer_as, _rid(peer_router_id))
+
+# ── iN2N — Internal NetClaw Federation (feature 056) ────────────────
+# iN2N reuses the NCFED wire framing above over a member-initiated internal
+# transport. It is a NEW binding + trust profile, NOT a new wire protocol; the
+# frozen eN2N (052/053) framing/consent/default-deny are untouched.
+N2N_ROLE_STANDALONE = "standalone"   # a "risk of one" — behaves as pre-056 NetClaw
+N2N_ROLE_BORDER = "border"           # the sole coordinator + external face of a risk
+N2N_ROLE_MEMBER = "member"           # an internal, tightly-scoped specialist claw
+N2N_ROLES = (N2N_ROLE_STANDALONE, N2N_ROLE_BORDER, N2N_ROLE_MEMBER)
+
+# iN2N handshake methods (siblings of eN2N n2n/hello — dispatched over the
+# internal channel; carry a risk-local member id + pinned-key proof, NOT an AS).
+IN2N_METHOD_HELLO = "in2n/hello"
+IN2N_METHOD_ENROLL = "in2n/enroll"
+
+# iN2N transport preamble: the Border sends this magic + a 32-byte nonce on
+# accept; the member replies with in2n/hello|in2n/enroll signing the nonce
+# (proof-of-possession of its pinned self-signed key). Distinct from NCFED so
+# eN2N discrimination is unaffected; iN2N uses its own listener (N2N_IN2N_PORT).
+IN2N_MAGIC = b'IN2N1'
+IN2N_NONCE_SIZE = 32
+
+# iN2N JSON-RPC error codes (distinct from the frozen eN2N -3200x range).
+IN2N_ERR_ENROLL_TOKEN_INVALID = -32021   # token missing/spent/expired
+IN2N_ERR_MEMBER_ID_TAKEN = -32022        # member_id already pinned to another key
+IN2N_ERR_MEMBER_NOT_TRUSTED = -32023     # key != pinned, or member removed/quarantined
+IN2N_ERR_NOT_A_BORDER = -32024           # enrollment attempted against a non-Border claw
+IN2N_ERR_NO_CAPABLE_MEMBER = -32030      # no active member covers the requested capability
+IN2N_ERR_OUT_OF_SCOPE = -32031           # member asked to act beyond its advertised scope
+
+# iN2N tunables (defaults; overridable via env — see .env.example).
+N2N_QUARANTINE_THRESHOLD_DEFAULT = 5     # consecutive auth/health failures → auto-quarantine
+# N2N_IN2N_PORT (env): optional dedicated iN2N listener on the Border; when unset
+# the Border accepts iN2N dial-ins on the shared mesh port via discrimination.
+
+# ── Claw Certification — channel security (feature 060) ─────────────
+# Secured channels share the existing mesh listening port with BGP, NCFED, and
+# NCTUN. Discrimination is by first byte: a TLS handshake record begins 0x16
+# ('CONTENT_TYPE handshake'), BGP begins its 16-byte 0xFF marker, and NCFED/NCTUN
+# begin ASCII 'N' (0x4E). The three are mutually exclusive, so the existing
+# single-byte discriminator gains one TLS branch (research.md R4).
+TLS_FIRST_BYTE = 0x16                     # TLS 1.x handshake record content type
+NCFED_ALPN = "ncfed/1"                    # ALPN offered/accepted on secured channels
+# Channel binding: the dialer signs (nonce || binding) where binding is the
+# tls-server-end-point value — SHA-256 of the listener's certificate (RFC 5929).
+# Both ends know it on every Python/TLS version (the RFC 5705 tls-exporter is
+# only exposed in Python's ssl from 3.13), and it closes the 059 "no channel
+# binding" note: a MITM's own cert yields a different binding, so a relayed
+# dialer signature fails to verify at the true listener.
+TLS_BINDING_TYPE = "tls-server-end-point"
+
+# Trust models recorded per external peer (spec FR-002). 'legacy' = a pre-060
+# cleartext peer, refused in production until it patches (FR-021).
+TRUST_DOMAIN_VERIFIED = "domain-verified"
+TRUST_PINNED = "pinned"
+TRUST_LEGACY = "legacy"
+
+# Certificate lifetime/rotation defaults (days / fraction). All env-overridable.
+CERT_MEMBER_DAYS_DEFAULT = 90             # N2N_CERT_MEMBER_DAYS — hub + member leaves
+CERT_CA_DAYS_DEFAULT = 730                # N2N_CERT_CA_DAYS — risk CA anchor (~2y)
+CERT_RENEW_FRACTION_DEFAULT = 0.667       # N2N_CERT_RENEW_FRACTION — renew at 2/3 life
+CERT_AGING_AMBER_DAYS = 30                # HUD amber under this many days remaining (FR-018)
+CERT_AGING_RED_DAYS = 14                  # HUD red under this many days remaining (FR-018)
+
+# eN2N secured-channel JSON-RPC error codes (extend the frozen -3206x band; the
+# -3200x/-3202x/-3203x ranges are already in use above).
+EN2N_ERR_LEGACY_REFUSED = -32060          # peer must adopt certificate-secured federation
+EN2N_ERR_CERT_VERIFY_FAILED = -32061      # WebPKI/SAN/pin/signature verification failed
+
 CAPABILITY_NAMES = {
     CAP_MULTIPROTOCOL: "Multiprotocol",
     CAP_ROUTE_REFRESH: "Route Refresh",

@@ -4,7 +4,7 @@
 
 # NetClaw Visual HUD
 
-A Three.js 3D network operations dashboard for [NetClaw](https://github.com/automateyournetwork/netclaw). Visualizes all 44 MCP integrations, 97 skills, your device fleet, and live BGP peering topology in a real-time interactive scene. Includes a chat terminal wired directly to the OpenClaw gateway for live tool execution from the browser. Supports bidirectional Slack and WebEx channels.
+A Three.js 3D network operations dashboard for [NetClaw](https://github.com/automateyournetwork/netclaw). Visualizes all 43 MCP servers, 179 skills, your device fleet, and live BGP peering topology in a real-time interactive scene. Includes a chat terminal wired directly to the OpenClaw gateway for live tool execution from the browser. Supports bidirectional Slack and WebEx channels.
 
 ---
 
@@ -71,14 +71,19 @@ Reconfigure anytime:
 
 ---
 
-## 2. Start the OpenClaw Gateway
+## 2. Enable Chat Completions and Start the OpenClaw Gateway
 
-The HUD's chat terminal proxies messages to the OpenClaw gateway. Start it in a dedicated terminal:
+The Visual HUD and Canvas Chat proxy messages through OpenClaw's
+OpenAI-compatible chat-completions endpoint. Enable that endpoint once, then
+start the gateway in a dedicated terminal:
 
 ```bash
 cd netclaw
+openclaw config set gateway.http.endpoints.chatCompletions.enabled true
 openclaw gateway run
 ```
+
+If the gateway was already running when you changed the setting, restart it.
 
 You should see:
 
@@ -89,7 +94,9 @@ You should see:
 
 The gateway must be running for live chat responses and tool execution (Slack messages, GitHub issues, ServiceNow tickets, mind maps, etc.). Without it, the chat falls back to a local heuristic that identifies which integrations and devices are relevant but cannot execute tools.
 
-The HUD shows a **LIVE** / **OFFLINE** indicator in the chat header so you always know if the gateway is reachable.
+The chat interfaces report whether the gateway is ready for chat. A reachable
+gateway whose chat-completions endpoint is disabled is shown separately from a
+fully offline gateway.
 
 ---
 
@@ -220,7 +227,9 @@ This starts two processes concurrently:
 | **API Server** | 3001 | REST API + WebSocket for graph data, BGP state, chat proxy, device config |
 | **Vite Dev Server** | 3000 | Three.js frontend with hot reload, proxies `/api` and `/ws` to port 3001 |
 
-Open **http://localhost:3000** in your browser.
+Open **http://localhost:3000** in your browser. The default route remains the
+3D Visual HUD; the alternative branching chat workspace is available at
+**http://localhost:3000/canvas.html**.
 
 ### Production Build
 
@@ -295,8 +304,31 @@ The chat drawer in the bottom-right corner connects directly to the OpenClaw gat
 If the gateway is offline, responses fall back to a local heuristic with a **LOCAL** badge that identifies relevant integrations and devices but cannot execute tools.
 
 The chat header shows:
-- **LIVE** (green) — gateway is reachable and responding
-- **OFFLINE** (orange) — gateway is not running or unreachable
+
+- **LIVE** (green) — the gateway and chat-completions endpoint are ready
+- **CHAT API DISABLED** (orange) — the gateway is reachable, but its
+  chat-completions endpoint must be enabled
+- **OFFLINE** (orange) — the gateway is not running or is unreachable
+
+### Canvas Chat (Alternative Interface)
+
+Select **Canvas Chat** in the terminal header, or open `/canvas.html` directly,
+to use NetClaw in a spatial, branching workspace. The canvas is an alternative
+frontend only: it uses the same `/api/chat` proxy, OpenClaw gateway, configured
+model, MCP integrations, skills, and safety controls as the existing terminal.
+
+- Highlight part of an answer and branch it into a focused child conversation.
+- Drag, resize, collapse, tile, or automatically tidy conversation windows.
+- Select multiple branches and synthesize their context into a new node.
+- Attach images or text/code/data files to a turn.
+- Keep multiple canvas sessions in browser-local IndexedDB and export/import
+  portable JSON when needed.
+- Return to the standard NetClaw interface at any time with the **Visual HUD**
+  button in the canvas header.
+
+Each canvas request sends the context for its own branch. Sibling branches are
+therefore isolated from one another, while the original `{ "message": "..." }`
+chat request remains fully backward compatible for the Visual HUD.
 
 ### Top Bar Metrics
 
@@ -336,12 +368,12 @@ The detail panel below shows context for the selected node:
 ## Architecture
 
 ```
-Browser (Three.js HUD @ localhost:3000)
+Browser (Visual HUD + Canvas Chat @ localhost:3000)
     |
     +-- GET  /api/graph          -> integrations, skills, devices, tool counts
     +-- GET  /api/bgp            -> BGP peers + RIB from daemon (localhost:8179)
-    +-- GET  /api/gateway/status -> OpenClaw gateway health check
-    +-- POST /api/chat           -> proxied to OpenClaw gateway (localhost:18789)
+    +-- GET  /api/gateway/status -> OpenClaw chat readiness check
+    +-- POST /api/chat           -> linear message or branch context, proxied to OpenClaw
     +-- GET  /api/testbed/raw    -> read/edit testbed.yaml
     +-- PUT  /api/env            -> update integration credentials
     +-- WS   /ws                 -> real-time activations, BGP state, heartbeat
@@ -355,7 +387,7 @@ Browser (Three.js HUD @ localhost:3000)
     +-- OpenClaw Gateway (@ localhost:18789)
           +-- Anthropic Claude (agent model)
           +-- 43 MCP integrations (pyATS, ACI, ISE, NetBox, GitHub, Slack, ...)
-          +-- 97 skills (health checks, troubleshooting, auditing, ...)
+          +-- 179 skills (health checks, troubleshooting, auditing, ...)
 ```
 
 ---
@@ -367,13 +399,13 @@ Browser (Three.js HUD @ localhost:3000)
 | `/api/health` | GET | Health check |
 | `/api/graph` | GET | Full integration + device graph for 3D visualization |
 | `/api/bgp` | GET | BGP peer state and RIB from daemon |
-| `/api/gateway/status` | GET | OpenClaw gateway online/offline check |
+| `/api/gateway/status` | GET | OpenClaw reachability and chat-completions readiness |
 | `/api/skill/:skillId` | GET | Individual skill details |
 | `/api/env/:integrationId` | GET | Integration environment variables |
 | `/api/env` | PUT | Update integration credentials |
 | `/api/testbed/raw` | GET | Read testbed.yaml |
 | `/api/testbed/raw` | PUT | Update testbed.yaml |
-| `/api/chat` | POST | Send chat message (proxied to OpenClaw gateway) |
+| `/api/chat` | POST | Send `{ message }`, or `{ message, messages }` with branch-isolated context, to the OpenClaw gateway |
 | `/api/chat/history` | GET | Chat message history |
 | `/api/sessions` | GET | OpenClaw agent sessions |
 | `/api/session/:id/tools` | GET | Tools used in a session |
@@ -405,3 +437,69 @@ Browser (Three.js HUD @ localhost:3000)
 - Check browser console for `fetch` errors to `/api/graph`
 - Ensure the API server started (look for `NetClaw visual API listening on http://localhost:3001`)
 - Try a hard refresh (Ctrl+Shift+R)
+
+---
+
+## Twitter Panel
+
+The Visual HUD includes an optional Twitter panel that displays NetClaw's outbound tweets in real-time.
+
+### Features
+
+- **Real-time updates** — New tweets appear instantly via WebSocket
+- **Rate limit display** — Shows remaining tweets (Free tier: 50/24hr)
+- **Category icons** — Visual indicators for content type (tip, hot_take, til, achievement, musing, community)
+- **Heartbeat badge** — Identifies autonomous heartbeat tweets
+- **Direct links** — Click through to view tweets on X/Twitter
+
+### Integration
+
+The Twitter panel module is located at `src/panels/TwitterPanel.js`. To integrate:
+
+```javascript
+import { TwitterPanel } from './panels/TwitterPanel.js';
+
+// Initialize with WebSocket connection
+const twitterPanel = new TwitterPanel(state.socket);
+
+// Mount to DOM
+document.body.appendChild(twitterPanel.render());
+
+// Or add manually
+twitterPanel.addTweet({
+  tweet_id: '1234567890',
+  content: 'OSPF tip: Always verify network types match... #netclaw',
+  category: 'tip',
+  is_heartbeat: true
+});
+```
+
+### Styling
+
+Import the CSS for panel styling:
+
+```html
+<link rel="stylesheet" href="src/panels/TwitterPanel.css">
+```
+
+### WebSocket Events
+
+The panel listens for these WebSocket message types:
+
+| Type | Payload | Purpose |
+|------|---------|---------|
+| `twitter_update` | `{tweet_id, content, category, timestamp, url, is_heartbeat}` | New tweet posted |
+| `twitter_rate_limit` | `{remaining, limit, reset_time}` | Rate limit status update |
+
+### Configuration
+
+The Twitter panel requires the twitter-mcp server to be configured with valid credentials:
+
+```bash
+# In ~/.openclaw/.env
+TWITTER_API_KEY=your_api_key
+TWITTER_API_SECRET=your_api_secret
+TWITTER_ACCESS_TOKEN=your_access_token
+TWITTER_ACCESS_SECRET=your_access_secret
+TWITTER_HEARTBEAT_ENABLED=true  # Optional: enable autonomous tweets
+```
