@@ -980,6 +980,28 @@ class TestGetUsage:
         data = json.loads(result_str)
         assert "error" not in data
 
+    async def test_client_scope_list_data_msp_account(self):
+        """MSP accounts: /v1/billing/usage/client returns `data` as a LIST (one
+        row per tenant). Must shape each row into items[] instead of crashing
+        with "'list' object has no attribute 'get'".
+        """
+        def handler(req: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json=_make_list_payload([_usage_item("800001"), _usage_item("800002")]),
+            )
+
+        client = _client_for(handler)
+        result_str = await auvik_get_usage(
+            client, from_date="2024-01-01", thru_date="2024-01-31"
+        )
+        await client.close()
+
+        data = json.loads(result_str)
+        assert "error" not in data, data
+        assert isinstance(data.get("items"), list)
+        assert len(data["items"]) == 2
+
     async def test_client_scope_missing_from_date_is_validation_error(self):
         """Missing from_date → ValidationError, no HTTP call."""
         called = False

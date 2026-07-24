@@ -119,6 +119,15 @@ def _single_result(get_result: dict, model_cls, raw: bool = False) -> str:
     if resource is None:
         return json.dumps({"error": {"code": "NotFound", "message": "No resource returned.", "details": None}})
 
+    # Some endpoints (e.g. /v1/billing/usage/client on multi-client/MSP accounts)
+    # return `data` as a JSON:API collection — a list, one row per tenant. Shape
+    # each element instead of treating the whole list as a single resource
+    # (which would call list.get() and raise "'list' object has no attribute 'get'").
+    if isinstance(resource, list):
+        models = [model_cls.from_resource(item) for item in resource]
+        items = json.loads(to_json(models)) if models else []
+        return json.dumps({"items": items}, default=str)
+
     model = model_cls.from_resource(resource)
     return to_json(model)
 
