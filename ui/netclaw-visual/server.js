@@ -96,6 +96,7 @@ const INTEGRATION_CATALOG = [
   { id: 'zscaler', name: 'Zscaler', category: 'Security', prefixes: ['zscaler-'], color: '#0090d4', transport: 'http', toolEstimate: 300, description: 'Zero Trust security — ZIA (SWG), ZPA (ZTNA), ZDX (DEM), identity management, and security insights.' },
   { id: 'cloudflare', name: 'Cloudflare', category: 'Edge Platform', prefixes: ['cloudflare-'], color: '#f48120', transport: 'http', toolEstimate: 50, description: 'Edge platform — DNS analytics, WAF/DDoS security, Zero Trust access, traffic analytics, and Workers compute.' },
   { id: 'checkpoint', name: 'Check Point', category: 'Security', prefixes: ['checkpoint-', 'chkp-'], color: '#e21d38', transport: 'stdio', toolEstimate: 60, description: 'Enterprise security — 15 MCPs for policy management, threat intelligence, gateway diagnostics, SASE, threat prevention, malware analysis, HTTPS inspection, and exposure management.' },
+  { id: 'auvik', name: 'Auvik', category: 'Observability', prefixes: ['auvik-'], color: '#0a9396', transport: 'stdio', toolEstimate: 20, description: 'Read-only Auvik network monitoring — inventory, alerts, lifecycle/warranty, and performance statistics across MSP tenants.' },
   { id: 'claroty', name: 'Claroty xDome', category: 'Security', prefixes: ['claroty-'], color: '#00a3a3', transport: 'stdio', toolEstimate: 21, description: 'OT / IoT / IoMT visibility — asset discovery, Purdue Model classification, alert and vulnerability triage, communication-map topology, all writes ITSM-gated.' },
   { id: 'threejs-viz', name: 'Three.js Network Viz', category: 'Visualization', prefixes: ['threejs-network-viz'], color: '#049ef4', transport: 'stdio', toolEstimate: 3, description: 'Browser-based 3D network topology visualization — single self-contained HTML file, no desktop app/GPU/server required. Optional real-3D-model stencil mode via the vendored sketchfab-mcp-server (3 tools: search, model-details/license-verification, download), filtered to CC0-licensed models only.' },
   { id: 'chrome-devtools', name: 'Chrome DevTools', category: 'Browser Automation', prefixes: ['chrome-devtools-', 'browser-viz-verify', 'browser-gui-inspect'], color: '#4285f4', transport: 'npx', toolEstimate: 20, description: 'Controlled browser automation/inspection — visualization render QA, controller GUI gap-filling, undocumented vendor API discovery via network-request capture, general web-GUI automation. No credentials; auth via one-time manual sign-in into a persistent Chrome profile.' },
@@ -426,6 +427,11 @@ const ENV_MAP = {
     env: ['CHKP_MGMT_HOST', 'CHKP_MGMT_PORT', 'CHKP_MGMT_API_KEY', 'CHKP_MGMT_USERNAME', 'CHKP_MGMT_PASSWORD', 'CHKP_MGMT_DOMAIN', 'CHKP_S1C_API_KEY', 'CHKP_S1C_URL', 'CHKP_REPUTATION_API_KEY', 'CHKP_SASE_API_KEY', 'CHKP_SASE_MGMT_HOST', 'CHKP_TE_API_KEY', 'CHKP_SPARK_API_KEY', 'CHKP_ARGOS_API_KEY', 'CHKP_TELEMETRY_DISABLED', 'CHKP_LOG_LEVEL'],
     files: ['mcp-servers/checkpoint-mcp-servers/'],
     notes: 'Check Point Security (15 MCPs). Management Server requires CHKP_MGMT_HOST + API key or username/password. Additional keys for SASE, Threat Emulation, Reputation, Spark, Argos. Enable with ./scripts/checkpoint-enable.sh',
+  },
+  auvik: {
+    env: ['AUVIK_USERNAME', 'AUVIK_API_KEY', 'AUVIK_BASE_URL'],
+    files: [],
+    notes: 'Auvik user email + API key (HTTP Basic). AUVIK_BASE_URL defaults to the us1 cluster; override for other regions.',
   },
   claroty: {
     env: ['CLAROTY_API_URL', 'CLAROTY_API_TOKEN', 'CLAROTY_VERIFY_SSL', 'CLAROTY_TIMEOUT', 'CLAROTY_RATE_LIMIT_PER_MIN', 'NETCLAW_LAB_MODE'],
