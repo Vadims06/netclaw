@@ -13,6 +13,7 @@ import 'ncfed/edge_ask_client.dart';
 import 'ncfed/edge_client.dart';
 import 'ncfed/edge_identity.dart';
 import 'ncfed/enrollment_store.dart';
+import 'ncfed/heartbeat.dart';
 import 'ncfed/message_feed.dart';
 import 'ncfed/push_registration.dart';
 import 'ncfed/reconnect_supervisor.dart';
@@ -174,6 +175,7 @@ class _HomeShellState extends State<HomeShell> {
       final approvalClient = ApprovalClient(widget.client);
       final capabilities = CapabilityRegistration(widget.client);
       wireMessageFeed(widget.client, feedStore, onApproval: approvalClient.receiveApproval);
+      wireHeartbeat(widget.client);
       CaptureClient(
         askClient: askClient,
         capture: (type) => CaptureScreen.capture(context, type),
