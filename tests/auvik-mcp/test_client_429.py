@@ -52,15 +52,30 @@ async def test_get_retries_once_on_429_then_200():
 # ---------------------------------------------------------------------------
 
 
-async def test_get_retry_uses_retry_after_value():
-    """Sleep delay is sourced from Retry-After: 0 (zero means instant retry)."""
+async def test_get_retry_uses_retry_after_value(monkeypatch):
+    """The server-supplied Retry-After value drives the backoff delay.
+
+    Uses a NON-ZERO value and asserts the observed sleep, so this can actually
+    distinguish "honored the header" from "fell back to the 1-second default".
+    A ``Retry-After: 0`` cannot: both paths sleep 1 second, because
+    ``0 or 1`` and ``None or 1`` are both 1.
+    """
+    import asyncio
+
+    sleep_calls = []
+
+    async def fake_sleep(delay):
+        sleep_calls.append(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
     call_count = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal call_count
         call_count += 1
         if call_count < 2:
-            return httpx.Response(429, headers={"Retry-After": "0"}, json={})
+            return httpx.Response(429, headers={"Retry-After": "7"}, json={})
         return httpx.Response(200, json={"data": []})
 
     mt = _make_transport(handler)
@@ -76,6 +91,9 @@ async def test_get_retry_uses_retry_after_value():
 
     assert result["success"] is True
     assert call_count == 2
+    assert sleep_calls == [7], (
+        "Retry-After: 7 must drive a 7-second backoff, not the 1s fallback"
+    )
 
 
 # ---------------------------------------------------------------------------
