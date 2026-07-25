@@ -2902,6 +2902,37 @@ fi
 echo ""
 }
 
+component_install_auvik() {
+log_step "Installing Auvik MCP Server..."
+echo "  Built-in MCP server: mcp-servers/auvik-mcp/"
+echo "  Auvik network monitoring — inventory, alerts, lifecycle/warranty, performance (20 read-only tools)"
+
+AUVIK_MCP_DIR="$MCP_DIR/auvik-mcp"
+if [ -d "$NETCLAW_DIR/mcp-servers/auvik-mcp" ]; then
+    AUVIK_MCP_DIR="$NETCLAW_DIR/mcp-servers/auvik-mcp"
+fi
+
+if [ -f "$AUVIK_MCP_DIR/requirements.txt" ]; then
+    log_info "Installing Auvik MCP dependencies (fastmcp, httpx, python-dotenv)..."
+    pip3 install -r "$AUVIK_MCP_DIR/requirements.txt" 2>/dev/null || \
+        pip3 install --break-system-packages -r "$AUVIK_MCP_DIR/requirements.txt" 2>/dev/null || {
+            log_warn "Auvik MCP pip install failed — dependencies may need manual installation"
+        }
+
+    # Copy .env.example if .env does not exist
+    if [ -f "$AUVIK_MCP_DIR/.env.example" ] && [ ! -f "$AUVIK_MCP_DIR/.env" ]; then
+        log_info "Auvik MCP .env.example available — copy and configure:"
+        echo "    cp $AUVIK_MCP_DIR/.env.example $AUVIK_MCP_DIR/.env"
+    fi
+
+    log_info "Auvik MCP ready: $AUVIK_MCP_DIR/auvik_mcp_server.py"
+else
+    log_warn "Auvik MCP requirements.txt not found at $AUVIK_MCP_DIR"
+fi
+
+echo ""
+}
+
 # ── Step 50: Twitter MCP (NetClaw native) ───────────────────────
 component_install_twitter() {
 log_step "Installing Twitter MCP Server..."

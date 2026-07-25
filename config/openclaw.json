@@ -966,6 +966,22 @@
         "REDHAT_PASSWORD": "${REDHAT_PASSWORD:-}"
       }
     },
+    "auvik-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/auvik-mcp/auvik_mcp_server.py"
+      ],
+      "env": {
+        "AUVIK_USERNAME": "${AUVIK_USERNAME}",
+        "AUVIK_API_KEY": "${AUVIK_API_KEY}",
+        "AUVIK_BASE_URL": "${AUVIK_BASE_URL:-https://auvikapi.us1.my.auvik.com}",
+        "AUVIK_VERIFY_SSL": "${AUVIK_VERIFY_SSL:-true}",
+        "AUVIK_TIMEOUT": "${AUVIK_TIMEOUT:-30}",
+        "AUVIK_RATE_LIMIT": "${AUVIK_RATE_LIMIT:-600}",
+        "AUVIK_MAX_PAGES": "${AUVIK_MAX_PAGES:-50}"
+      }
+    },
     "halo-mcp": {
       "command": "python3",
       "args": [

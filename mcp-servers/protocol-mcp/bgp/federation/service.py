@@ -1281,8 +1281,14 @@ class FederationService:
                 with os.fdopen(fd, "w") as f:
                     f.write(f"{prompt}\n\n[Attached {content_type}, base64-encoded]\n{content}\n")
             try:
+                # openclaw agent's --session-id/--session-key rejects a
+                # value containing "/" ("Invalid session ID") -- every
+                # edge member_id is risk-scoped ("risk/<label>") and always
+                # contains one, so it must be sanitized here, unlike peer/
+                # skill identifiers elsewhere in this file which never do.
+                session_key = "n2n-edge-" + member_id.replace("/", "_")
                 output, tokens = await run_agent_turn(
-                    prompt, session_key=f"n2n-edge-{member_id}", untrusted=False,
+                    prompt, session_key=session_key, untrusted=False,
                     message_file=message_file)
             finally:
                 if message_file:

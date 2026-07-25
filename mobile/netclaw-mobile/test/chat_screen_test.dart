@@ -12,6 +12,7 @@ import 'package:netclaw_mobile/screens/chat_screen.dart';
 /// WebSocketChannel) just to test the widget in isolation.
 class _FakeEdgeRpcSource implements EdgeRpcSource {
   final Map<String, EdgeMethodHandler> handlers = {};
+  Map<String, dynamic>? taskResultResponse;
 
   @override
   void on(String method, EdgeMethodHandler handler) {
@@ -21,6 +22,9 @@ class _FakeEdgeRpcSource implements EdgeRpcSource {
   @override
   Future<Map<String, dynamic>> call(String method, Map<String, dynamic> params,
       {Duration timeout = const Duration(seconds: 30)}) async {
+    if (method == 'n2n/tasks/result' && taskResultResponse != null) {
+      return taskResultResponse!;
+    }
     return {'task_id': 'task-1'};
   }
 }
@@ -29,7 +33,8 @@ class _FakeEdgeRpcSource implements EdgeRpcSource {
 /// Real dart:io (Directory/ConversationStore) is used, so setup runs inside
 /// `runAsync()` — testWidgets() runs in a fake-async zone where a plain
 /// await never lets real File I/O complete.
-Future<Widget> _buildChatScreen(WidgetTester tester, String state, {String? answerText}) async {
+Future<Widget> _buildChatScreen(WidgetTester tester, String state,
+    {String? answerText, _FakeEdgeRpcSource? source}) async {
   late Directory dir;
   late ConversationStore store;
   await tester.runAsync(() async {
@@ -42,7 +47,8 @@ Future<Widget> _buildChatScreen(WidgetTester tester, String state, {String? answ
   });
   addTearDown(() => dir.delete(recursive: true));
   return MaterialApp(
-    home: Scaffold(body: ChatScreen(askClient: EdgeAskClient(_FakeEdgeRpcSource()), store: store)),
+    home: Scaffold(
+        body: ChatScreen(askClient: EdgeAskClient(source ?? _FakeEdgeRpcSource()), store: store)),
   );
 }
 
@@ -74,5 +80,26 @@ void main() {
     expect(find.text('Cancelled'), findsOneWidget);
     expect(find.text('Working…'), findsNothing);
     expect(find.textContaining('Failed'), findsNothing);
+  });
+
+  testWidgets(
+      'a turn that finished while disconnected recovers via n2n/tasks/result on next load',
+      (tester) async {
+    // No push ever arrives on `updates` in this test -- reconciliation is
+    // the ONLY path that can surface the answer, exactly like a real
+    // device whose connection went stale before the Border's push landed.
+    final source = _FakeEdgeRpcSource()
+      ..taskResultResponse = {
+        'task_id': 'task-1',
+        'state': 'completed',
+        'output_text': 'Recovered answer.',
+        'tokens_used': 12,
+      };
+    await tester.pumpWidget(await _buildChatScreen(tester, 'pending', source: source));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Recovered answer.'), findsOneWidget);
+    expect(find.text('Working…'), findsNothing);
   });
 }

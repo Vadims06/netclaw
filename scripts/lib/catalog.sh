@@ -60,6 +60,7 @@ CATALOG=(
     "kubeshark|Observability|Kubeshark|K8s L4/L7 traffic analysis, TLS decryption (remote)"
     "gtrace|Observability|gtrace|Traceroute (MPLS/ECMP/NAT), MTR, GlobalPing, ASN, geo (6 tools)"
     "telemetry-receivers|Observability|Telemetry Receivers|SNMP trap, syslog, IPFIX/NetFlow receivers over UDP (3 servers)"
+    "auvik|Observability|Auvik|Read-only network monitoring — inventory, alerts, lifecycle, performance (bundled, 20 tools)"
 
     "cml|Labs & Simulation|Cisco CML|Lab lifecycle, topology, packet capture (Python 3.12+)"
     "gns3|Labs & Simulation|GNS3|Projects, nodes, links, templates, snapshots, packet capture (23 tools)"
@@ -149,7 +150,7 @@ fwrule gait servicenow"
 PROFILE_LABS="cml containerlab batfish protocol peering n2n in2n-production suzieq gait subnet-calc drawio-rfc uml"
 
 PROFILE_OBSERVABILITY="grafana prometheus datadog splunk pagerduty te-community te-official \
-suzieq kubeshark gtrace gait"
+suzieq kubeshark gtrace auvik gait"
 
 profile_components() {
     case "$1" in

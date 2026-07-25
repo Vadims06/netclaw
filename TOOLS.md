@@ -43,6 +43,7 @@ All credentials are in `~/.openclaw/.env`. Never put credentials in skill files 
 - Token Optimization  → ANTHROPIC_API_KEY (reused), NETCLAW_TOKEN_PRICING_OVERRIDE (optional)
 - GitLab MCP          → GITLAB_PERSONAL_ACCESS_TOKEN, GITLAB_API_URL (default: gitlab.com)
 - Jenkins MCP         → JENKINS_URL, JENKINS_AUTH_BASE64 (remote HTTP, Basic Auth)
+- Auvik              → AUVIK_USERNAME, AUVIK_API_KEY, AUVIK_BASE_URL (optional)
 - HaloPSA / HaloITSM  → HALO_BASE_URL, HALO_CLIENT_ID, HALO_CLIENT_SECRET, HALO_TENANT, HALO_SCOPE (OAuth2 client-credentials)
 - Claroty xDome MCP   → CLAROTY_API_URL (default: https://api.medigate.io), CLAROTY_API_TOKEN, CLAROTY_VERIFY_SSL, CLAROTY_TIMEOUT, CLAROTY_RATE_LIMIT_PER_MIN (default: 2000)
 - Twitter MCP         → TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET, TWITTER_HEARTBEAT_ENABLED (default: false)
