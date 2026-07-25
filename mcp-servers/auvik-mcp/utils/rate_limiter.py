@@ -53,8 +53,13 @@ class SlidingWindowRateLimiter:
             self._timestamps.append(time.monotonic())
 
 
-def parse_retry_after(headers: dict) -> Optional[int]:
+def parse_retry_after(headers) -> Optional[int]:
     """Parse the Retry-After header value into integer seconds.
+
+    Accepts either an httpx ``Headers`` object (case-insensitive) or a plain
+    dict. The lookup is case-insensitive because ``dict(response.headers)``
+    lowercases header names, which would otherwise miss the canonical
+    ``Retry-After`` spelling and silently fall back to the caller's default.
 
     Returns:
         Integer seconds if the header is present and parsable as int.
@@ -62,6 +67,8 @@ def parse_retry_after(headers: dict) -> Optional[int]:
         (a warning is logged in the latter case).
     """
     value = headers.get("Retry-After")
+    if value is None:
+        value = headers.get("retry-after")
     if value is None:
         return None
     try:

@@ -46,7 +46,10 @@ def test_parse_retry_after_zero():
 
 
 def test_parse_retry_after_case_insensitive_header():
-    # httpx headers are case-insensitive dicts, but dict keys are exact —
-    # the helper reads the exact key; test both variants are tolerated
-    # (the typical form is "Retry-After")
+    """Both header spellings resolve.
+
+    A plain ``dict(response.headers)`` lowercases header names, so the helper
+    must not depend on the canonical capitalization.
+    """
     assert parse_retry_after({"Retry-After": "10"}) == 10
+    assert parse_retry_after({"retry-after": "10"}) == 10

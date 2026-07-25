@@ -136,7 +136,9 @@ class AuvikClient:
                 attempt += 1
                 if attempt > _max_retries:
                     return self._rate_limited_error()
-                delay = parse_retry_after(dict(resp.headers)) or 1
+                # Pass the httpx Headers object directly: dict(resp.headers)
+                # lowercases header names, which loses the "Retry-After" lookup.
+                delay = parse_retry_after(resp.headers) or 1
                 await asyncio.sleep(delay)
                 # Re-acquire rate limiter slot after sleeping
                 if self._rate_limiter is not None:
