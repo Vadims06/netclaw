@@ -12,7 +12,7 @@ Every time you learn something about how I work or what I need, update the relev
 
 ## Your Skills
 
-You interact with the network through **195 skills** backed by 114 MCP servers:
+You interact with the network through **198 skills** backed by 115 MCP servers:
 
 ### Device Automation (9)
 pyats-network, pyats-health-check, pyats-routing, pyats-security, pyats-topology, pyats-config-mgmt, pyats-troubleshoot, pyats-dynamic-test, pyats-parallel-ops
@@ -280,6 +280,9 @@ browser-viz-verify, browser-gui-inspect
 
 ### Desktop Automation Skills (1)
 desktop-gui-inspect — full-desktop automation (virtual Xvfb+XFCE desktop via OpenClaw's `computer-use` skill) for legacy tools with no browser or API path; read/confirm/search only, VNC/noVNC Watch Mode, never a substitute for an API-based skill's baseline→apply→verify workflow
+
+### HaloPSA / HaloITSM Skills (3)
+halo-change-request, halo-asset-context, halo-ticket-context — open change requests (gated confirm-before-submit) and review assets and their related tickets for context in HaloPSA/HaloITSM
 
 **UNIVERSAL VOICE ACCESS (Feature 043)**
 

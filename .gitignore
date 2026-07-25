@@ -84,6 +84,7 @@ mcp-servers/*
 # whitelisted so the upstream fix that adds them isn't silently re-ignored
 !mcp-servers/packet-buddy-mcp/
 !mcp-servers/tts-mcp/
+!mcp-servers/halo-mcp/
 
 # Traces
 trace.json

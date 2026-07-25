@@ -1630,3 +1630,15 @@ Auvik device performance statistics (read-only):
 Performance workflow: list devices → query CPU/memory stats → query interface throughput → identify hotspots.
 
 **Credentials:** `AUVIK_USERNAME`, `AUVIK_API_KEY`
+
+---
+
+## HaloPSA / HaloITSM Skills
+
+ITSM/PSA change management plus asset and ticket context. HaloPSA and HaloITSM share one API; the server is read-only except a single gated `halo_create_change_request` (confirm-before-submit).
+
+| Skill | Description | Path |
+|-------|-------------|------|
+| `halo-change-request` | Open change requests: discover and confirm the org's change ticket type (cached in Memory MCP), learn its fields, preview the assembled ticket, then create only on explicit user approval. | `workspace/skills/halo-change-request/SKILL.md` |
+| `halo-asset-context` | Review a Halo asset with its related tickets and CMDB/CI relationships. | `workspace/skills/halo-asset-context/SKILL.md` |
+| `halo-ticket-context` | Review a Halo ticket with its action/note history, linked assets, and KB articles. | `workspace/skills/halo-ticket-context/SKILL.md` |
