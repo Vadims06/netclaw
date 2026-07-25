@@ -4,7 +4,7 @@
 
 # NetClaw
 
-A CCIE-level AI network engineering coworker. Built on [OpenClaw](https://github.com/openclaw/openclaw) with Anthropic Claude, 191 skills, and 113 MCP integrations for complete network automation with ITSM gating, source-of-truth reconciliation, immutable audit trails, gNMI streaming telemetry, NetFlow/IPFIX flow telemetry, Canvas/A2UI inline network visualizations, packet capture analysis, GitHub config-as-code, GitLab DevOps (issues, merge requests, pipelines, repositories, wikis), Jenkins CI/CD (job monitoring, build triggering, log analysis, SCM tracking), Chrome DevTools browser automation (visualization render QA, controller GUI gap-filling, undocumented API discovery, headless or watchable-headed), Computer Use full-desktop automation (legacy desktop-only tools with no browser or API path, virtual XFCE desktop with VNC/noVNC Watch Mode), Cisco CML lab simulation, ContainerLab containerized network labs, Cisco NSO orchestration, Cisco SD-WAN vManage monitoring, Grafana observability (dashboards, Prometheus, Loki, alerting, incidents), Prometheus direct PromQL monitoring, Kubeshark Kubernetes traffic analysis, Cisco Meraki Dashboard management, Cisco ThousandEyes network intelligence, AWS and Azure cloud networking, Cisco Secure Firewall policy auditing, Check Point Security (15 MCPs: policy, threat intel, gateway, SASE, malware), Itential network orchestration, Juniper JunOS device automation, Arista CloudVision Portal monitoring, F5 BIG-IP pyATS iControl REST coverage, Infoblox DDI, Palo Alto Panorama, FortiManager, Batfish offline configuration analysis, UML diagram generation, EVPN/VXLAN fabric workflows, live BGP/OSPF control-plane participation, nmap network scanning, gtrace path analysis and IP enrichment, Slack-native operations, Cisco WebEx-native operations, Microsoft 365 integration, Twilio voice/SMS, Twitter/X integration, Claroty OT/IoT asset management, Forward Networks digital twin, Ollama local LLM routing, an offline agentic RAG document knowledge base (cited answers from user-uploaded vendor guides and standards), layered Memory MCP, and MemPalace persistent AI memory.
+A CCIE-level AI network engineering coworker. Built on [OpenClaw](https://github.com/openclaw/openclaw) with Anthropic Claude, 194 skills, and 114 MCP integrations for complete network automation with ITSM gating, source-of-truth reconciliation, immutable audit trails, gNMI streaming telemetry, NetFlow/IPFIX flow telemetry, Canvas/A2UI inline network visualizations, packet capture analysis, GitHub config-as-code, GitLab DevOps (issues, merge requests, pipelines, repositories, wikis), Jenkins CI/CD (job monitoring, build triggering, log analysis, SCM tracking), Chrome DevTools browser automation (visualization render QA, controller GUI gap-filling, undocumented API discovery, headless or watchable-headed), Computer Use full-desktop automation (legacy desktop-only tools with no browser or API path, virtual XFCE desktop with VNC/noVNC Watch Mode), Cisco CML lab simulation, ContainerLab containerized network labs, Cisco NSO orchestration, Cisco SD-WAN vManage monitoring, Grafana observability (dashboards, Prometheus, Loki, alerting, incidents), Prometheus direct PromQL monitoring, Kubeshark Kubernetes traffic analysis, Cisco Meraki Dashboard management, Cisco ThousandEyes network intelligence, AWS and Azure cloud networking, Cisco Secure Firewall policy auditing, Check Point Security (15 MCPs: policy, threat intel, gateway, SASE, malware), Itential network orchestration, Juniper JunOS device automation, Arista CloudVision Portal monitoring, F5 BIG-IP pyATS iControl REST coverage, Infoblox DDI, Palo Alto Panorama, FortiManager, Batfish offline configuration analysis, UML diagram generation, EVPN/VXLAN fabric workflows, live BGP/OSPF control-plane participation, nmap network scanning, gtrace path analysis and IP enrichment, Slack-native operations, Cisco WebEx-native operations, Microsoft 365 integration, Twilio voice/SMS, Twitter/X integration, Claroty OT/IoT asset management, Forward Networks digital twin, Ollama local LLM routing, an offline agentic RAG document knowledge base (cited answers from user-uploaded vendor guides and standards), layered Memory MCP, and MemPalace persistent AI memory.
 
 ## Resources
 
@@ -518,7 +518,7 @@ NetClaw ships with the full set of OpenClaw workspace markdown files. These are 
 
 ---
 
-## MCP Servers (113)
+## MCP Servers (114)
 
 > Adding a new MCP server or skill? Run `python3 scripts/verify-inventory-counts.py` before opening your PR — it computes the true skill/MCP counts from the codebase and flags any documentation that has drifted out of sync, so these numbers don't need to be manually recounted (see [spec 047](specs/047-docs-inventory-reconciliation/quickstart.md) for details).
 
@@ -620,6 +620,7 @@ NetClaw ships with the full set of OpenClaw workspace markdown files. These are 
 | 112 | N2N Federation | Built-in (`n2n-mcp`) | stdio (Python) | NetClaw-to-NetClaw federation over the BGP mesh via the new **NCFED** protocol (JSON-RPC 2.0, MCP + A2A semantics) — mutual-consent capability exchange, default-deny remote tool/skill invocation with approvals/budgets/audit, claw-to-claw chat, plus **async task delegation, channel auto-reconnect, endpoint auto-re-announce, and version negotiation** for self-healing reliability. Plus **iN2N — "a risk of NetClaws"**: one operator's group of focused member claws behind a single Border Claw (routing, least-privilege per-member secrets, cold/on-demand members, any provider/model incl. local Ollama), plus **feature 057 production enforcement** (fail-closed OpenShell sandbox + DefenseClaw guard + GAIT git audit, durable systemd services, honest `n2n_posture`/`n2n_faults`). Federated knowledge (feature 064): peers advertise RAG collections as content-free capability-card entries; `n2n_knowledge_query`/`n2n_knowledge_route` get a cited answer from the authoritative peer with no document content leaving its owner. Chroma-to-chroma vector replication (feature 065): with a separate, explicit `knowledge_replica` grant, `n2n_replicate`/`n2n_replicate_resync`/`n2n_replicate_delete` copy a consenting peer's already-embedded collection directly into your own local Chroma store (async job, no re-embedding, refused up front on an embedding-model mismatch or an oversized collection). NetClaw Mobile edge nodes (feature 066): a Border can enroll a phone (Flutter, iOS+Android) via QR-coded single-use token over a new WebSocket-over-TLS transport, reusing the same domain-verified/self-signed credential and pinned-key trust model as every other member — the phone carries no agent runtime, satisfying the base health-monitoring floor via built-in heartbeat/self-status instead of a delivered skill. `n2n_notify_phone` explicitly pushes a text/voice/image message to a connected device (never a blanket mirror of channel traffic); a disconnected device falls back to a platform push notification (FCM/APNs). NetClaw Mobile command channel (feature 067): the reverse direction — a phone's typed, spoken, or QR/deep-link-triggered request is bridged into a real agent turn (the same mechanism claw-to-claw chat already uses) with the operator's own local trust, no new MCP tool, and answered/delegated/routed exactly as a Slack or CLI request would be, with clear attribution of whichever claw actually answered. NetClaw Mobile biometrics and capture (feature 068): also no new MCP tool — approval requests you already trigger now also push to a connected phone for device-biometric approve/deny (`resolve_approval` with `via="biometric"`, same grant/audit semantics), and a phone can both attach a camera/mic capture to its own request and be selected as the target of a Border-initiated `n2n_delegate` when it's the only member advertising that capture capability, via the same capability-routing every other member uses (38 tools). See [N2N-PEERING-NETCLAWS.md](N2N-PEERING-NETCLAWS.md) (external) and [docs/N2N-RISK.md](docs/N2N-RISK.md) (internal/risk) |
 
 | 113 | RAG Knowledge Base | Built-in (`rag-mcp`) | stdio (Python) | Offline agentic document knowledge base — user-uploaded vendor guides/standards/customer docs, hybrid dense+BM25 retrieval with reciprocal rank fusion and local cross-encoder reranking, mandatory citations, structure-aware chunking, opt-in secret-scrubbed snapshots with always-visible staleness. Strictly separate from Memory MCP (10 tools) |
+| 114 | HaloPSA / HaloITSM | Built-in (`halo-mcp`) | stdio (Python) | HaloPSA/HaloITSM (one API): open change requests via a single gated confirm-before-submit write, and review assets and their related tickets, ticket types/fields, clients/sites/users/contracts, and KB for context. OAuth2 client-credentials (18 tools: 17 read + 1 gated write) |
 ### Additional Server Notes
 
 All MCP servers communicate via stdio (JSON-RPC 2.0) through `scripts/mcp-call.py`, except where noted below (HTTP/remote endpoints).
@@ -656,7 +657,7 @@ All MCP servers communicate via stdio (JSON-RPC 2.0) through `scripts/mcp-call.p
 
 ---
 
-## Skills (191)
+## Skills (194)
 
 ### pyATS Device Skills (9)
 
@@ -1195,6 +1196,14 @@ Both `browser-gui-inspect` and `desktop-gui-inspect` support Watch Mode — just
 | Skill | Purpose |
 |-------|---------|
 | **atlassian-itsm** | IT Service Management workflows using Jira for issue tracking and Confluence for documentation |
+
+### HaloPSA / HaloITSM Skills (3)
+
+| Skill | Purpose |
+|-------|---------|
+| **halo-change-request** | Open change requests in HaloPSA/HaloITSM — discover & confirm the org's change ticket type (cached in Memory MCP), learn its fields, preview the assembled ticket, then create only on explicit approval |
+| **halo-asset-context** | Review a Halo asset with its related tickets and CMDB/CI relationships |
+| **halo-ticket-context** | Review a Halo ticket with its action/note history, linked assets, and KB articles |
 
 ---
 

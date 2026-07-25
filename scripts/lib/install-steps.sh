@@ -3212,6 +3212,37 @@ echo ""
 }
 
 # ── Memory MCP Server (spec 033, backfilled for catalog parity) ─
+component_install_halo() {
+log_step "Installing Halo MCP Server (HaloPSA / HaloITSM)..."
+echo "  Built-in MCP server: mcp-servers/halo-mcp/"
+echo "  Change requests (gated confirm-before-submit) + asset/ticket context (18 tools, OAuth2 client-credentials)"
+
+HALO_MCP_DIR="$MCP_DIR/halo-mcp"
+if [ -d "$NETCLAW_DIR/mcp-servers/halo-mcp" ]; then
+    HALO_MCP_DIR="$NETCLAW_DIR/mcp-servers/halo-mcp"
+fi
+
+if [ -f "$HALO_MCP_DIR/requirements.txt" ]; then
+    log_info "Installing Halo MCP dependencies (fastmcp, httpx, python-dotenv)..."
+    pip3 install -r "$HALO_MCP_DIR/requirements.txt" 2>/dev/null || \
+        pip3 install --break-system-packages -r "$HALO_MCP_DIR/requirements.txt" 2>/dev/null || {
+            log_warn "Halo MCP pip install failed — dependencies may need manual installation"
+        }
+
+    if [ -f "$HALO_MCP_DIR/.env.example" ] && [ ! -f "$HALO_MCP_DIR/.env" ]; then
+        log_info "Halo MCP .env.example available — copy and configure:"
+        echo "    cp $HALO_MCP_DIR/.env.example $HALO_MCP_DIR/.env"
+    fi
+
+    log_info "Halo MCP ready: $HALO_MCP_DIR/halo_mcp_server.py"
+    log_info "Create an OAuth2 (client-credentials) API application in Halo: Configuration > Integrations > Halo API"
+else
+    log_warn "Halo MCP requirements.txt not found at $HALO_MCP_DIR"
+fi
+
+echo ""
+}
+
 component_install_memory_mcp() {
 log_step "Installing Memory MCP Server..."
 echo "  Built-in MCP server: mcp-servers/memory-mcp/"

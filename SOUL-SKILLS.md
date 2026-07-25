@@ -1578,3 +1578,13 @@ The skills above are documented with full step-by-step operational procedures. T
 | `zscaler-zdx` | Monitor digital experience scores, user performance, and application health. | `workspace/skills/zscaler-zdx/SKILL.md` |
 | `zscaler-zia` | Manage Zscaler Internet Access firewall rules, URL filtering, DLP, and security policies. | `workspace/skills/zscaler-zia/SKILL.md` |
 | `zscaler-zpa` | Manage Zscaler Private Access applications, segments, policies, and connectors. | `workspace/skills/zscaler-zpa/SKILL.md` |
+
+## HaloPSA / HaloITSM Skills
+
+ITSM/PSA change management plus asset and ticket context. HaloPSA and HaloITSM share one API; the server is read-only except a single gated `halo_create_change_request` (confirm-before-submit).
+
+| Skill | Description | Path |
+|-------|-------------|------|
+| `halo-change-request` | Open change requests: discover and confirm the org's change ticket type (cached in Memory MCP), learn its fields, preview the assembled ticket, then create only on explicit user approval. | `workspace/skills/halo-change-request/SKILL.md` |
+| `halo-asset-context` | Review a Halo asset with its related tickets and CMDB/CI relationships. | `workspace/skills/halo-asset-context/SKILL.md` |
+| `halo-ticket-context` | Review a Halo ticket with its action/note history, linked assets, and KB articles. | `workspace/skills/halo-ticket-context/SKILL.md` |

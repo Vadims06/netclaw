@@ -77,6 +77,7 @@ CATALOG=(
     "jenkins|ITSM & DevOps|Jenkins|Jobs and builds via Jenkins MCP Server plugin (remote)"
     "atlassian|ITSM & DevOps|Atlassian|Jira + Confluence (Cloud and Server/DC)"
     "msgraph|ITSM & DevOps|Microsoft Graph|OneDrive, SharePoint, Visio, Teams"
+    "halo|ITSM & DevOps|HaloPSA / HaloITSM|Change requests (gated) + asset/ticket context (bundled, 18 tools)"
 
     "packet-buddy|Analysis & Diagrams|Packet Buddy|pcap/pcapng analysis via tshark"
     "markmap|Analysis & Diagrams|Markmap|Mind map visualization"
