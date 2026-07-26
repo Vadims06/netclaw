@@ -27,12 +27,28 @@ class CapabilityRegistration {
     });
   }
 
+  /// Rolls the local toggle back to its previous state if the Border never
+  /// actually confirmed the change -- previously a failed `register()` call
+  /// left `_enabled` mutated anyway, so the Settings switch could show
+  /// "enabled" while the Border's own view of `member.scope` still had it
+  /// disabled (or vice versa), with no way to tell from the UI.
   Future<void> setEnabled(String capability, bool isEnabled) async {
+    final wasEnabled = _enabled.contains(capability);
+    if (wasEnabled == isEnabled) return;
     if (isEnabled) {
       _enabled.add(capability);
     } else {
       _enabled.remove(capability);
     }
-    await register();
+    try {
+      await register();
+    } catch (_) {
+      if (isEnabled) {
+        _enabled.remove(capability);
+      } else {
+        _enabled.add(capability);
+      }
+      rethrow;
+    }
   }
 }

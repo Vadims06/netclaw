@@ -23,6 +23,7 @@ class ApprovalsScreen extends StatefulWidget {
 
 class _ApprovalsScreenState extends State<ApprovalsScreen> {
   List<PendingApproval> _approvals = [];
+  String? _error;
 
   @override
   void initState() {
@@ -34,18 +35,41 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
   }
 
   Future<void> _resolve(PendingApproval approval, String action) async {
+    setState(() => _error = null);
     final reason = action == 'approve'
         ? 'Confirm approval of ${approval.targetName}'
         : 'Confirm denial of ${approval.targetName}';
     final authenticate = widget.authenticate ??
         (String r) => LocalAuthentication().authenticate(localizedReason: r);
-    final authenticated = await authenticate(reason);
-    if (!authenticated) return; // failed/cancelled/unavailable -- send nothing (FR-002)
-    await widget.approvalClient.resolve(approval.approvalId, action);
+    try {
+      final authenticated = await authenticate(reason);
+      if (!authenticated) return; // failed/cancelled/unavailable -- send nothing (FR-002)
+      await widget.approvalClient.resolve(approval.approvalId, action);
+    } catch (e) {
+      // The approval stays in `_approvals` either way (ApprovalClient only
+      // removes it after a successful resolve) -- this just makes a failed
+      // attempt visible instead of looking identical to doing nothing.
+      if (mounted) setState(() => _error = 'Could not resolve: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [
+        if (_error != null)
+          Container(
+            width: double.infinity,
+            color: Colors.red.shade50,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text(_error!, style: TextStyle(color: Colors.red.shade900)),
+          ),
+        Expanded(child: _body()),
+      ],
+    );
+  }
+
+  Widget _body() {
     if (_approvals.isEmpty) {
       return const EmptyState(
         asset: 'assets/illustrations/empty_approvals.png',

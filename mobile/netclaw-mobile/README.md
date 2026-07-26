@@ -96,7 +96,8 @@ rules live in `android/app/proguard-rules.pro`.
 | [`MOBILE-ONBOARDING.md`](MOBILE-ONBOARDING.md) | **How to securely enroll a phone against your own Border** — operator side (token/QR) and phone side, plus the security model. Start here. |
 | [`TESTER-INSTRUCTIONS.md`](TESTER-INSTRUCTIONS.md) | Copy-paste handout for sending a build to someone else to test. |
 | [`PLAY-STORE-ROADMAP.md`](PLAY-STORE-ROADMAP.md) | Google Play publication path, sequenced against this repo's build config. |
-| [`MAC-IOS-HANDOFF.md`](MAC-IOS-HANDOFF.md) | Read before starting iOS work on a Mac. |
+| [`APP-STORE-ROADMAP.md`](APP-STORE-ROADMAP.md) | Apple App Store publication path, sequenced against this repo's build config. |
+| [`MAC-IOS-HANDOFF.md`](MAC-IOS-HANDOFF.md) | The original iOS handoff brief. Superseded as the source of truth by `specs/071-ios-mobile-port/` — read that spec's tasks.md for current status. |
 | [`ASSETS.md`](ASSETS.md) | Icon/splash regeneration and brand rationale. |
 
 The app ships with no hostnames or credentials — it is a generic NCFED edge
@@ -131,15 +132,50 @@ Border, not a dependency.
   the `cml` and `pyats` risk members and returned a 1583-byte answer to the handset
   in 2m13s, with GAIT audit records for each delegation. Enrollment, the edge WS
   transport, delegation/routing, and result delivery are all proven end to end.
-- **iOS**: building, signing, and running the app — and exercising
-  `EdgeIdentityPlugin.swift`'s Secure Enclave key generation — **requires Xcode,
-  which only runs on macOS.** That code was written and reviewed without a Mac
-  available and is entirely unverified until built there. The Secure Enclave is
-  also unavailable on the iOS Simulator — testing needs a real device.
-  `Info.plist` declares `NSCameraUsageDescription`, `NSMicrophoneUsageDescription`,
-  `NSSpeechRecognitionUsageDescription`, and the `netclaw://` URL scheme — all
-  required for the camera/voice/deep-link features to not crash on first use, but
-  none of this has been exercised on a real device either.
+- **iOS** (status as of spec `071-ios-mobile-port`, 2026-07-26 — see that spec's
+  `tasks.md` for the authoritative, evolving record): **the app now builds,
+  installs, and launches cleanly on the iOS Simulator.** Xcode 26.6 and Flutter
+  3.44.8 were installed on the operator's Mac, and the first-ever
+  `flutter build ios --debug --simulator` attempt surfaced (and fixed) two real
+  blockers that no amount of code review could have found without an actual
+  compiler run — see `specs/071-ios-mobile-port/research.md` D8 for full detail:
+  1. `firebase-core`/`firebase-messaging`'s Swift Package Manager products
+     require iOS 15.0 minimum; `IPHONEOS_DEPLOYMENT_TARGET` was still the
+     Flutter template's `13.0`. Bumped to `15.0` in
+     `ios/Runner.xcodeproj/project.pbxproj` (all 3 occurrences) — a
+     build-config change only, no app behavior affected.
+  2. `EdgeIdentityPlugin.swift` and `X509SelfSigned.swift` — both written
+     without Xcode access — had genuinely **never been added to the Xcode
+     project at all** (zero `PBXFileReference`/`PBXBuildFile`/Sources-phase
+     entries). The build failed with `Cannot find 'EdgeIdentityPlugin' in
+     scope`, confirming this file had truly never compiled. Fixed by adding
+     both files to the `Runner` target via the `xcodeproj` Ruby gem
+     (equivalent to dragging them into Xcode and checking "Add to target").
+  After both fixes: `flutter build ios --debug --simulator` succeeds
+  (`✓ Built build/ios/iphonesimulator/Runner.app`), and `xcrun simctl
+  install`/`launch` confirm the app runs without crashing — the Dart VM
+  service starts, and it correctly lands on the "Scan Border QR Code"
+  enrollment screen (`EnrollmentGate` routing works) with a real system
+  camera-permission dialog showing the exact `NSCameraUsageDescription` text
+  from `Info.plist`. This is strong evidence `EdgeIdentityPlugin.register(with:)`
+  runs at launch without crashing.
+  - **Still unverified — needs a real device**: Secure Enclave key
+    generation/signing, Face ID, and a real camera feed are all unavailable on
+    the Simulator regardless of tooling. This needs a signing team selected in
+    Xcode (requires the operator's own Apple ID — an interactive step no agent
+    can do) and a physically connected iPhone. Neither was available as of this
+    pass.
+  - **Still unverified — needs interactive tapping**: the "Can't scan? Enter
+    manually" fallback screen was reached in principle (the enrollment screen
+    rendered correctly) but never actually tapped through and submitted — no
+    CLI-only UI-automation tool was available/attempted for that.
+  - `AppDelegate.swift` uses the stock `FlutterAppDelegate` with no
+    `FlutterFragmentActivity`-style change, and the app launched successfully
+    with it — consistent with the expectation that iOS's `local_auth` needs no
+    such change, though the actual Face ID prompt itself is still unconfirmed
+    (needs a real device).
+  Remaining work: `specs/071-ios-mobile-port/tasks.md` Phase 1 (T004/T005,
+  both requiring the operator's hands) through the rest of the task list.
 - Push-notification delivery (FCM/APNs, feature 066 US3) needs real Firebase/Apple
   Developer credentials configured on the Border (`.env.example`'s
   `FCM_SERVICE_ACCOUNT_JSON`/`APNS_*` vars) and a real `Firebase.initializeApp()`

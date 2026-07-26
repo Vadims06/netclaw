@@ -9,6 +9,10 @@ class ConversationTurn {
   String? answerText;
   String state; // 'pending' | 'working' | 'completed' | 'failed' | 'cancelled'
   final DateTime submittedAt;
+  // Absolute path to a locally-saved copy of a photo this turn sent, if any
+  // -- purely for showing what was sent in the UI; never re-read to build
+  // the wire request (that already went out as base64 at send time).
+  final String? photoPath;
 
   ConversationTurn({
     required this.taskId,
@@ -16,6 +20,7 @@ class ConversationTurn {
     this.answerText,
     this.state = 'pending',
     required this.submittedAt,
+    this.photoPath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -24,6 +29,7 @@ class ConversationTurn {
         'answer_text': answerText,
         'state': state,
         'submitted_at': submittedAt.toIso8601String(),
+        'photo_path': photoPath,
       };
 
   factory ConversationTurn.fromJson(Map<String, dynamic> json) => ConversationTurn(
@@ -32,6 +38,7 @@ class ConversationTurn {
         answerText: json['answer_text'] as String?,
         state: json['state'] as String,
         submittedAt: DateTime.parse(json['submitted_at'] as String),
+        photoPath: json['photo_path'] as String?,
       );
 }
 
@@ -69,32 +76,24 @@ class ConversationStore {
     await _file().writeAsString(jsonEncode(_turns.map((t) => t.toJson()).toList()));
   }
 
-  /// Deletes the local conversation history. On-device only — the Border keeps
-  /// its own audit trail (GAIT) and this does not and must not touch it, so
-  /// clearing here is a display convenience, never an audit-evasion path.
-  ///
-  /// In-progress turns go too. That's deliberate: the Border keeps working and
-  /// `_reconcileStaleTurns()` no longer has a local row to reconcile against,
-  /// so a cleared in-flight answer simply never appears. Callers should warn
-  /// when anything is still running — see the confirmation in `main.dart`.
-  Future<void> clear() async {
-    await load();
-    _turns.clear();
-    final file = _file();
-    if (await file.exists()) await file.delete();
-  }
-
   /// True when at least one turn is still awaiting an answer — lets the UI warn
   /// before [clear] discards it.
   bool get hasInProgressTurns =>
       _turns.any((t) => t.state == 'pending' || t.state == 'working');
 
-  Future<void> addPending(String taskId, String requestText) async {
+  Future<void> addPending(String taskId, String requestText, {List<int>? photoBytes}) async {
     await load();
+    String? photoPath;
+    if (photoBytes != null) {
+      final file = File('${directory.path}/photo_$taskId.jpg');
+      await file.writeAsBytes(photoBytes);
+      photoPath = file.path;
+    }
     _turns.add(ConversationTurn(
       taskId: taskId,
       requestText: requestText,
       submittedAt: DateTime.now().toUtc(),
+      photoPath: photoPath,
     ));
     await _save();
   }
@@ -116,4 +115,29 @@ class ConversationStore {
 
   static bool _isTerminal(String state) =>
       state == 'completed' || state == 'failed' || state == 'cancelled';
+
+  /// Deletes the local conversation history, including every saved photo file
+  /// -- without this, there was no way to manage a conversation that only
+  /// ever grows, and `photo_*.jpg` files would accumulate on disk forever
+  /// with nothing ever deleting them. On-device only — the Border keeps its
+  /// own audit trail (GAIT) and this does not and must not touch it, so
+  /// clearing here is a display convenience, never an audit-evasion path.
+  ///
+  /// In-progress turns go too. That's deliberate: the Border keeps working
+  /// and reconciliation no longer has a local row to reconcile against, so a
+  /// cleared in-flight answer simply never appears. Callers should warn when
+  /// anything is still running — see [hasInProgressTurns] and the
+  /// confirmation in `main.dart`.
+  Future<void> clear() async {
+    await load();
+    for (final turn in _turns) {
+      final path = turn.photoPath;
+      if (path == null) continue;
+      final file = File(path);
+      if (await file.exists()) await file.delete();
+    }
+    _turns.clear();
+    final file = _file();
+    if (await file.exists()) await file.delete();
+  }
 }

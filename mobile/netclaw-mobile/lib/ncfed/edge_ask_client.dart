@@ -86,11 +86,24 @@ class EdgeAskClient {
   /// `attachment` (feature 068, US2, research D3): an optional
   /// `{content_type, content}` capture riding the SAME request — `text` may
   /// be empty when the capture stands alone (FR-005).
+  ///
+  /// Per contract (edge-ask-command-channel.md), the Border acks
+  /// `n2n/edge/ask` immediately and never blocks on the answer -- but a
+  /// base64-encoded photo/video attachment can be several MB, and just
+  /// transferring that much data over the wire (especially on a slower
+  /// connection) can plausibly exceed the plain-text default's 30s budget
+  /// well before the Border even gets to acking it. A longer timeout only
+  /// when an attachment is present avoids inflating the fast, common
+  /// text-only case.
   Future<String> ask(String text, {Map<String, dynamic>? attachment}) async {
-    final result = await client.call('n2n/edge/ask', {
-      'text': text,
-      'attachment': ?attachment,
-    });
+    final result = await client.call(
+      'n2n/edge/ask',
+      {
+        'text': text,
+        'attachment': ?attachment,
+      },
+      timeout: attachment == null ? const Duration(seconds: 30) : const Duration(seconds: 120),
+    );
     return result['task_id'] as String;
   }
 

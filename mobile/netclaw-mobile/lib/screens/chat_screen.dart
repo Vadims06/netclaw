@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../ncfed/capture_client.dart';
@@ -150,26 +153,49 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Re-sends a turn's original request as a NEW turn, leaving the failed one
   /// in place as a record. Requested by a tester: a failed turn was a dead end
-  /// with no way to try again short of retyping the whole thing.
+  /// with no way to try again short of retyping the whole thing. A photo
+  /// turn's bytes ARE retained locally (`ConversationTurn.photoPath`), so
+  /// this actually resends the photo too rather than asking the operator to
+  /// retake it.
   Future<void> _retry(ConversationTurn turn) async {
-    final text = turn.requestText;
-    if (text.trim().isEmpty || text == '[Photo]') {
-      // A photo turn's bytes aren't retained locally, so there is nothing to
-      // resend — say so rather than silently doing nothing.
+    var text = turn.requestText;
+    Map<String, dynamic>? attachment;
+    final photoPath = turn.photoPath;
+    if (photoPath != null) {
+      final file = File(photoPath);
+      if (await file.exists()) {
+        attachment = {'content_type': 'image', 'content': base64Encode(await file.readAsBytes())};
+      }
+      // requestText carries a " [Photo]"/"[Photo]" suffix added purely for
+      // display (see _capturePhoto) -- strip it so a retry doesn't literally
+      // ask "... [Photo]" as if that were part of the question.
+      text = text.replaceAll(RegExp(r'\s?\[Photo\]$'), '');
+    }
+    if (text.trim().isEmpty && attachment == null) {
+      // Nothing to resend at all -- a bare photo turn whose file has since
+      // gone missing, or an empty request. Say so rather than doing nothing.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Take the photo again to retry.'),
+          content: Text('Nothing to resend — take the photo again.'),
         ));
       }
       return;
     }
-    final taskId = await widget.askClient.ask(text);
-    await widget.store.addPending(taskId, text);
+    final taskId = await widget.askClient.ask(text, attachment: attachment);
+    List<int>? photoBytes;
+    if (attachment != null) photoBytes = base64Decode(attachment['content'] as String);
+    await widget.store.addPending(taskId, turn.requestText, photoBytes: photoBytes);
     if (mounted) setState(() {});
     _jumpToNewest(animate: true);
   }
 
   Future<void> _capturePhoto() async {
+    // Whatever's already typed becomes the question that goes with the
+    // photo (feature 068, US2) -- same pattern _send() uses for a typed-only
+    // request. Previously this was never read at all, so a photo could only
+    // ever be sent bare with no way to ask something about it.
+    final text = _controller.text.trim();
+    List<int>? capturedBytes;
     // feature 068, US2: a bare capture with no accompanying text is a valid
     // request (FR-005) -- captureAndAsk() sends nothing at all if the
     // operator declines/cancels (CaptureScreen returns null).
@@ -177,9 +203,18 @@ class _ChatScreenState extends State<ChatScreen> {
       askClient: widget.askClient,
       capture: (type) => CaptureScreen.capture(context, type),
     );
-    final taskId = await client.captureAndAsk('camera.capture');
+    final taskId = await client.captureAndAsk(
+      'camera.capture',
+      text: text,
+      onCaptured: (result) => capturedBytes = result.bytes,
+    );
     if (taskId == null) return;
-    await widget.store.addPending(taskId, '[Photo]');
+    _controller.clear();
+    await widget.store.addPending(
+      taskId,
+      text.isEmpty ? '[Photo]' : '$text [Photo]',
+      photoBytes: capturedBytes,
+    );
     if (mounted) setState(() {});
     _jumpToNewest(animate: true);
   }
@@ -300,6 +335,19 @@ class _TurnTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(turn.requestText, style: const TextStyle(fontWeight: FontWeight.bold)),
+            if (turn.photoPath != null) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  File(turn.photoPath!),
+                  height: 160,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Text('[Photo unavailable]', style: TextStyle(color: Colors.grey)),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             if (_inProgress)
               Row(

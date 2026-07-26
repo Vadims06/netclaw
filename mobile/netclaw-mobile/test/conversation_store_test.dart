@@ -35,4 +35,27 @@ void main() {
     expect(store.turns.single.state, 'completed');
     expect(store.turns.single.answerText, 'done already');
   });
+
+  test('clear() deletes all turns, the persisted file, and every saved photo', () async {
+    final dir = await Directory.systemTemp.createTemp('ncfed_conv_test_');
+    addTearDown(() => dir.delete(recursive: true));
+
+    final store = ConversationStore(dir);
+    await store.addPending('task-3', 'no photo here');
+    await store.addPending('task-4', 'has a photo', photoBytes: [1, 2, 3]);
+    final photoPath = store.turns.last.photoPath!;
+    expect(await File(photoPath).exists(), isTrue);
+
+    await store.clear();
+
+    expect(store.turns, isEmpty);
+    expect(await File(photoPath).exists(), isFalse);
+    expect(await File('${dir.path}/ncfed_conversation.json').exists(), isFalse);
+
+    // A fresh store over the same directory sees nothing either -- clear()
+    // really did remove the persisted file, not just the in-memory list.
+    final reloaded = ConversationStore(dir);
+    await reloaded.load();
+    expect(reloaded.turns, isEmpty);
+  });
 }
