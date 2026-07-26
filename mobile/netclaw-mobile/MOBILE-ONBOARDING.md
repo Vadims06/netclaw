@@ -123,10 +123,15 @@ the device's next connection attempt — you do not need access to the phone.
 
 ### 1. Install the app
 
-Until it is published, install the APK directly (Android requires allowing
-installs from your file manager or browser). See the release instructions in
-[`README.md`](README.md) for producing a signed build, and
-[`PLAY-STORE-ROADMAP.md`](PLAY-STORE-ROADMAP.md) for the publication path.
+Until it is published, the app is sideloaded. **[`SIDELOAD.md`](SIDELOAD.md) is
+the full procedure** for both platforms — building the artifact, getting it onto
+the device, and the warnings the person will see. In short: Android takes an APK
+sent by any means; iOS has no equivalent and needs TestFlight, an Ad Hoc build,
+or a cabled Mac.
+
+See [`README.md`](README.md#building-a-release) for producing a signed build,
+and [`PLAY-STORE-ROADMAP.md`](PLAY-STORE-ROADMAP.md) /
+[`APP-STORE-ROADMAP.md`](APP-STORE-ROADMAP.md) for the publication paths.
 
 ### 2. Enroll
 

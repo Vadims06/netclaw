@@ -1,13 +1,20 @@
 # NetClaw Mobile — Google Play publication roadmap
 
-Captured 2026-07-25 so the plan survives the session. Sequenced against **this
-repo's actual build config**, not a generic checklist.
+Captured 2026-07-25, **corrected 2026-07-26**. Sequenced against **this repo's
+actual build config**, not a generic checklist.
 
 > **Provenance:** the Google policy facts below (fees, deadlines, tester rules,
 > review windows) come from the operator's own research pass, not from
 > verification by this repo's tooling. Re-check them against Google's own docs
 > before acting — Play policy shifts year to year. Everything under "our
 > current state" *was* verified directly against the files cited.
+
+> **2026-07-26 correction.** The Phase 2 table in the 2026-07-25 version of this
+> document listed four items as outstanding that had already shipped — the
+> `applicationId`, R8/ProGuard, the explicit `INTERNET` permission, and the
+> `pubspec.yaml` description. `APP-STORE-ROADMAP.md` flagged the first of these;
+> all four are now corrected below against the files as they actually stand.
+> **Phase 2 is nearly finished, not barely started.**
 
 ---
 
@@ -39,45 +46,86 @@ $25 USD one-time registration. The consequential part is the account type,
 Identity verification (document upload, sometimes a selfie) takes hours to two
 business days; the name on the ID must match the name on the payment card.
 
-**Recommendation:** if a business entity is available or obtainable, the
-organization route removes the single biggest schedule risk. Decide this before
-paying the fee.
+### Decided 2026-07-26: **Personal**
+
+No D-U-N-S dependency, so nothing blocks registering immediately — but this
+**accepts the 12-testers × 14-continuous-days closed-testing gate** as the long
+pole of the whole Android schedule, and that gate now shapes everything below.
+
+What that concretely commits us to:
+
+- **Twelve real people with real Google accounts**, opted in and keeping the app
+  installed for fourteen *continuous* days. The clock starts only once the
+  release is approved **and** the twelfth tester has actually opted in — not
+  when you add their email addresses.
+- Recruiting those twelve is now a **scheduling dependency, not an
+  afterthought**. Start collecting names before the build is even ready; the
+  14-day clock cannot begin until they exist.
+- **Emulators and fake accounts risk permanent account suspension.** The
+  `netclaw_test` AVD is fine for our own verification and must never be used to
+  pad the count.
+- Because sideloading is how those twelve get the app in the first place,
+  [`SIDELOAD.md`](SIDELOAD.md) and [`TESTER-INSTRUCTIONS.md`](TESTER-INSTRUCTIONS.md)
+  are on the critical path for Play, not just a convenience.
+
+Apple is a separate decision — the Personal choice here does **not** bind
+`APP-STORE-ROADMAP.md`'s Individual-vs-Organization choice, though picking
+Individual there too keeps both free of D-U-N-S.
 
 ---
 
 ## Phase 2 — Make the build shippable
 
-This is the part that is **our work**, and it is currently incomplete.
+This is the part that is **our work**. As of 2026-07-26 most of it is done;
+what remains is two items, one of them purely an operator action.
 
 | # | Item | Current state | File |
 |---|---|---|---|
-| 1 | **Final `applicationId`** | `ca.automateyournetwork.netclaw.netclaw_mobile` — raw Flutter template default (`<org>.<project>`), carries an underscore and an ugly suffix | `android/app/build.gradle.kts:19` (+ `namespace`, line 8) |
-| 2 | **Release signing key** | ❌ release signs with the **debug keystore** | `android/app/build.gradle.kts:30-32` |
-| 3 | **R8 / minify** | ❌ off; no `isMinifyEnabled`, no ProGuard rules file | `android/app/build.gradle.kts:29-33` |
-| 4 | **AAB not APK** | not yet produced — `./gradlew bundleRelease` | — |
-| 5 | **`INTERNET` permission** | ⚠️ absent from the release manifest; arrives only as a merge side-effect of `firebase_messaging` | `android/app/src/main/AndroidManifest.xml` |
-| 6 | **App description** | ❌ still `"A new Flutter project."` | `pubspec.yaml:2` |
-| 7 | **Version** | `1.0.0+1` | `pubspec.yaml:19` |
+| 1 | **Final `applicationId`** | ✅ **done** — `ca.automateyournetwork.netclaw.mobile`, matching the iOS bundle ID exactly. `namespace` and the Kotlin package path agree. | `android/app/build.gradle.kts:22,33` |
+| 2 | **Release signing key** | ⚠️ **half done** — the Gradle plumbing is wired (reads `android/key.properties`, falls back to the debug key with a warning if absent), but **no keystore has ever been generated**, so every build to date is debug-signed. | `android/app/build.gradle.kts:15-19,42-63` |
+| 3 | **R8 / minify** | ✅ **done** — `isMinifyEnabled` and `isShrinkResources` both on, with a real hand-written keep-rules file. | `android/app/build.gradle.kts:64-69`; `android/app/proguard-rules.pro` |
+| 4 | **AAB not APK** | ❌ still not produced — `flutter build appbundle` | — |
+| 5 | **`INTERNET` permission** | ✅ **done** — declared explicitly in the main manifest, no longer a merge side-effect. `RECORD_AUDIO` was fixed the same way, and `<queries>` for `android.speech.RecognitionService` was added after a real tester reported the mic dead on Android 11+. | `android/app/src/main/AndroidManifest.xml` |
+| 6 | **App description** | ✅ **done** — real description, no longer the Flutter template default. | `pubspec.yaml:2` |
+| 7 | **Version** | `1.0.0+1` → `versionName 1.0.0`, `versionCode 1` | `pubspec.yaml:19` |
 
-### Item 1 is irreversible — decide it before the first upload
+### Item 1 — settled, and now permanent
 
-`ca.automateyournetwork.netclaw.netclaw_mobile` is what the Flutter template
-generated. Once an AAB with a given `applicationId` is published, that string is
-permanent for the life of the listing; changing it means a brand-new listing
-with zero install base. Candidates: `ca.automateyournetwork.netclaw` or
-`ca.automateyournetwork.netclaw.mobile`.
+`ca.automateyournetwork.netclaw.mobile` is the final answer and is already in
+the tree. **The moment an AAB with that `applicationId` is published it is fixed
+for the life of the listing** — changing it later means a brand-new listing with
+zero install base. Do not touch it. iOS uses the identical string as its bundle
+identifier (`APP-STORE-ROADMAP.md` Phase 2 item 1), which is deliberate.
 
-Changing it means updating `applicationId` **and** `namespace`
-(`build.gradle.kts:8,19`) and the Kotlin package path under
-`android/app/src/main/kotlin/`.
+### Item 2 — the only genuinely irreversible risk left
 
-### Item 2 — the biggest irreversible risk overall
+The build machinery is ready; the keystore itself is not. Generate it:
 
-Losing the upload keystore means you can never update the app again, only
-publish a fresh listing. Generate it, then back it up in **two** places off this
-machine. `key.properties`, `*.jks` and `*.keystore` are already gitignored
-(`android/.gitignore:12-14`) — verified nothing of the sort is tracked. Enroll
-in Play App Signing.
+```bash
+keytool -genkey -v -keystore ~/netclaw-upload-keystore.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+then copy [`android/key.properties.example`](android/key.properties.example) to
+`android/key.properties` and fill it in.
+
+**Losing the upload keystore means you can never update the app again**, only
+publish a fresh listing. Back it up in **two** places off this machine before
+the first upload, and enroll in Play App Signing. `key.properties`, `*.jks` and
+`*.keystore` are gitignored (`android/.gitignore:12-14`) — verified nothing of
+the sort is tracked.
+
+### Item 4 — build the AAB and actually run it
+
+```bash
+flutter build appbundle          # build/app/outputs/bundle/release/app-release.aab
+```
+
+A minified release build is where reflection and serialization breakage
+surfaces, and R8 has only ever been exercised by `flutter build apk --release`.
+Install the bundle's output on a real device (`bundletool`, or a
+`--split-per-abi` release APK as a proxy) and complete a real enrollment before
+trusting it.
 
 ---
 
@@ -108,24 +156,73 @@ These are ours, and they are not the generic ones:
 - **Push**: if `firebase_messaging` ships (see below), FCM token collection is
   declarable data collection even though the token is only sent to our Border.
 
-### Decide before submitting: does push ship in v1?
+### Decided 2026-07-26: push **ships in v1** — finish it, don't strip it
 
-Push is currently **dead code with live dependencies** — `firebase_messaging`
-and `firebase_core` are in `pubspec.yaml`, but there is no
-`google-services.json` and no Google Services Gradle plugin, so
-`Firebase.initializeApp()` throws into a swallowed `catch`
-(`lib/main.dart:272-279`). `NotificationDeepLink` is never instantiated at all.
+Push was dead at runtime with live dependencies: `firebase_messaging` and
+`firebase_core` in `pubspec.yaml`, but no `google-services.json`, no Google
+Services Gradle plugin, and `Firebase.initializeApp()` throwing into a swallowed
+`catch`.
 
-Shipping it in this state means declaring an FCM dependency that does nothing.
-Either finish it (Firebase project + config + wire the deep-link handler) or
-strip the dependencies for v1. Don't ship it half-wired.
+> Earlier versions of this document (and `MAC-IOS-HANDOFF.md`) also claimed
+> `NotificationDeepLink` was orphaned code that nothing instantiated. **That is
+> no longer true** — `lib/main.dart:310` wires it from `_tryRegisterPush()`'s
+> success path. The Dart side of push is complete.
+
+**Done 2026-07-26** (everything that does not require the operator's own
+credentials):
+
+- The Google Services Gradle plugin is declared and applied **conditionally** —
+  only when `android/app/google-services.json` is present. The plugin aborts the
+  build outright when that file is missing, so an unconditional apply would
+  break every fresh clone. Same conditional shape already used for
+  `key.properties`.
+- `POST_NOTIFICATIONS` is now declared explicitly in the manifest. Android 13+
+  will not show a notification without it, and it had been arriving only as a
+  merge side-effect of `firebase_messaging` — the third instance of that same
+  accidental-dependency bug, after `INTERNET` and `RECORD_AUDIO`.
+- The swallowed `catch` is gone. Failures are classified into
+  *not-configured* / *permission-denied* / *genuinely-failed*, reported through
+  `FlutterError.reportError` when real, and surfaced to the user on the Settings
+  tab — push previously failed invisibly, which is how it stayed broken.
+- `google-services.json`, `GoogleService-Info.plist` and `firebase_options.dart`
+  are gitignored.
+
+**Remaining, and only the operator can do it:** create the Firebase project,
+download `google-services.json` (Android) and `GoogleService-Info.plist` (iOS),
+upload an APNs auth key to Firebase, and add the Push Notifications +
+Background Modes capabilities in Xcode (see `ios/Runner/Runner.entitlements`,
+deliberately not yet referenced by the build).
+
+Consequences for this phase:
+
+- **FCM token collection becomes declarable data collection** in the Data
+  safety form — declare it, even though the token only ever goes to the
+  operator's own Border and to Google's FCM service. Same on Apple's side for
+  APNs.
+- The Firebase project, `google-services.json`, and (for iOS) the APNs auth key
+  are **operator actions requiring the maintainer's own Google and Apple
+  credentials** — they cannot be produced from the repo. Config files carrying
+  project identifiers must not be committed.
+- Because push crosses both platforms, do it **once, consistently**, rather
+  than shipping it finished on one store and half-wired on the other.
+
+Until the Firebase project exists, the app behaves exactly as before: push
+registration fails and the app works normally without it.
 
 ---
 
-## Phase 4 — The testing gate (personal accounts only)
+## Phase 4 — The testing gate (**applies to us** — Personal account chosen)
 
 Closed test with **≥12 testers opted in continuously for 14 days**, then apply
-for production access.
+for production access. Per the Phase 1 decision this is on our critical path,
+and at ~2 weeks minimum it is the longest single stretch in the schedule.
+
+Getting the app to those twelve people is a sideloading problem — see
+[`SIDELOAD.md`](SIDELOAD.md) for the build-and-install path and
+[`TESTER-INSTRUCTIONS.md`](TESTER-INSTRUCTIONS.md) for the handout. Each tester
+also needs their own single-use enrollment token
+([`MOBILE-ONBOARDING.md`](MOBILE-ONBOARDING.md)); twelve testers means twelve
+tokens and twelve member rows to verify and eventually revoke.
 
 - The 14-day clock starts only once the release is approved **and** 12 testers
   have actually opted in — not when you add their emails.
@@ -148,16 +245,28 @@ long.
 
 ## Suggested order of work
 
-1. **Now, before anything else:** decide the final `applicationId` and the
-   account type. Both are permanent.
-2. Generate and back up the release keystore; wire a real signing config.
-3. Enable R8, add a ProGuard rules file, declare `INTERNET` explicitly, fix the
-   `pubspec.yaml` description.
-4. Resolve the push question (finish or strip).
-5. Build a release AAB and smoke-test it on the emulator — a minified release
-   build is where reflection/serialization breakage surfaces, and we have never
-   built one.
-6. Register the developer account (in parallel with 2–5; if organization, start
-   the D-U-N-S request *first* since it's the long pole).
-7. Listing assets + compliance forms.
-8. Internal testing → closed testing (if personal) → production.
+Both permanent decisions are now made — `applicationId`
+(`ca.automateyournetwork.netclaw.mobile`) and account type (**Personal**) — so
+the remaining sequence is:
+
+1. **Register the Personal developer account now.** No D-U-N-S dependency means
+   nothing gates it, and identity verification runs in the background while the
+   rest proceeds. Everything downstream waits on this.
+2. **Start recruiting the twelve testers immediately, in parallel.** With a
+   Personal account this is the schedule's long pole, and it is the one item
+   that cannot be compressed by working harder. Hand them
+   [`SIDELOAD.md`](SIDELOAD.md) + [`TESTER-INSTRUCTIONS.md`](TESTER-INSTRUCTIONS.md).
+3. Generate and back up the release keystore (Phase 2 item 2) — the last
+   irreversible technical step.
+4. Finish push — the code side is done; what's left is the Firebase project,
+   `google-services.json` / `GoogleService-Info.plist`, and the APNs key.
+5. Build a release AAB and smoke-test it on a real device — R8 is on and has
+   never been exercised through a bundle.
+6. Listing assets + compliance forms, including FCM token collection in the Data
+   safety form.
+7. Internal testing (100 testers, no waiting period) to shake out crashes →
+   closed testing (the 12 × 14-day clock) → production.
+
+~~Decide the final `applicationId` and account type~~ — done.
+~~Enable R8, add ProGuard rules, declare `INTERNET`, fix the description~~ —
+done, see the Phase 2 table.

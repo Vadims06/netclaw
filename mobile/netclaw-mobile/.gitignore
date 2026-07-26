@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase project configuration (push notifications). These carry the
+# operator's own project/sender IDs and API keys and are per-deployment, not
+# per-repo — every operator drops in their own. The build works without them
+# (the Google Services Gradle plugin is applied only when the JSON is present),
+# it just cannot register for push. See README.md "Push notifications".
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+firebase_options.dart

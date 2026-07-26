@@ -202,6 +202,7 @@ class _HomeShellState extends State<HomeShell> {
   ReconnectSupervisor<void>? _reconnectSupervisor;
   DateTime? _highlightPushedAt;
   int _unreadFeed = 0;
+  PushStatus _pushStatus = PushStatus.unknown;
 
   @override
   void initState() {
@@ -287,22 +288,41 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   /// Best-effort FCM/APNs token registration (066 US3) — safe to attempt
-  /// with no real Firebase project configured (nothing in this repo ships
-  /// `google-services.json`/`GoogleService-Info.plist`): any failure here
-  /// just means the push-notification fallback isn't available yet, never
-  /// something that blocks or crashes the rest of the app.
+  /// with no real Firebase project configured: any failure here just means the
+  /// push-notification fallback isn't available, never something that blocks
+  /// or crashes the rest of the app.
   ///
   /// Notification-tap deep-linking (T032) is wired here too, and only on the
   /// success path — `NotificationDeepLink` calls into `FirebaseMessaging`,
   /// which throws if `initializeApp` didn't succeed.
+  ///
+  /// The outcome is recorded in [_pushStatus] rather than discarded. This used
+  /// to be one bare `catch` that logged everything at the same level, so a
+  /// genuinely broken push setup looked exactly like an unconfigured build —
+  /// and since the app works fine without push, nobody would notice.
   Future<void> _tryRegisterPush() async {
+    PushStatus status;
     try {
       await Firebase.initializeApp();
-      await PushRegistration(widget.client).registerCurrentToken();
-      await _wireNotificationDeepLink();
-    } catch (e) {
-      debugPrint('push registration unavailable (no Firebase project configured?): $e');
+      status = await PushRegistration(widget.client).registerCurrentToken();
+      if (status == PushStatus.registered) {
+        await _wireNotificationDeepLink();
+      }
+    } catch (e, stack) {
+      status = classifyPushError(e);
+      if (status == PushStatus.failed) {
+        // Configured but broken: a real defect, not an expected absence.
+        FlutterError.reportError(FlutterErrorDetails(
+          exception: e,
+          stack: stack,
+          library: 'netclaw push',
+          context: ErrorDescription('registering for push notifications'),
+        ));
+      } else {
+        debugPrint('push disabled: no Firebase project in this build ($e)');
+      }
     }
+    if (mounted) setState(() => _pushStatus = status);
   }
 
   /// Tapping a delivered push (or cold-starting from one) jumps to the Feed
@@ -357,7 +377,7 @@ class _HomeShellState extends State<HomeShell> {
       ChatScreen(askClient: _askClient!, store: _conversationStore!),
       FeedScreen(store: _feedStore!, highlightPushedAt: _highlightPushedAt),
       ApprovalsScreen(approvalClient: _approvalClient!),
-      SettingsScreen(capabilities: _capabilities!),
+      SettingsScreen(capabilities: _capabilities!, pushStatus: _pushStatus),
     ];
     return Scaffold(
       appBar: AppBar(

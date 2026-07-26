@@ -31,6 +31,13 @@ Organization Play listing is planned, this can and should be requested once for 
 **Recommendation**: same as Android — if a business entity is available, decide the account type
 before paying either platform's fee, since both gate on the same D-U-N-S dependency.
 
+> **Still open as of 2026-07-26.** Google Play's account type was decided (**Personal** — see
+> `PLAY-STORE-ROADMAP.md` Phase 1), but that choice does **not** bind Apple's. Picking Individual
+> here too keeps both stores free of the D-U-N-S bottleneck. The asymmetry worth knowing: on Play,
+> Personal costs you the 12-tester × 14-continuous-day gate, whereas on Apple, Individual costs you
+> nothing extra — TestFlight's external-tester Beta App Review applies to Individual and
+> Organization alike. **There is no testing-gate penalty for choosing Individual on Apple.**
+
 Development/testing on a real device (everything `specs/071-ios-mobile-port/tasks.md`'s Setup and
 Foundational phases need) does **not** require this enrollment — Xcode's free "Personal Team"
 automatic signing is sufficient for on-device debugging (research D1). Enrollment is only required
@@ -43,22 +50,23 @@ starting at TestFlight external testing / App Store submission.
 | # | Item | Current state | File |
 |---|---|---|---|
 | 1 | **Final bundle identifier** | `ca.automateyournetwork.netclaw.mobile` — already clean, no template artifacts | `ios/Runner.xcodeproj/project.pbxproj:385` |
-| 2 | **Code signing** | `CODE_SIGN_STYLE = Automatic`, no `DEVELOPMENT_TEAM` set yet — needs a real team selected in Xcode (Personal Team is enough for device debugging; a paid team is required for distribution) | `ios/Runner.xcodeproj/project.pbxproj:397,414,429` |
+| 2 | **Code signing** | ✅ **updated 2026-07-26** — `CODE_SIGN_STYLE = Automatic` and `DEVELOPMENT_TEAM = A49777FMJG` is now committed, which is what let the app build to a real iPhone. **This being in git is a hazard for anyone else cloning the repo** — their build cannot sign until they replace it with their own team. Called out in [`SIDELOAD.md`](SIDELOAD.md). | `ios/Runner.xcodeproj/project.pbxproj:387,567,590` |
 | 3 | **Distribution certificate + provisioning profile** | ❌ Not yet created — required only once Phase 1 enrollment is complete and a distribution (not debug) build is needed | Created in Xcode/App Store Connect, not stored in this repo |
 | 4 | **Archive/IPA, not a debug build** | ❌ Not yet produced — `flutter build ipa` (requires Phase 1 signing) | — |
 | 5 | **`NSCameraUsageDescription`/`NSMicrophoneUsageDescription`/`NSFaceIDUsageDescription`/`NSSpeechRecognitionUsageDescription`** | ✅ Already present and worded appropriately | `ios/Runner/Info.plist` |
 | 6 | **App description** | Set via `pubspec.yaml`'s `description` field — real (not the Flutter template default, unlike the same field's history on Android) | `pubspec.yaml:2` |
 | 7 | **Version** | `1.0.0+1` → `CFBundleShortVersionString=1.0.0`, `CFBundleVersion=1` (shared with Android via the same `pubspec.yaml`) | `pubspec.yaml:19` |
-| 8 | **Push notifications (`firebase_messaging`/`firebase_core`)** | ⚠️ Dead code with live dependencies — no `GoogleService-Info.plist`, `Firebase.initializeApp()` throws into a swallowed `catch` (`lib/main.dart`). This is a decision the operator must make before v1: **finish it** (real Firebase project + APNs auth key + config) **or strip the dependencies**. Push itself is explicitly out of scope for spec `071-ios-mobile-port` — this line only documents the decision, it does not require finishing push. | `pubspec.yaml:40,46`; `lib/main.dart` |
+| 8 | **Push notifications (`firebase_messaging`/`firebase_core`)** | 🔨 **Decided 2026-07-26: finish it, don't strip it.** Needs a real Firebase project, `GoogleService-Info.plist`, an **APNs auth key** uploaded to Firebase, and the **Push Notifications + Background Modes** capabilities in Xcode. APNs token collection then becomes declarable data collection in the App Privacy questionnaire. Note the free Personal Team **cannot** do push — this route requires the paid program. | `pubspec.yaml:40,46`; `lib/main.dart` |
 
 ### Item 1 — already decided, unlike Android's original state
 
 Android's `applicationId` started as the raw Flutter template default
 (`ca.automateyournetwork.netclaw.netclaw_mobile`) per `PLAY-STORE-ROADMAP.md`'s Phase 2 — that
 decision has since been made in this repo (`android/app/build.gradle.kts:33`, now
-`ca.automateyournetwork.netclaw.mobile`, matching iOS's bundle ID exactly). **`PLAY-STORE-ROADMAP.md`
-itself has not been updated to reflect this** — worth a small follow-up fix to that document, out
-of scope for this iOS-focused roadmap. For iOS specifically: the bundle ID is already clean and
+`ca.automateyournetwork.netclaw.mobile`, matching iOS's bundle ID exactly). ~~`PLAY-STORE-ROADMAP.md`
+itself has not been updated to reflect this~~ — **fixed 2026-07-26**; that document's Phase 2 table
+now reflects reality (three further stale rows were corrected at the same time). For iOS
+specifically: the bundle ID is already clean and
 already matches Android's, so there is no open decision here — only the standard warning that,
 like Android's `applicationId`, **it becomes permanent the moment the first build is submitted to
 App Store Connect.**

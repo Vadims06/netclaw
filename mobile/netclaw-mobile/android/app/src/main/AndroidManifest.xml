@@ -12,6 +12,14 @@
          dependency would have silently broken the microphone. Same accidental
          -dependency class as INTERNET above — declared explicitly. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Push notifications (066 US3). Android 13+ (API 33) will not display a
+         notification without this, and firebase_messaging's requestPermission()
+         cannot prompt for a permission the manifest never declared. Same
+         accidental-dependency class as INTERNET and RECORD_AUDIO above: it
+         currently reaches the merged manifest only as a side-effect of
+         firebase_messaging's own manifest, so removing or replacing that
+         dependency would silently kill notifications with no build error. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="NetClaw"
         android:name="${applicationName}"

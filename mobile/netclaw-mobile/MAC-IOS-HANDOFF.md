@@ -121,32 +121,46 @@ If you hit these on iOS, they are not iOS bugs and not something you introduced.
   running* retries a dead enrollment indefinitely instead of returning to the
   enrollment gate. `isRevokedByBorder()` (`edge_client.dart:22-31`, added in
   #170) exists but is only consulted on cold-start reconnect.
-- **`NotificationDeepLink` is orphaned code.** `lib/ncfed/notification_deep_link.dart`
-  wires `onMessageOpenedApp` + `getInitialMessage()` to open the matching feed
-  message, but nothing ever instantiates it — repo-wide grep finds only its own
-  definition. **This bites APNs on iOS exactly as it bites FCM on Android**:
-  tapping a push notification will not deep-link. Fix it once, both platforms
-  benefit.
+- ~~**`NotificationDeepLink` is orphaned code.**~~ **No longer true — fixed.**
+  `lib/main.dart:310` (`_wireNotificationDeepLink`) instantiates it from
+  `_tryRegisterPush()`'s success path, jumping to the Feed tab with the
+  referenced message highlighted. Do not go hunting for this; the Dart side of
+  push is complete and only the Firebase/APNs *configuration* is outstanding.
 
 ---
 
 ## Push notifications — read before doing APNs
 
-Push is **wired in Dart, dead at runtime, on both platforms**:
+**Updated 2026-07-26. Decision: push ships in v1.** The code side is finished;
+what is left is configuration only, and it needs the operator's own Apple and
+Google credentials.
 
-- `firebase_messaging: ^16.4.3` + `firebase_core: ^4.12.1` are in `pubspec.yaml`.
-- `lib/ncfed/push_registration.dart` does `requestPermission()` → `getToken()` →
-  `n2n/edge/register_push` (`platform: 'apns'` on iOS).
-- `main.dart:272-279` `_tryRegisterPush()` wraps `Firebase.initializeApp()` in a
-  `try/catch` that **swallows failure to a `debugPrint`** — so a missing Firebase
-  config produces silence, not an error. Don't be fooled by "no crash".
-- Android has no `google-services.json` and no `com.google.gms.google-services`
-  Gradle plugin. iOS will need the equivalent `GoogleService-Info.plist`, an
-  APNs auth key uploaded to Firebase, and the Push Notifications + Background
-  Modes capabilities in Xcode.
+Already done, no need to redo any of it:
 
-Treat push as a **separate work item**, not part of the iOS port. The core
-product (enrollment → ask → answer) works without it.
+- Dart is complete — `push_registration.dart` (permission → token →
+  `n2n/edge/register_push`, `platform: 'apns'` on iOS) and
+  `notification_deep_link.dart`, both genuinely wired from `main.dart`.
+- Failures are classified (`classifyPushError`) and shown on the Settings tab
+  instead of vanishing into a `debugPrint`.
+- Android: the `com.google.gms.google-services` plugin is declared and applied
+  **conditionally on `android/app/google-services.json` existing**, so a clone
+  without credentials still builds. `POST_NOTIFICATIONS` is declared explicitly.
+
+**iOS work remaining — this is yours:**
+
+1. Create/obtain the Firebase project and download `GoogleService-Info.plist`
+   into `ios/Runner/` (gitignored).
+2. Generate an **APNs auth key** (`.p8`) in the Apple Developer portal and
+   upload it to Firebase → Project settings → Cloud Messaging.
+3. In Xcode, Runner target → Signing & Capabilities → add **Push
+   Notifications** and **Background Modes → Remote notifications**. A
+   prepared `ios/Runner/Runner.entitlements` is in the repo but deliberately
+   **not** referenced by `CODE_SIGN_ENTITLEMENTS` — see the comment inside it.
+4. **A free Personal Team cannot sign the Push Notifications capability.** Step
+   3 requires paid Apple Developer Program membership, and doing it early will
+   break the device builds that currently work. Sequence accordingly.
+
+The core product (enrollment → ask → answer) still works without any of this.
 
 ---
 
@@ -191,22 +205,38 @@ Match the rigor of the Android pass — actually run it, don't just green the te
 
 ## Store-release status (Android, applies to iOS App Store too)
 
-The user intends to publish. Current Android release config is **not
-shippable**, and the same discipline will apply to the App Store:
+> **This section was rewritten 2026-07-26 — the 2026-07-25 version was stale.**
+> It claimed R8 was off and the `applicationId` undecided; both had already been
+> fixed. Do not act on any cached memory of those claims.
 
-- `android/app/build.gradle.kts:32` — release is **signed with the debug
-  keystore** (`signingConfig = signingConfigs.getByName("debug")`). Play rejects
-  this. No keystore exists in the repo (correctly gitignored).
-- **R8/minify is off** — no `isMinifyEnabled`, no ProGuard rules file.
+The user intends to publish, and **the Android release config is now nearly
+shippable**:
+
+- ✅ `applicationId` is `ca.automateyournetwork.netclaw.mobile` — final, and
+  identical to the iOS bundle ID. **Permanent once published.**
+- ✅ **R8/minify and resource shrinking are on**, with real keep rules in
+  `android/app/proguard-rules.pro`.
+- ✅ `INTERNET` and `RECORD_AUDIO` are declared explicitly rather than arriving
+  as manifest-merge side-effects.
+- ⚠️ **Release signing is still the one open technical item.** The Gradle
+  plumbing reads `android/key.properties` and falls back to the debug key with a
+  warning when absent — but no keystore has ever been generated, so every build
+  to date is debug-signed. See `android/key.properties.example`.
 - Resolved SDK levels: `compileSdk 36`, `targetSdk 36`, `minSdk 24` (from the
   Flutter SDK defaults). **API 36 is already correct** for Google's
   2026-08-31 deadline — no change needed.
 - `pubspec.yaml:19` — `version: 1.0.0+1` → `versionName 1.0.0`, `versionCode 1`.
-- **`applicationId` is permanent once published.** See `PLAY-STORE-ROADMAP.md`.
 
-Full path to publication, timelines, and the account-type decision (which gates
-everything and cannot be changed later) are in
-[`PLAY-STORE-ROADMAP.md`](PLAY-STORE-ROADMAP.md).
+**Decisions since made (2026-07-26):** Play account type is **Personal**, which
+accepts the 12-testers × 14-continuous-days closed-testing gate; and **push
+ships in v1** rather than being stripped, so APNs (Firebase project + APNs auth
+key + Push Notifications/Background Modes capabilities in Xcode) is now real
+iOS-side work rather than a deferred question.
+
+Full path to publication and timelines:
+[`PLAY-STORE-ROADMAP.md`](PLAY-STORE-ROADMAP.md),
+[`APP-STORE-ROADMAP.md`](APP-STORE-ROADMAP.md). For getting builds onto real
+phones before either store, see [`SIDELOAD.md`](SIDELOAD.md).
 
 ---
 

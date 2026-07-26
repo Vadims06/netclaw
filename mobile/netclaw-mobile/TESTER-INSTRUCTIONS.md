@@ -3,6 +3,15 @@
 Copy the **"Send this to your tester"** section below verbatim. Do the
 operator steps first — the tester can't do anything without the QR.
 
+> **Building the APK itself is in [`SIDELOAD.md`](SIDELOAD.md)**, along with the
+> iOS routes (there is no iOS equivalent of emailing an APK). This document
+> assumes you already have an artifact to send.
+>
+> With a **Personal** Play developer account you need **twelve** testers opted
+> in for fourteen continuous days before you can apply for production — so this
+> handout is on the critical path to publishing, not just a courtesy. See
+> [`PLAY-STORE-ROADMAP.md`](PLAY-STORE-ROADMAP.md) Phase 4.
+
 ---
 
 ## Operator steps (you, before sending anything)
@@ -131,8 +140,8 @@ Revocation is server-side; you don't need the phone back.
 | Behavior | Status |
 |---|---|
 | Play Protect warns on install | Expected — unsigned-for-Play debug key |
-| No push notifications | Firebase not configured; `_tryRegisterPush()` fails silently by design |
-| Tapping a notification doesn't deep-link | Wired but inert until Firebase exists |
+| No push notifications | Firebase project not configured yet. No longer *silent*: the Settings tab now says "Notifications unavailable" and explains why. Drop in `google-services.json` to enable — see `README.md`. |
+| Tapping a notification doesn't deep-link | Code is wired and tested; inert only until the Firebase config above exists |
 | Biometric approval untested on real hardware | Never exercised outside an emulator without enrolled biometrics |
 | Camera capture untested on real hardware | Emulator only produced a synthetic test pattern |
 | Voice input untested on real hardware | Never exercised against a real microphone |

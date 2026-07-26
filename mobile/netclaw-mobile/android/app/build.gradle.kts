@@ -6,6 +6,23 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// FCM push notifications. The Google Services plugin ABORTS the build outright
+// when google-services.json is absent, and that file is per-operator config
+// that must never be committed (it carries the project's own sender ID and API
+// key) — so apply the plugin only when the operator has actually dropped it in.
+// Same conditional shape as the release-signing block below, and the same
+// intent: a fresh clone with no credentials still builds.
+val googleServicesJson = file("google-services.json")
+if (googleServicesJson.exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    logger.lifecycle(
+        "NetClaw: android/app/google-services.json not found — building WITHOUT " +
+            "FCM. Push registration will fail at runtime and the app will run " +
+            "normally without notifications. See README.md \"Push notifications\"."
+    )
+}
+
 // Release signing material lives outside git (android/.gitignore covers
 // key.properties, *.jks and *.keystore). When it is absent — CI, a fresh
 // clone, or anyone who only needs a debug build — the release build type
