@@ -1,8 +1,45 @@
 import 'dart:async';
 
+import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import 'edge_ask_client.dart';
+
+/// Why a voice request produced nothing. Previously every failure — permission
+/// denied, no recognition engine, engine error, silence — collapsed into a bare
+/// `null`, so the mic button did nothing at all with no explanation. A real
+/// tester reported it simply as "microphone option isn't working", which is the
+/// only thing the UI could possibly have conveyed.
+enum VoiceFailure {
+  /// The plugin could not initialise. Overwhelmingly this is a missing
+  /// `android.speech.RecognitionService` query in the manifest (Android 11+
+  /// package visibility) or no speech engine installed on the device.
+  unavailable,
+
+  /// The operator declined the microphone permission, or it isn't granted.
+  permissionDenied,
+
+  /// Initialised and listened, but nothing intelligible was heard.
+  noSpeechDetected,
+
+  /// The recognition engine reported an error mid-session.
+  engineError,
+}
+
+/// Outcome of one voice capture: either transcribed [text], or a [failure]
+/// with an operator-facing [message]. Exactly one of the two is set.
+class VoiceResult {
+  final String? text;
+  final VoiceFailure? failure;
+  final String? message;
+
+  const VoiceResult.success(this.text)
+      : failure = null,
+        message = null;
+  const VoiceResult.failed(this.failure, this.message) : text = null;
+
+  bool get ok => text != null;
+}
 
 /// On-device speech-to-text for voice requests (feature 067, US4, research
 /// D7): transcribes before sending, so the wire protocol never differs
@@ -12,66 +49,89 @@ import 'edge_ask_client.dart';
 /// `recordAndAsk`'s request-shape guarantee without a real microphone/STT
 /// platform channel.
 class VoiceTranscription {
-  final Future<String?> Function({void Function(bool listening)? onListeningChange}) _listenOnce;
+  /// How long to wait for a final result before giving up. Without a bound the
+  /// completer could wait forever if the engine ended its session without ever
+  /// firing `finalResult` — the mic button would hang with no way out.
+  static const listenTimeout = Duration(seconds: 30);
 
-  VoiceTranscription({
-    Future<String?> Function({void Function(bool listening)? onListeningChange})? listenOnce,
-  }) : _listenOnce = listenOnce ?? _defaultListenOnce;
+  final Future<VoiceResult> Function() _listenOnce;
 
-  /// Speech Recognition authorization (`NSSpeechRecognitionUsageDescription`
-  /// on iOS) is a SEPARATE OS permission from microphone access — granting
-  /// the mic prompt does not imply this one was granted too. If
-  /// `initialize()` fails, `speech.lastError` carries the real reason (e.g.
-  /// permission denied, no recognizer available) rather than silently doing
-  /// nothing, which previously looked identical to "tapped record, nothing
-  /// happened" regardless of cause.
-  static Future<String?> _defaultListenOnce({void Function(bool listening)? onListeningChange}) async {
+  VoiceTranscription({Future<VoiceResult> Function()? listenOnce})
+      : _listenOnce = listenOnce ?? _defaultListenOnce;
+
+  static Future<VoiceResult> _defaultListenOnce() async {
     final speech = stt.SpeechToText();
-    final initialized = await speech.initialize(
-      onStatus: (status) => onListeningChange?.call(status == 'listening'),
-    );
-    if (!initialized) {
-      throw StateError(
-          'Speech recognition unavailable: ${speech.lastError?.errorMsg ?? 'permission denied or no recognizer on this device'}');
+    SpeechRecognitionError? lastError;
+
+    final available = await speech.initialize(onError: (e) => lastError = e);
+    if (!available) {
+      // Distinguish "you said no" from "this device can't do it at all" —
+      // those need completely different responses from the operator.
+      if (!await speech.hasPermission) {
+        return const VoiceResult.failed(VoiceFailure.permissionDenied,
+            'Microphone permission is needed for voice requests.');
+      }
+      final why = lastError?.errorMsg;
+      return VoiceResult.failed(
+          VoiceFailure.unavailable,
+          why != null
+              ? 'Speech recognition unavailable: $why'
+              : 'Speech recognition is unavailable on this device.');
     }
-    final completer = Completer<String?>();
+
+    final completer = Completer<VoiceResult>();
+    void finish(VoiceResult r) {
+      if (!completer.isCompleted) completer.complete(r);
+    }
+
     await speech.listen(
       onResult: (result) {
-        if (result.finalResult && !completer.isCompleted) {
-          completer.complete(result.recognizedWords.isEmpty ? null : result.recognizedWords);
-        }
+        if (!result.finalResult) return;
+        final words = result.recognizedWords.trim();
+        finish(words.isEmpty
+            ? const VoiceResult.failed(
+                VoiceFailure.noSpeechDetected, "Didn't catch that — try again.")
+            : VoiceResult.success(words));
       },
-      // Without an explicit bound, a session with no natural end-of-speech
-      // detection (quiet mic, background noise) never resolves `finalResult`
-      // at all — the button press then looks identical to doing nothing.
       listenOptions: stt.SpeechListenOptions(
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 3),
+        partialResults: false,
+        cancelOnError: true,
+        listenFor: listenTimeout,
       ),
     );
-    try {
-      return await completer.future.timeout(const Duration(seconds: 35));
-    } on TimeoutException {
-      return null; // genuinely heard nothing usable in time — not an error
-    } finally {
-      await speech.stop();
-      onListeningChange?.call(false);
-    }
+
+    // The engine can also end its session without ever producing a final
+    // result (pure silence, or an error raised after listen() returned).
+    // Both land here instead of hanging.
+    final result = await completer.future.timeout(
+      listenTimeout + const Duration(seconds: 2),
+      onTimeout: () {
+        final why = lastError?.errorMsg;
+        return why != null
+            ? VoiceResult.failed(
+                VoiceFailure.engineError, 'Speech recognition failed: $why')
+            : const VoiceResult.failed(VoiceFailure.noSpeechDetected,
+                "Didn't hear anything — try again.");
+      },
+    );
+    await speech.stop();
+    return result;
   }
 
   /// Records, transcribes, and sends the result through the SAME `ask()`
   /// path a typed message uses. Returns the (task_id, transcribed text)
-  /// pair — the caller needs the text too, to show a pending conversation
-  /// turn exactly like a typed request gets — or `null` if nothing was
-  /// heard (never sends an empty request). [onListeningChange] lets the
-  /// caller show a "Listening…" indicator instead of silence during the
-  /// recording window.
+  /// pair on success; on failure calls [onFailure] with the reason and returns
+  /// null. An empty request is never sent to the Border.
   Future<(String taskId, String text)?> recordAndAsk(
     EdgeAskClient askClient, {
-    void Function(bool listening)? onListeningChange,
+    void Function(VoiceResult failure)? onFailure,
   }) async {
-    final text = await _listenOnce(onListeningChange: onListeningChange);
-    if (text == null || text.trim().isEmpty) return null;
+    final result = await _listenOnce();
+    if (!result.ok) {
+      onFailure?.call(result);
+      return null;
+    }
+    final text = result.text!;
     final taskId = await askClient.ask(text);
     return (taskId, text);
   }

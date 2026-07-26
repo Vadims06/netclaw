@@ -43,6 +43,11 @@ BGP_PEERS   = json.loads(os.environ.get("NETCLAW_BGP_PEERS", "[]"))
 API_PORT    = int(os.environ.get("BGP_API_PORT", "8179"))
 BGP_LISTEN_PORT = int(os.environ.get("BGP_LISTEN_PORT", "1179"))
 MESH_OPEN   = os.environ.get("NETCLAW_MESH_OPEN", "true").lower() in ("true", "1", "yes")
+# feature 066 edge (phone) WebSocket keepalive — see _start_edge_ws_listener().
+# Overridable for operators whose carrier NAT is more aggressive than the
+# default 90s window.
+EDGE_WS_PING_INTERVAL = int(os.environ.get("N2N_EDGE_WS_PING_INTERVAL", "30"))
+EDGE_WS_PING_TIMEOUT  = int(os.environ.get("N2N_EDGE_WS_PING_TIMEOUT", "90"))
 MESH_ENDPOINT = os.environ.get("NETCLAW_MESH_ENDPOINT", "")
 LOCAL_IPV6  = os.environ.get("NETCLAW_LOCAL_IPV6", "")
 DRY_RUN     = os.environ.get("NETCLAW_DRY_RUN", "").lower() in ("true", "1", "yes")
@@ -640,16 +645,12 @@ async def handle_n2n(method, path, body):
                  "node_type": m["node_type"],
                  "specialty_count": fed.risk.specialty_count(m["scope"]),
                  "skills": _spec_names(m["scope"]),
-                 # An edge (phone) member's live connection lives in
-                 # edge_channels, never member_channels (agent members
-                 # only) -- checking only the latter meant every edge node
-                 # showed live=false forever regardless of actual
-                 # connection health, and the HUD's own edge-node panel
-                 # (node_type filter) silently rendered nothing since 066
-                 # first shipped, since node_type wasn't even in this
-                 # response at all until this fix.
-                 "live": m["member_id"] in fed.member_channels
-                         or m["member_id"] in fed.edge_channels}
+                 # Liveness comes from ONE shared definition
+                 # (FederationService.member_liveness) so this endpoint and
+                 # /n2n/members/health can never drift apart again, and both
+                 # carry heartbeat_age_s -- `state` alone flips constantly on a
+                 # phone and reads as endpoints contradicting each other.
+                 **fed.member_liveness(m)}
                 for m in fed.risk.list_members()]}
 
         if path == "/n2n/members/health" and method == "GET":
@@ -662,8 +663,7 @@ async def handle_n2n(method, path, body):
                     health = {}
                 out.append({"member_id": m["member_id"], "state": m["state"],
                             "auth_failures": m["auth_failures"],
-                            "live": m["member_id"] in fed.member_channels
-                                    or m["member_id"] in fed.edge_channels,
+                            **fed.member_liveness(m),
                             "health": health})
             return 200, {"members": out}
 
@@ -856,7 +856,22 @@ async def _start_edge(fed):
             except Exception as e:
                 logger.warning("Edge WS accept failed: %s", e)
 
-        server = await websockets.serve(_on_ws, "0.0.0.0", port, ssl=ctx)
+        # Keepalive tuned for phones, not servers. The websockets defaults
+        # (ping_interval=20, ping_timeout=20) drop a peer that stays silent for
+        # ~20s — and Android suspends an app's Dart isolate the moment the
+        # screen locks, which stops the protocol-level pong. Observed with a
+        # real device: connections lived 25-32s while backgrounded (ping
+        # timeout + latency) vs 85-190s while actively used, reconnecting in a
+        # loop all day. A 90s timeout rides out brief suspensions.
+        #
+        # Liveness is NOT weakened by this: the Border tracks it separately via
+        # the application-level n2n/edge/heartbeat call, so a genuinely dead
+        # peer is still detected there rather than by the socket timeout.
+        server = await websockets.serve(
+            _on_ws, "0.0.0.0", port, ssl=ctx,
+            ping_interval=EDGE_WS_PING_INTERVAL,
+            ping_timeout=EDGE_WS_PING_TIMEOUT,
+        )
         fed._edge_server = server  # keep a ref
         logger.info("Edge (NetClaw Mobile) WS listener on 0.0.0.0:%d (risk=%s)",
                    port, fed.risk.get_risk().get("risk_name"))

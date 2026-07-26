@@ -76,6 +76,11 @@ class ConversationStore {
     await _file().writeAsString(jsonEncode(_turns.map((t) => t.toJson()).toList()));
   }
 
+  /// True when at least one turn is still awaiting an answer — lets the UI warn
+  /// before [clear] discards it.
+  bool get hasInProgressTurns =>
+      _turns.any((t) => t.state == 'pending' || t.state == 'working');
+
   Future<void> addPending(String taskId, String requestText, {List<int>? photoBytes}) async {
     await load();
     String? photoPath;
@@ -111,10 +116,18 @@ class ConversationStore {
   static bool _isTerminal(String state) =>
       state == 'completed' || state == 'failed' || state == 'cancelled';
 
-  /// Clears all history, including every saved photo file -- without this,
-  /// there was no way to manage a conversation that only ever grows, and
-  /// `photo_*.jpg` files would accumulate on disk forever with nothing ever
-  /// deleting them.
+  /// Deletes the local conversation history, including every saved photo file
+  /// -- without this, there was no way to manage a conversation that only
+  /// ever grows, and `photo_*.jpg` files would accumulate on disk forever
+  /// with nothing ever deleting them. On-device only — the Border keeps its
+  /// own audit trail (GAIT) and this does not and must not touch it, so
+  /// clearing here is a display convenience, never an audit-evasion path.
+  ///
+  /// In-progress turns go too. That's deliberate: the Border keeps working
+  /// and reconciliation no longer has a local row to reconcile against, so a
+  /// cleared in-flight answer simply never appears. Callers should warn when
+  /// anything is still running — see [hasInProgressTurns] and the
+  /// confirmation in `main.dart`.
   Future<void> clear() async {
     await load();
     for (final turn in _turns) {

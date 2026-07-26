@@ -800,7 +800,10 @@ class FederationService:
         member_fault = backend_fault = False
         for m in self.risk.list_members():
             mid = m["member_id"]
-            live = mid in self.member_channels
+            # Shared definition -- see member_liveness(). Computing this
+            # inline is what let three call sites drift into reporting every
+            # connected phone as down.
+            live = self.member_liveness(m)["live"]
             will_cold = (not live) and bool(m.get("launch_cmd")) and (
                 bool(m.get("on_demand")) or self.risk.managed_by(mid) == "service")
             members[mid] = {"state": "up" if live else "down", "will_cold_start": will_cold}
@@ -989,6 +992,76 @@ class FederationService:
     # names (in2n/enroll, in2n/hello) as agent-member iN2N enrollment (contract
     # §2) — only consume_token()'s new node_type="edge" argument (T006) and a
     # separate registry (self.edge_channels, T008) distinguish it.
+
+    # ---- member liveness (one definition, used everywhere) --------------
+
+    def member_liveness(self, m) -> dict:
+        """The single source of truth for "is this member reachable right now".
+
+        Every caller that reported liveness used to compute it inline, and they
+        drifted: three separate call sites checked only `member_channels` and so
+        reported every connected PHONE as down (an edge member's channel lives
+        in `edge_channels`). Two were fixed in ec7acdd and a third in the
+        health_report() fix; this exists so there is no fourth.
+
+        `heartbeat_age_s` is included because `state` alone is genuinely
+        misleading on a phone. `state` is written on connect/disconnect, and a
+        phone reconnects constantly (82 deregistrations and 94 dial-ins in one
+        day on this Border), so two reads seconds apart can honestly disagree —
+        which reads to an operator as endpoints contradicting each other. The
+        heartbeat age is what actually distinguishes "briefly between sockets"
+        from "gone", and without it `state: active` next to a stale heartbeat,
+        or `state: unreachable` next to a 20s-old one, both look like lies.
+        """
+        mid = m["member_id"]
+        live = mid in self.member_channels or mid in self.edge_channels
+        age = None
+        try:
+            hb = (json.loads(m["health"]) if m["health"] else {}).get("last_heartbeat")
+            if hb:
+                age = round(max(0.0, time.time() - float(hb)), 1)
+        except (ValueError, TypeError, KeyError):
+            age = None
+        return {"live": live, "heartbeat_age_s": age}
+
+    # ---- edge (phone) agent-turn budget --------------------------------
+
+    def _edge_ask_timeout(self) -> int:
+        """Wall-clock budget for one phone request's agent turn.
+
+        MUST be >= the member `skill_timeout` this turn may delegate into,
+        otherwise the parent dies while its own child is still running (see
+        _edge_on_ask). Defaults to the member budget plus headroom for the
+        Border's own reasoning either side of the delegation.
+        """
+        override = os.environ.get("N2N_EDGE_ASK_TIMEOUT_S")
+        if override:
+            try:
+                return max(60, int(override))
+            except ValueError:
+                logger.warning("N2N_EDGE_ASK_TIMEOUT_S=%r is not an int — ignoring", override)
+        member_budget = getattr(self.invoker, "skill_timeout", 600)
+        return int(member_budget) + self._edge_ask_stall_extension()
+
+    def _edge_ask_stall_extension(self) -> int:
+        """Extra seconds granted when a turn is still alive at the stall
+        checkpoint. Also the headroom added on top of the member budget."""
+        try:
+            return max(30, int(os.environ.get("N2N_EDGE_ASK_STALL_EXTENSION_S", "180")))
+        except ValueError:
+            return 180
+
+    async def _edge_notify_progress(self, member_id: str, task_id: str, text: str):
+        """Best-effort progress ping to a phone mid-turn. Never raises: a
+        disconnected phone just doesn't get it, and the turn continues."""
+        ch = self.edge_channels.get(member_id)
+        if not ch:
+            return
+        try:
+            await ch.notify("n2n/edge/task_progress",
+                            {"task_id": task_id, "detail": text})
+        except Exception as e:
+            logger.debug("edge progress notify to %s failed: %s", member_id, e)
 
     def _register_edge_channel(self, member_id, ch):
         """Track an edge node's channel; deregister on close and start its
@@ -1287,9 +1360,41 @@ class FederationService:
                 # contains one, so it must be sanitized here, unlike peer/
                 # skill identifiers elsewhere in this file which never do.
                 session_key = "n2n-edge-" + member_id.replace("/", "_")
+
+                # A phone request routinely delegates to an in-risk member,
+                # and that member's own agent turn gets `skill_timeout`
+                # (default 600s). Passing no timeout here inherited
+                # run_agent_turn's 300s default, so the INNER budget was twice
+                # the OUTER one: a delegating request was allowed to outlive
+                # the request that started it, and the phone's turn was killed
+                # while its own delegation was still legitimately running.
+                #
+                # Observed twice on a real device (2026-07-26): identical CML
+                # questions failed at exactly 300s while their `cml-node-
+                # operations` delegation completed *afterwards* — the work
+                # succeeded and the answer had nowhere to land. A third,
+                # warm-cache run finished in 114s and looked fine, which is the
+                # worst failure profile: it passes on a retry and fails cold.
+                #
+                # The phone's budget must therefore always be >= the member
+                # budget it may have to wait on.
+                timeout_s = self._edge_ask_timeout()
+
+                def on_stall(waited_s):
+                    # The turn is alive but slow. Tell the phone rather than
+                    # leaving it on a silent spinner, and extend instead of
+                    # dying on a blind deadline. Scheduled, not awaited:
+                    # run_agent_turn calls on_stall synchronously.
+                    self.tasks._set(task_id, progress="still working…")
+                    asyncio.create_task(self._edge_notify_progress(
+                        member_id, task_id,
+                        f"Still working on this — {int(waited_s)}s so far."))
+                    return self._edge_ask_stall_extension()
+
                 output, tokens = await run_agent_turn(
                     prompt, session_key=session_key, untrusted=False,
-                    message_file=message_file)
+                    message_file=message_file,
+                    timeout_s=timeout_s, on_stall=on_stall)
             finally:
                 if message_file:
                     try:
@@ -1300,24 +1405,53 @@ class FederationService:
         worker_task = self.tasks.run(task_id, worker)
 
         async def _push_result_when_done():
-            # Best-effort: only reaches the phone if it's still connected
-            # when the task finishes (contract §2) -- a disconnected phone
-            # recovers via n2n/tasks/status|result on reconnect instead.
+            # Best-effort: only reaches the phone if it's connected when the
+            # task finishes (contract §2) -- otherwise it recovers via
+            # n2n/tasks/status|result on reconnect.
+            #
+            # This deliberately targets the member's CURRENT channel rather
+            # than the object that submitted the request. It used to require
+            # `ch is channel`, so any reconnect during the turn meant the
+            # answer was never pushed at all -- not attempted, not logged.
+            # Phones reconnect constantly (a real iPhone reconnected 4x during
+            # one 2-minute turn), so on a long request that was the common
+            # case, not the edge case: the work completed, the answer existed,
+            # and the phone sat on "Working" forever.
+            #
+            # Object identity was never the security property; the member
+            # identity and the channel's trusted flag are. Both are checked.
             try:
                 await worker_task
             except asyncio.CancelledError:
                 pass
             result = self.tasks.result(task_id)
             ch = self.edge_channels.get(member_id)
-            if ch and ch is channel:
-                try:
-                    await ch.notify("n2n/edge/ask_result", {
-                        "task_id": task_id, "state": result.get("state"),
-                        "output_text": result.get("output_text"),
-                        "tokens_used": result.get("tokens_used"),
-                    })
-                except Exception as e:
-                    logger.warning("edge ask_result push to %s failed: %s", member_id, e)
+            if ch is None:
+                logger.info(
+                    "edge ask_result for %s not pushed — no live channel; the "
+                    "phone recovers this via n2n/tasks/result on reconnect", member_id)
+                return
+            if not getattr(ch, "trusted", False):
+                logger.warning(
+                    "edge ask_result for %s not pushed — channel is not trusted", member_id)
+                return
+            if ch is not channel:
+                # Normal after a reconnect. Worth recording, because a silent
+                # skip here is exactly what hid this bug.
+                logger.info("edge ask_result for %s pushing to a reconnected channel",
+                            member_id)
+            try:
+                await ch.notify("n2n/edge/ask_result", {
+                    "task_id": task_id, "state": result.get("state"),
+                    "output_text": result.get("output_text"),
+                    # A failed task carries its reason under `error`, not
+                    # `output_text` -- forward it so the phone can say why
+                    # instead of showing a bare "failed" with no text.
+                    "error": result.get("error"),
+                    "tokens_used": result.get("tokens_used"),
+                })
+            except Exception as e:
+                logger.warning("edge ask_result push to %s failed: %s", member_id, e)
         asyncio.create_task(_push_result_when_done())
         return {"task_id": task_id}
 

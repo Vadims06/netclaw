@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'edge_client.dart' show isRevokedByBorder;
+
 /// Ports `_in2n_member_dialer`'s exact backoff bounds (`bgp-daemon-v2.py`,
 /// research D4) to Dart: there is no missing Python reconnect capability to
 /// build here, only a port, since Dart and Python code cannot literally be
@@ -24,29 +26,26 @@ class ReconnectSupervisor<T> {
   final Future<T> Function() dial;
   final void Function(T connection) onConnected;
   final Future<void> Function(Duration duration) _sleep;
-  // Classifies a dial failure as unrecoverable (e.g. the Border revoked this
-  // device) versus transient (network blip, momentary Border restart) --
-  // this class deliberately knows nothing about WHAT makes a failure
-  // permanent (no NCFED/EdgeClient import), only that the caller can tell it
-  // apart. Defaults to "never permanent" so existing callers keep retrying
-  // forever exactly as before if they don't opt in.
-  final bool Function(Object error) isPermanentFailure;
-  final void Function(Object error)? onPermanentFailure;
 
   Duration _backoff = initialBackoff;
   bool _stopped = false;
   bool _connected;
 
+  /// Called instead of retrying when a dial fails in a way that retrying can
+  /// never fix — currently only a Border revocation (`-32023`). Without this
+  /// the loop treated revocation as a transient error and re-dialled a dead
+  /// enrollment forever, at a 60s ceiling, with the operator seeing nothing but
+  /// a permanent spinner.
+  final void Function()? onUnrecoverable;
+
   ReconnectSupervisor({
     required this.dial,
     required this.onConnected,
+    this.onUnrecoverable,
     Future<void> Function(Duration duration)? sleep,
     bool initiallyConnected = false,
-    bool Function(Object error)? isPermanentFailure,
-    this.onPermanentFailure,
   })  : _sleep = sleep ?? Future.delayed,
-        _connected = initiallyConnected,
-        isPermanentFailure = isPermanentFailure ?? ((_) => false);
+        _connected = initiallyConnected;
 
   /// The backoff duration the next failed dial would wait before retrying
   /// (T034 asserts this stays within [initialBackoff, maxBackoff]).
@@ -64,14 +63,11 @@ class ReconnectSupervisor<T> {
           _backoff = initialBackoff; // reset on success (T034)
           onConnected(client);
         } catch (e) {
-          if (isPermanentFailure(e)) {
-            // The enrollment itself is dead (e.g. the Border revoked this
-            // device) -- retrying forever would just spin against a
-            // connection that will never succeed again. Stop and let the
-            // caller decide what "give up" means (e.g. return to the
-            // enrollment gate).
+          if (isRevokedByBorder(e)) {
+            // Terminal: this identity is gone. Stop the loop and hand control
+            // back so the app can return to enrollment.
             _stopped = true;
-            onPermanentFailure?.call(e);
+            onUnrecoverable?.call();
             return;
           }
           final doubled = _backoff * 2;
