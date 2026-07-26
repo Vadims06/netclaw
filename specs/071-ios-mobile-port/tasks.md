@@ -71,6 +71,24 @@ in passing.
 `ConversationStore.clear()` coverage), `flutter analyze` clean, rebuilt/reinstalled to the real
 device after every change.
 
+**2026-07-26, reconciliation with `origin/main`**: before pushing, `origin/main` had moved 7
+commits ahead with an independently-built Android-side quality pass on the *same* shared Dart
+files (retry, revocation handling, reconnect keepalive, turn reconciliation, clear actions, unread
+badge, voice-failure reporting) — all more complete than this session's parallel versions of the
+same fixes. Merged, and resolved every conflict by taking `origin/main`'s implementation as the
+base (`chat_screen.dart`, `main.dart`, `reconnect_supervisor.dart`, `voice_transcription.dart`),
+then re-layering only the genuinely additive iOS-session work on top: photo persistence/thumbnails
+(`ConversationTurn.photoPath`, absent upstream — their retry tells the operator to retake a photo
+instead), the photo-prompt fix, the attachment-timeout fix (auto-merged cleanly, no overlap), and
+every fix to files `origin/main` never touched (`ApprovalsScreen`, `SettingsScreen`,
+`DeviceScanScreen`, `CapabilityRegistration`, `DeviceDeepLinkListener`). Two of this session's own
+duplicate/superseded pieces were dropped entirely rather than kept alongside upstream's better
+version: the custom `ValueListenable`-based reconnect-tick (superseded by upstream's
+`turn_reconciler.dart`, decoupled from any widget's lifecycle) and a second, redundant
+"Clear conversation" button (upstream's overflow-menu already covers Chat *and* Feed, with an
+in-progress-turn warning mine lacked). 98 tests passing post-merge, `flutter analyze` clean,
+rebuilt and reinstalled to the real device to confirm the reconciled result still works.
+
 **Input**: Design documents from `/specs/071-ios-mobile-port/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, quickstart.md
 
