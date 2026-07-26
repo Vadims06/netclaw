@@ -28,7 +28,18 @@ class _DeviceScanScreenState extends State<DeviceScanScreen> {
       _busy = true;
       _errorText = null;
     });
-    final taskId = await widget.handler.handle(raw);
+    String? taskId;
+    try {
+      taskId = await widget.handler.handle(raw);
+    } catch (e) {
+      // Previously unhandled -- a disconnected/timed-out ask() left _busy
+      // stuck true forever with no error shown, freezing the scanner.
+      setState(() {
+        _errorText = 'Could not submit: $e';
+        _busy = false;
+      });
+      return;
+    }
     if (taskId == null) {
       setState(() {
         _errorText = 'That QR code is not a NetClaw device link.';

@@ -21,17 +21,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
     'audio.record': 'Audio recording',
   };
 
+  String? _error;
+
   @override
   Widget build(BuildContext context) {
     return ListView(
       children: [
+        if (_error != null)
+          Container(
+            width: double.infinity,
+            color: Colors.red.shade50,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text(_error!, style: TextStyle(color: Colors.red.shade900)),
+          ),
         for (final capability in kAllCaptureCapabilities)
           SwitchListTile(
             title: Text(_labels[capability] ?? capability),
             subtitle: const Text('The Border can request this while disconnected too'),
             value: widget.capabilities.enabled.contains(capability),
             onChanged: (value) async {
-              await widget.capabilities.setEnabled(capability, value);
+              setState(() => _error = null);
+              try {
+                await widget.capabilities.setEnabled(capability, value);
+              } catch (e) {
+                if (mounted) setState(() => _error = 'Could not update: $e');
+              }
               if (mounted) setState(() {});
             },
           ),

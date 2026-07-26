@@ -70,6 +70,7 @@ Federation daemon: `mcp-servers/protocol-mcp/bgp/federation/`. Mobile app: exten
 
 - [X] T016 [P] [US3] Test in `tests/n2n/test_edge_ask.py`: an edge-ask task whose agent turn attempts (mocked) an eN2N-crossing tool call without a grant is refused/audited identically to a non-mobile equivalent — this is exercising the EXISTING authorization.py grant model, not new edge-specific gating (confirms FR-004's "MUST NOT be restricted or specially gated merely because the request originated from a phone" by testing that no edge-specific check exists to accidentally add one to).
 - [ ] T017 [US3] Manual verification only (no new code expected): with a real federated peer configured, submit a phone request that requires it and confirm attribution in the conversation names the external peer. Record the result in quickstart.md.
+      - **2026-07-25 (iOS, spec `071-ios-mobile-port`)**: attempted from the iOS side, still blocked — same Xcode/Flutter gap as 066's T045 (no iOS build possible yet from this Mac). Separately, per `MAC-IOS-HANDOFF.md`, the three eN2N peers (`as65007`, `as65008`, `as65099`) have been connection-refused all week, so this would be double-blocked even once the app builds. Not closed by this pass.
 
 **Checkpoint**: US3 demonstrable given a federated peer exists; no Border-side code changes anticipated for this story per research D3.
 

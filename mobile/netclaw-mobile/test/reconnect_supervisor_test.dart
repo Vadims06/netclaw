@@ -71,4 +71,49 @@ void main() {
     supervisor.stop();
     await future.timeout(const Duration(seconds: 1));
   });
+
+  test(
+      'a permanent failure (e.g. device revoked) stops the loop immediately '
+      'instead of retrying forever', () async {
+    var dialAttempts = 0;
+    var sleepCalls = 0;
+    Object? reportedError;
+    final supervisor = ReconnectSupervisor<String>(
+      dial: () async {
+        dialAttempts += 1;
+        throw StateError('revoked');
+      },
+      onConnected: (_) {},
+      sleep: (_) async => sleepCalls += 1,
+      isPermanentFailure: (e) => e is StateError,
+      onPermanentFailure: (e) => reportedError = e,
+    );
+
+    await supervisor.run().timeout(const Duration(seconds: 1));
+
+    expect(dialAttempts, 1); // never retried after the permanent failure
+    expect(sleepCalls, 0); // never even waited to retry
+    expect(reportedError, isA<StateError>());
+  });
+
+  test('a transient failure (isPermanentFailure returns false) keeps retrying as before',
+      () async {
+    var dialAttempts = 0;
+    late ReconnectSupervisor<String> supervisor;
+    supervisor = ReconnectSupervisor<String>(
+      dial: () async {
+        dialAttempts += 1;
+        throw Exception('transient');
+      },
+      onConnected: (_) {},
+      sleep: (_) async {
+        if (dialAttempts >= 3) supervisor.stop();
+      },
+      isPermanentFailure: (e) => false,
+    );
+
+    await supervisor.run();
+
+    expect(dialAttempts, greaterThanOrEqualTo(3));
+  });
 }

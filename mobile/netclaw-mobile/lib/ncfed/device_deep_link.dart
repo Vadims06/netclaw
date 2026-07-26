@@ -1,4 +1,5 @@
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 
 import 'edge_ask_client.dart';
 
@@ -44,13 +45,21 @@ class DeviceDeepLinkHandler {
 class DeviceDeepLinkListener {
   final DeviceDeepLinkHandler handler;
   final void Function(String taskId, String requestText) onSubmitted;
+  // Previously a failed ask() here (disconnected, timeout) was completely
+  // silent -- the operator taps a device link and, from their perspective,
+  // simply nothing happens, with no way to tell why. Defaults to a debug
+  // log so this is at minimum visible during development even if the
+  // owner doesn't wire a UI-visible handler.
+  final void Function(Object error) onError;
   final AppLinks _appLinks;
 
   DeviceDeepLinkListener({
     required this.handler,
     required this.onSubmitted,
+    void Function(Object error)? onError,
     AppLinks? appLinks,
-  }) : _appLinks = appLinks ?? AppLinks();
+  })  : onError = onError ?? ((e) => debugPrint('device deep link failed: $e')),
+        _appLinks = appLinks ?? AppLinks();
 
   Future<void> start() async {
     _appLinks.uriLinkStream.listen(_handleUri);
@@ -62,7 +71,11 @@ class DeviceDeepLinkListener {
     final deviceId = parseDeviceDeepLink(uri.toString());
     if (deviceId == null) return;
     final text = deviceStatusRequestText(deviceId);
-    final taskId = await handler.askClient.ask(text);
-    onSubmitted(taskId, text);
+    try {
+      final taskId = await handler.askClient.ask(text);
+      onSubmitted(taskId, text);
+    } catch (e) {
+      onError(e);
+    }
   }
 }

@@ -60,11 +60,19 @@ class CaptureClient {
   /// `n2n/edge/ask` request — `text` may be empty for a bare capture with
   /// no accompanying question (FR-005). Returns the task_id, or `null` if
   /// the capture was declined/cancelled (no request is ever sent for that
-  /// case) or exceeded the size cap.
-  Future<String?> captureAndAsk(String captureType, {String text = ''}) async {
+  /// case) or exceeded the size cap. [onCaptured] fires right after a
+  /// successful (under-the-cap) capture, before sending — lets a caller
+  /// (e.g. the chat UI) keep the raw bytes for local display without this
+  /// method needing to change its return type.
+  Future<String?> captureAndAsk(
+    String captureType, {
+    String text = '',
+    void Function(CaptureResult result)? onCaptured,
+  }) async {
     final result = await capture(captureType);
     if (result == null) return null;
     if (result.bytes.length > kMaxCaptureBytes) return null;
+    onCaptured?.call(result);
     return askClient.ask(text, attachment: {
       'content_type': result.contentType,
       'content': base64Encode(result.bytes),

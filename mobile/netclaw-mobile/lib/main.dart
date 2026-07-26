@@ -200,6 +200,11 @@ class _HomeShellState extends State<HomeShell> {
   DeviceDeepLinkListener? _deepLinkListener;
   ReconnectSupervisor<void>? _reconnectSupervisor;
   DateTime? _highlightPushedAt;
+  // Bumped every time a DROPPED connection successfully redials (never on
+  // the initial connection) -- ChatScreen listens so a turn that finished
+  // while disconnected is reconciled right away, not only on the next full
+  // app restart.
+  final _reconnectTick = ValueNotifier<int>(0);
 
   @override
   void initState() {
@@ -255,8 +260,26 @@ class _HomeShellState extends State<HomeShell> {
       ),
       onConnected: (_) {
         if (mounted) setState(() => _connected = true);
+        _reconnectTick.value++;
       },
       initiallyConnected: true,
+      // Previously a bare `catch (_)` in ReconnectSupervisor meant a
+      // revoked device retried a dead enrollment forever instead of
+      // returning to the enrollment gate -- isRevokedByBorder was already
+      // used at cold-start reconnect (EnrollmentGate._init) but never
+      // consulted here, in the loop that actually runs while the app stays
+      // open.
+      isPermanentFailure: isRevokedByBorder,
+      onPermanentFailure: (_) async {
+        final dir = await getApplicationDocumentsDirectory();
+        await EnrollmentStore(dir).clear();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const EnrollmentGate()),
+            (route) => false,
+          );
+        }
+      },
     );
     widget.client.onDisconnected = () {
       supervisor.notifyDisconnected();
@@ -307,6 +330,7 @@ class _HomeShellState extends State<HomeShell> {
     _reconnectSupervisor?.stop();
     _askClient?.dispose();
     _approvalClient?.dispose();
+    _reconnectTick.dispose();
     super.dispose();
   }
 
@@ -322,6 +346,32 @@ class _HomeShellState extends State<HomeShell> {
     ));
   }
 
+  /// A conversation with no way to ever manage it just grows forever, and
+  /// each photo it ever contained sits on disk indefinitely too --
+  /// `ConversationStore.clear()` deletes both. Destructive/irreversible, so
+  /// confirmed first.
+  Future<void> _clearChat() async {
+    final store = _conversationStore;
+    if (store == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear conversation?'),
+        content: const Text('This deletes your chat history and any photos sent with it. '
+            'This cannot be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(true), child: const Text('Clear')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await store.clear();
+    if (mounted) setState(() {});
+  }
+
   static const _titles = ['Chat', 'Feed', 'Approvals', 'Settings'];
 
   @override
@@ -334,7 +384,7 @@ class _HomeShellState extends State<HomeShell> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final pages = [
-      ChatScreen(askClient: _askClient!, store: _conversationStore!),
+      ChatScreen(askClient: _askClient!, store: _conversationStore!, reconnectTick: _reconnectTick),
       FeedScreen(store: _feedStore!, highlightPushedAt: _highlightPushedAt),
       ApprovalsScreen(approvalClient: _approvalClient!),
       SettingsScreen(capabilities: _capabilities!),
@@ -353,6 +403,12 @@ class _HomeShellState extends State<HomeShell> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
+            ),
+          if (_tab == 0)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Clear conversation',
+              onPressed: _clearChat,
             ),
           IconButton(icon: const Icon(Icons.qr_code_scanner), onPressed: _scanDevice),
         ],

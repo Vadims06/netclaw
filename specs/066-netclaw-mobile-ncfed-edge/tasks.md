@@ -119,6 +119,7 @@ New mobile codebase: `mobile/netclaw-mobile/` (Flutter/Dart). Tests: `tests/n2n/
 - [X] T043 Run the full n2n suite (`python3 -m pytest tests/n2n -q`) and confirm zero regressions; map passing tests to SC-001…SC-006.
 - [X] T044 [P] Run `flutter analyze` and `flutter test` in `mobile/netclaw-mobile/`; confirm a clean Android build in this environment; explicitly note the iOS build/sign step is deferred to the operator's Mac.
 - [ ] T045 [P] Run the `quickstart.md` manual walkthrough end-to-end (steps 1–10) against a live Border and a real or emulated device, and record the result.
+      - **2026-07-25 (iOS, spec `071-ios-mobile-port`)**: attempted from the iOS side, still blocked — the available Mac has no Xcode.app or Flutter SDK installed, so the app cannot yet be built for iOS at all. Not closed by this pass; retry once `specs/071-ios-mobile-port/tasks.md` Phase 1 (Setup) is complete.
 
 ---
 

@@ -26,7 +26,7 @@ void main() {
     final source = _RecordingEdgeRpcSource();
     final askClient = EdgeAskClient(source);
     final voice = VoiceTranscription(
-      listenOnce: () async => 'check every core router for BGP problems',
+      listenOnce: ({onListeningChange}) async => 'check every core router for BGP problems',
     );
 
     final result = await voice.recordAndAsk(askClient);
@@ -45,7 +45,7 @@ void main() {
   test('nothing heard never sends an empty (or any) request', () async {
     final source = _RecordingEdgeRpcSource();
     final askClient = EdgeAskClient(source);
-    final voice = VoiceTranscription(listenOnce: () async => null);
+    final voice = VoiceTranscription(listenOnce: ({onListeningChange}) async => null);
 
     final result = await voice.recordAndAsk(askClient);
 
@@ -56,7 +56,7 @@ void main() {
   test('whitespace-only transcription is treated as nothing heard', () async {
     final source = _RecordingEdgeRpcSource();
     final askClient = EdgeAskClient(source);
-    final voice = VoiceTranscription(listenOnce: () async => '   ');
+    final voice = VoiceTranscription(listenOnce: ({onListeningChange}) async => '   ');
 
     final result = await voice.recordAndAsk(askClient);
 

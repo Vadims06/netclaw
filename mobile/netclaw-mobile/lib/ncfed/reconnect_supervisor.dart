@@ -24,6 +24,14 @@ class ReconnectSupervisor<T> {
   final Future<T> Function() dial;
   final void Function(T connection) onConnected;
   final Future<void> Function(Duration duration) _sleep;
+  // Classifies a dial failure as unrecoverable (e.g. the Border revoked this
+  // device) versus transient (network blip, momentary Border restart) --
+  // this class deliberately knows nothing about WHAT makes a failure
+  // permanent (no NCFED/EdgeClient import), only that the caller can tell it
+  // apart. Defaults to "never permanent" so existing callers keep retrying
+  // forever exactly as before if they don't opt in.
+  final bool Function(Object error) isPermanentFailure;
+  final void Function(Object error)? onPermanentFailure;
 
   Duration _backoff = initialBackoff;
   bool _stopped = false;
@@ -34,8 +42,11 @@ class ReconnectSupervisor<T> {
     required this.onConnected,
     Future<void> Function(Duration duration)? sleep,
     bool initiallyConnected = false,
+    bool Function(Object error)? isPermanentFailure,
+    this.onPermanentFailure,
   })  : _sleep = sleep ?? Future.delayed,
-        _connected = initiallyConnected;
+        _connected = initiallyConnected,
+        isPermanentFailure = isPermanentFailure ?? ((_) => false);
 
   /// The backoff duration the next failed dial would wait before retrying
   /// (T034 asserts this stays within [initialBackoff, maxBackoff]).
@@ -52,7 +63,17 @@ class ReconnectSupervisor<T> {
           _connected = true;
           _backoff = initialBackoff; // reset on success (T034)
           onConnected(client);
-        } catch (_) {
+        } catch (e) {
+          if (isPermanentFailure(e)) {
+            // The enrollment itself is dead (e.g. the Border revoked this
+            // device) -- retrying forever would just spin against a
+            // connection that will never succeed again. Stop and let the
+            // caller decide what "give up" means (e.g. return to the
+            // enrollment gate).
+            _stopped = true;
+            onPermanentFailure?.call(e);
+            return;
+          }
           final doubled = _backoff * 2;
           _backoff = doubled > maxBackoff ? maxBackoff : doubled;
         }
