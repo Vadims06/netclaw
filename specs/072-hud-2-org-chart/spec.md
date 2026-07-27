@@ -82,8 +82,11 @@ Three consequences:
        │  pyats-parallel-ops   │    not reflow (FR-022)
        └───────────────────────┘
 
-   ◆ = HOT  (live, animated, saturated)    · = COLD (inert, desaturated)
-   Hot/cold differ in form + colour + motion — not opacity alone (FR-009a)
+   ◆ HOT (live, animated)   ◇ WARM (seen <15m, idle)
+   · COLD (never started, inert)   ✖ FAULT (was reachable, now not)
+   States differ in form + colour + motion — not opacity alone (FR-009a).
+   FAULT is the most salient state after HOT (FR-009b) so a dead claw is
+   never lost among the by-design-cold ones. Legend required (FR-009c).
 ```
 
 Categories above are **derived**, not authored — see FR-006. A different
@@ -119,6 +122,29 @@ edges in their own lane at the boundary line.
   slight opacity difference (FR-008/FR-009).
 - Q: Should a member's tools be visible? → A: Yes, via per-node expand/collapse
   (FR-020).
+
+### Session 2026-07-27 (clarify)
+
+- Q: Migration strategy — hard replace the orbit layout, coexist behind a view
+  toggle, or build a separate entry point? → A: **Hard replace.** The work is on
+  a feature branch, so git provides the revert path; a runtime toggle would be
+  redundant safety at the cost of carrying two layouts. See FR-026.
+- Q: What scale must the layout handle before it is allowed to degrade?
+  → A: **~100 members / ~25 categories**, all simultaneously visible, no
+  virtualisation or level-of-detail required. See FR-029.
+- Q: How many member health states must the visual language encode?
+  → A: **Four — HOT / WARM / COLD / FAULT.** Binary would conflate "never
+  started" (normal) with "died" (a fault), and both edge nodes are currently
+  unreachable. WARM is derived from `heartbeat_age_s`. See FR-008.
+- Q: The `#search` input currently filters the integration/device populations
+  being removed. Does search carry forward? → A: **Yes — retargeted to the org
+  chart** (members, categories, tool names), matching by highlight/dim in place
+  rather than by hiding, so the layout never reflows. See FR-031.
+- Q: The scene currently renders a second graph alongside the trust topology —
+  72 integration clusters with orbiting skill sprites, plus testbed devices
+  (`/api/graph`). What happens to it? → A: **Org chart only.** Integrations are
+  represented solely as expanded member tools (FR-020); devices leave the 3D
+  scene and remain in the right-hand panel. See FR-030.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -280,18 +306,36 @@ jump or reframe.
 
 ### Visual weight
 
-- **FR-008**: Live members (`live: true`) MUST be visually dominant over
-  cold/unreachable ones. Dominance MUST key off `live`, not `state` — the two
-  disagree in live data (5 `active` vs 4 `live`).
-- **FR-009**: Cold members MUST remain **visible by default** — never hidden
-  behind a toggle. Their coldness is information the operator wants on the face
-  of the chart, not something to go looking for.
-- **FR-009a**: Hot and cold MUST be **categorically different treatments**, not
-  the same treatment at different opacity. A viewer must never have to compare
-  two nodes side by side to decide which is live. The distinction SHOULD be
-  carried by more than one channel at once (for example: form/silhouette,
-  colour temperature, and whether the node animates at all — a cold claw should
-  read as inert, a hot one as running).
+- **FR-008**: Members MUST be rendered in one of **four health states**, derived
+  from the existing payload. `state` alone MUST NOT be used — it disagrees with
+  liveness in live data (5 `active` vs 4 `live`).
+
+  | State | Derivation | Meaning to the operator |
+  |---|---|---|
+  | **HOT** | `live == true` | Running now |
+  | **WARM** | `!live` and `heartbeat_age_s` ≤ threshold | Seen recently; idle or on-demand, not a fault |
+  | **COLD** | `!live` and never seen (`heartbeat_age_s` null/absent), typically `state == provisioned` | Inert by design — normal |
+  | **FAULT** | `!live` and `heartbeat_age_s` > threshold, or `state` ∈ {`unreachable`, `quarantined`} | Was reachable, no longer is — needs attention |
+
+- **FR-008a**: The WARM/FAULT threshold MUST be a single named constant, not a
+  magic number scattered through the layout code. Default **900 s (15 min)**.
+  The distinction that matters is COLD (never started) vs FAULT (died) — those
+  MUST never share a treatment, because a fault hidden among 22 by-design-cold
+  claws is precisely the failure this redesign exists to fix.
+- **FR-009**: Non-HOT members MUST remain **visible by default** — never hidden
+  behind a toggle. Their state is information the operator wants on the face of
+  the chart, not something to go looking for.
+- **FR-009a**: The four states MUST be **categorically different treatments**,
+  not one treatment at four opacities. A viewer must never have to compare two
+  nodes side by side to classify either. Each state SHOULD be carried by more
+  than one channel at once — for example form/silhouette, colour temperature,
+  and whether the node animates: HOT reads as running, WARM as idle, COLD as
+  inert, FAULT as demanding attention.
+- **FR-009b**: FAULT MUST be the most visually salient state after HOT. An
+  operator scanning the chart for problems MUST find faults without searching,
+  even when they are outnumbered ~10:1 by COLD claws.
+- **FR-009c**: A legend MUST be present. Four states is past the point where an
+  operator can be expected to infer the encoding.
 - **FR-010**: Link styling MUST distinguish, at a glance: healthy eN2N,
   unreachable eN2N, severed eN2N, healthy iN2N, cold iN2N, and the edge/push
   channel.
@@ -348,6 +392,77 @@ jump or reframe.
   `renderGaitTrail`, `renderChannelSecurity`, `renderReplicationJobs`,
   `renderRecentPushes` — MUST continue to work against the same data.
 
+### Search and navigation
+
+- **FR-031**: The existing `#search` input MUST be retargeted from the removed
+  integration/device populations to the org chart, matching against member
+  names, category names, and tool (skill) names.
+- **FR-031a**: Search MUST match by **highlighting matches and dimming
+  non-matches in place**. It MUST NOT hide non-matches or re-pack the layout.
+  Hiding would re-flow the chart and destroy the spatial memory the layout
+  exists to build — the same reasoning as FR-022.
+- **FR-031b**: A search matching a tool MUST make the owning member
+  discoverable even while collapsed, so an operator can find which claw holds a
+  capability without expanding all of them.
+- **FR-031c**: Clearing the search MUST restore the exact prior visual state,
+  including which members were expanded.
+
+### Scene scope
+
+- **FR-030**: The 3D scene MUST render the trust org chart and nothing else.
+  The integration-cluster population and the device population MUST be removed
+  from the scene. This is the largest single readability win available: the
+  scene currently draws two unrelated graphs — a trust topology and a
+  capability catalogue — over each other.
+- **FR-030a**: Integration/skill information MUST reach the operator via member
+  tool expansion (FR-020), which already covers it. The integration clusters
+  are a second rendering of substantially the same capability data.
+- **FR-030b**: Devices MUST remain available in the right-hand detail panel and
+  MUST NOT be rendered as scene objects. Devices are managed estate, not
+  members of the trust org; drawing them in the chart blurs what the chart means.
+- **FR-030c**: The following scene-layer functions MUST be removed, not left
+  dormant: `buildIntegrations`, `buildDevices`, `createSkillSprites`,
+  `computeDendritePositions`, `createDendriteMaterial`, `lightIntegration`,
+  `lightDevice`, and the integration/device branches of `applyFilters`.
+- **FR-030d**: Removing these populations MUST NOT break the panel. `/api/graph`
+  MUST still be fetched if any retained panel renderer depends on it; only the
+  scene-object construction is removed. This MUST be verified rather than
+  assumed — `renderSidebar` and `renderMetrics` both consume `graph` today.
+
+### Scale
+
+- **FR-029**: The layout MUST render correctly and remain readable up to
+  **~100 members across ~25 categories**, with every node simultaneously
+  visible. Virtualisation, level-of-detail, and default-collapsed categories
+  are explicitly NOT required at this scale. Beyond it the chart MUST degrade
+  gracefully (wrap and shrink) rather than break, overlap, or drop nodes.
+- **FR-029a**: Node geometry SHOULD be instanced or otherwise shared so member
+  count drives draw calls sub-linearly. At 100 members with tools expanded, the
+  scene must not require per-node unique geometry.
+- **FR-029b**: The chart MUST hold an interactive frame rate at the FR-029
+  ceiling on the reference machine. If the existing postprocessing chain
+  (bloom/SMAA/afterimage) cannot sustain that with 100 nodes plus expanded
+  tools, the postprocessing MUST be reduced rather than the node count capped —
+  legibility of the chart outranks the glow.
+
+### Migration
+
+- **FR-026**: The orbit layout MUST be replaced outright, not kept behind a
+  runtime toggle. `main.js` renders the org chart and only the org chart. The
+  feature branch is the rollback mechanism; no in-product fallback is required.
+- **FR-027**: Orbit-specific machinery that the org chart does not use MUST be
+  removed rather than left dormant — the ring/orbit positioning
+  (`CORE_POSITIONS`, `CORE_CENTROID`, `RISK_LAYOUT.tierRadius`, per-core orbit
+  speed/animation, the edge "close orbit" slots). Leaving dead layout code in a
+  132 KB file is how the next person concludes the orbit is still supported.
+- **FR-028**: Machinery that is layout-independent MUST be preserved and reused,
+  not rewritten: materials and shaders (`createHolographicMaterial`,
+  `createNodeMaterial`, `createDeviceMaterial`, `getSkillMaterial`), link
+  geometry (`createRibbonGeometry` / `updateRibbonGeometry` / `createTubeMaterial`),
+  labels (`makeLabel`, CSS2D), the postprocessing chain, picking/raycasting, the
+  polling and incremental-update path (`refreshRiskMembers`), and every
+  `setDetail`/`render*` panel function named in FR-018.
+
 ### Security constraint
 
 - **FR-019**: This feature MUST NOT widen the HUD's existing unauthenticated
@@ -362,8 +477,8 @@ jump or reframe.
 - **SC-001**: An operator who has never seen the HUD can correctly identify
   which claws are external and which are internal, on first view, without
   interacting.
-- **SC-002**: The 4 live members are identifiable within 2 seconds of load,
-  without counting or zooming.
+- **SC-002**: The HOT members are identifiable within 2 seconds of load,
+  without counting or zooming (4 of 29 on the reference deployment).
 - **SC-003**: No camera input can produce a view in which the external band is
   not above the internal band.
 - **SC-004**: All 29 members, 4 peers, and 2 edge nodes render without label
@@ -375,8 +490,10 @@ jump or reframe.
   least three synthetic Borders: one with 1 member, one with ~30, and one whose
   members match no integration prefix at all (everything "Uncategorised"). No
   member-name string appears anywhere in the layout code.
-- **SC-007**: Hot vs cold is distinguishable in a greyscale screenshot — proving
-  the distinction does not rest on colour alone.
+- **SC-007**: All four health states are distinguishable in a **greyscale**
+  screenshot — proving the encoding does not rest on colour alone.
+- **SC-007a**: A single FAULT claw placed among 25 COLD ones is located by an
+  operator in under 5 seconds, without search.
 - **SC-008**: An operator can determine which tools a given claw holds, hot or
   cold, without leaving the chart or opening the detail panel.
 
