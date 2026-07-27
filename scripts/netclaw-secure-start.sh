@@ -980,14 +980,27 @@ start_all() {
 
     echo ""
     echo "═══════════════════════════════════════════════════════════════"
-    echo "  All 3 Rings Active!"
+    echo "  Sandbox provisioned — Ring 3 NOT yet running"
     echo "═══════════════════════════════════════════════════════════════"
     echo ""
     echo "  ┌─────────────────────────────────────────────────────────┐"
     echo "  │  Ring 1: OpenShell     - Container isolation    [✓]    │"
     echo "  │  Ring 2: DefenseClaw   - LLM guardrails ($GUARDRAIL_MODE)  [✓]    │"
-    echo "  │  Ring 3: NetClaw       - AI agent sandbox       [✓]    │"
+    echo "  │  Ring 3: NetClaw       - sandbox READY, not started     │"
     echo "  └─────────────────────────────────────────────────────────┘"
+    echo ""
+    # This script only provisions the sandbox; it never starts a gateway inside
+    # it and never stops the host one. Claiming "All 3 Rings Active" here was a
+    # false green: at this point nothing is running in the sandbox, and if a
+    # gateway is running on the host it is running OUTSIDE Ring 1.
+    echo "  Run './scripts/netclaw-secure-start.sh status' to see where the"
+    echo "  agent is actually running. Before cutting over, check that:"
+    echo "    - skills are present in /sandbox/.openclaw/workspace (they are"
+    echo "      NOT uploaded by this script)"
+    echo "    - the MCP paths in the migrated config resolve INSIDE the sandbox"
+    echo "      (a host cwd like /home/<user>/netclaw does not exist in it)"
+    echo "    - whatever calls the gateway on 127.0.0.1 can still reach it once"
+    echo "      it moves into the sandbox's own network namespace"
     echo ""
     echo "  ─────────────────────────────────────────────────────────────"
     echo "  CONNECT TO NETCLAW:"
