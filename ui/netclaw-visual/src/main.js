@@ -16,7 +16,7 @@ import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
 // materials, ribbons, labels, picking, polling, panels — is preserved (FR-028).
 import {
   mountOrgChart, updateOrgChart, searchOrgChart,
-  pickableObjects, chartNodes, tickOrgChart,
+  pickableObjects, chartNodes, tickOrgChart, activateNode,
 } from './orgchart-render/index.js';
 import {
   createChartCamera, createChartControls, resizeChartCamera, frameChart,
@@ -393,7 +393,8 @@ function initScene() {
   const root = document.getElementById('scene-root');
 
   state.scene = new THREE.Scene();
-  state.scene.fog = new THREE.FogExp2(0x040a14, 0.006);
+  // Fog thinned: the chart is planar, so depth haze only dulled it.
+  state.scene.fog = new THREE.FogExp2(0x081426, 0.0018);
 
   // HUD 2.0 (FR-012/013): orthographic and rotation-locked. A perspective
   // camera under free OrbitControls was the dominant cause of "hard to
@@ -406,7 +407,7 @@ function initScene() {
   state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   state.renderer.setSize(window.innerWidth, window.innerHeight);
   state.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  state.renderer.toneMappingExposure = 1.15;
+  state.renderer.toneMappingExposure = 1.55;   // HUD 2.0: brighter overall (operator feedback)
   state.renderer.shadowMap.enabled = true;
   state.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   root.appendChild(state.renderer.domElement);
@@ -456,7 +457,7 @@ function initScene() {
   state.controls = createChartControls(state.camera, state.renderer.domElement);
 
   // ── Enhanced lighting (Section E) ─────────────────────────────
-  state.scene.add(new THREE.AmbientLight(0x4a7cb5, 0.35));
+  state.scene.add(new THREE.AmbientLight(0x7fb0e0, 1.15));  // lifted for the flat chart
 
   // Key light — overhead spotlight with shadows
   const keyLight = new THREE.SpotLight(0x65c3ff, 4.5, 120, Math.PI * 0.35, 0.4, 1.2);
@@ -2737,6 +2738,31 @@ function onPointerMove(event) {
 function onClick(event) {
   if (event.target.closest('.panel') || event.target.closest('.tooltip') || event.target.closest('.panel-reopen')) return;
   state.raycaster.setFromCamera(state.mouse, state.camera);
+
+  // ── HUD 2.0 picking (feature 072) ────────────────────────────────────
+  // One click both selects (right-hand panel, contract unchanged) and reveals
+  // the claw's tools. The original FR-020a split click from expand; after
+  // seeing the MVP the operator asked for a single gesture, and expansion is
+  // an overlay so FR-022 still holds — no sibling ever moves.
+  const chartHit = state.raycaster.intersectObjects(pickableObjects(), false)[0];
+  if (chartHit) {
+    const node = activateNode(chartHit.object, makeLabel);
+    if (node) {
+      clearSelection();
+      if (node.kind === 'border') {
+        setDetail('local-core');
+        state.selected = { kind: 'local-core' };
+      } else if (node.kind === 'peer') {
+        setDetail('federation-peer', node.payload);
+        state.selected = { kind: 'federation-peer', peer: node.id };
+      } else {
+        setDetail('member-core', node.payload);
+        state.selected = { kind: 'member-core', member: node.id };
+      }
+      return;
+    }
+  }
+
   const hit = state.raycaster.intersectObjects(getInteractiveObjects())[0];
   if (!hit) {
     clearSelection();

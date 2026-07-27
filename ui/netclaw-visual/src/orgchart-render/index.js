@@ -18,6 +18,7 @@ import { buildNodes, animateNodes, applyHighlight, TREATMENTS } from './nodes.js
 import { buildBands } from './bands.js';
 import { buildLinks } from './links.js';
 import { classifyHealth } from '../orgchart/health.js';
+import { toggleExpansion, collapseAll, isExpanded, expandedCount } from './expansion.js';
 
 export { TREATMENTS };
 
@@ -116,8 +117,9 @@ export function updateOrgChart(scene, n2n, makeLabel) {
     const t = TREATMENTS[health] || TREATMENTS.COLD;
     entry.material.color.setHex(t.color);
     entry.material.emissive.setHex(t.emissive);
-    entry.material.emissiveIntensity = health === 'FAULT' ? 1.5 : 0.85;
-    entry.material.roughness = health === 'COLD' ? 0.95 : 0.35;
+    entry.material.emissiveIntensity = t.emissiveIntensity ?? 1.0;
+    entry.material.roughness = health === 'COLD' ? 0.8 : 0.28;
+    entry.mesh.scale.setScalar(entry.baseScale);
     entry.pulse = t.pulse;
   }
 
@@ -164,6 +166,39 @@ export function pickableObjects() {
 export function chartNodes() {
   return chart.layout ? chart.layout.nodes : [];
 }
+
+/**
+ * Click handling: select AND reveal tools (operator revision to FR-020a).
+ *
+ * Returns the layout node so main.js can drive setDetail() unchanged — the
+ * right-hand panel contract is untouched (FR-017/018).
+ *
+ * @param {THREE.Object3D} mesh the picked mesh
+ * @param {(text:string)=>object} makeLabel
+ * @returns {object|null} the layout node behind that mesh
+ */
+export function activateNode(mesh, makeLabel) {
+  const node = mesh?.userData?.node;
+  if (!node) return null;
+  // Only members and edges carry tools; peers and the Border just select.
+  if (node.kind === 'member' || node.kind === 'edge') {
+    toggleExpansion(chart.root, node, mesh, makeLabel);
+  }
+  return node;
+}
+
+/** Keyboard/affordance route to the same toggle (FR-032a). */
+export function toggleNodeExpansion(nodeId, makeLabel) {
+  const entry = chart.entries.find((e) => e.node.id === nodeId);
+  if (!entry) return false;
+  return toggleExpansion(chart.root, entry.node, entry.mesh, makeLabel);
+}
+
+export function collapseAllExpansions() {
+  if (chart.root) collapseAll(chart.root);
+}
+
+export { isExpanded, expandedCount };
 
 export function tickOrgChart(elapsed) {
   animateNodes(chart.entries, elapsed, prefersReducedMotion());

@@ -33,18 +33,26 @@ import { categorizeMembers } from './categorize.js';
 export const LAYOUT = {
   boundaryY: 18,
   externalY: 40,
-  externalSpacingX: 26,
+  externalSpacingX: 34,
   borderY: 0,
-  internalTopY: -18,
-  columnSpacingX: 22,
-  memberSpacingY: 9,
-  categoryHeaderOffsetY: -6,
-  rowSpacingY: 64,
-  edgeLaneX: 46,
-  edgeSpacingY: 10,
+  internalTopY: -20,
+  // The internal band fans WIDE. Members are the bulk of the chart and the
+  // thing an operator scans, so they get horizontal room rather than being
+  // packed into a narrow column stack under the Border. Wide + shallow beats
+  // narrow + deep for scanning: the eye moves along a row far faster than it
+  // walks down a column, and the orthographic camera auto-frames whatever
+  // extent this produces (camera.frameChart).
+  columnSpacingX: 38,
+  memberSpacingY: 8,
+  categoryHeaderOffsetY: -7,
+  rowSpacingY: 58,
+  // Wide cap so a typical deployment lays out in a SINGLE row — the widest,
+  // cleanest fan. Rows are balanced when wrapping is unavoidable.
+  maxColumnsPerRow: 20,
+  edgeLaneX: 96,          // floor only; the real X is derived from the fan extent
+  edgeSpacingY: 11,
   edgeLaneColumns: 2,
-  edgeLaneSpacingX: 16,
-  maxColumnsPerRow: 8,
+  edgeLaneSpacingX: 18,
 };
 
 /**
@@ -96,39 +104,22 @@ export function computeLayout(n2n, integrationCatalog, nowEpochS, opts = {}) {
     position: { x: 0, y: cfg.borderY, z: 0 },
   });
 
-  // ── Edge lane: mobile edges, inside the boundary, outside the chart (FR-007) ──
-  // Wraps into columns rather than stacking onto a final slot, which is the
-  // overflow bug HUD 1.0 shipped with.
-  const edges = members.filter((m) => m && m.node_type === 'edge');
-  edges.forEach((m, i) => {
-    const col = Math.floor(i / Math.max(1, Math.ceil(edges.length / cfg.edgeLaneColumns)));
-    const row = i % Math.max(1, Math.ceil(edges.length / cfg.edgeLaneColumns));
-    nodes.push({
-      id: m.member_id || `edge-${i}`,
-      kind: 'edge',
-      label: resolveLabel(m),
-      band: 'edgeLane',
-      health: classifyHealth(m, nowEpochS),
-      heartbeatAgeS: m.heartbeat_age_s ?? null,
-      toolCount: Array.isArray(m.skills) ? m.skills.length : 0,
-      payload: m,
-      position: {
-        x: cfg.edgeLaneX + col * cfg.edgeLaneSpacingX,
-        y: cfg.borderY + 6 - row * cfg.edgeSpacingY,
-        z: 0,
-      },
-    });
-  });
-
   // ── Internal band: member claws in derived category columns (FR-005/006) ──
   const grouped = categorizeMembers(members, integrationCatalog);
   const ordered = orderCategories(grouped, nowEpochS);
 
+  // Balance columns across rows rather than filling each to the cap. With 15
+  // categories and a cap of 14 the naive split is 14 + 1, which looks broken;
+  // balancing gives 8 + 7. Rows are still driven by the cap, so wide-and-
+  // shallow is preserved.
+  const rowsNeeded = Math.max(1, Math.ceil(ordered.length / cfg.maxColumnsPerRow));
+  const perRow = Math.max(1, Math.ceil(ordered.length / rowsNeeded));
+
   const categories = [];
   ordered.forEach((category, index) => {
-    const col = index % cfg.maxColumnsPerRow;
-    const row = Math.floor(index / cfg.maxColumnsPerRow);
-    const rowCount = Math.min(ordered.length - row * cfg.maxColumnsPerRow, cfg.maxColumnsPerRow);
+    const col = index % perRow;
+    const row = Math.floor(index / perRow);
+    const rowCount = Math.min(ordered.length - row * perRow, perRow);
     const rowSpan = (rowCount - 1) * cfg.columnSpacingX;
     const x = -rowSpan / 2 + col * cfg.columnSpacingX;
     const headerY = cfg.internalTopY - row * cfg.rowSpacingY;
@@ -153,6 +144,38 @@ export function computeLayout(n2n, integrationCatalog, nowEpochS, opts = {}) {
     });
   });
 
+  // ── Edge lane: mobile edges, inside the boundary, outside the chart (FR-007) ──
+  // Placed AFTER the member columns so the lane can clear whatever width the
+  // fan turned out to be. A fixed X would collide once the internal band was
+  // widened — which is exactly what happened, and what the FR-007 test caught.
+  const memberXs = nodes.filter((n) => n.kind === 'member').map((n) => n.position.x);
+  const fanRight = memberXs.length ? Math.max(...memberXs) : 0;
+  const laneX = Math.max(cfg.edgeLaneX, fanRight + cfg.columnSpacingX);
+
+  const edges = members.filter((m) => m && m.node_type === 'edge');
+  const perCol = Math.max(1, Math.ceil(edges.length / cfg.edgeLaneColumns));
+  edges.forEach((m, i) => {
+    const col = Math.floor(i / perCol);
+    const row = i % perCol;
+    nodes.push({
+      id: m.member_id || `edge-${i}`,
+      kind: 'edge',
+      label: resolveLabel(m),
+      band: 'edgeLane',
+      health: classifyHealth(m, nowEpochS),
+      heartbeatAgeS: m.heartbeat_age_s ?? null,
+      toolCount: Array.isArray(m.skills) ? m.skills.length : 0,
+      tools: Array.isArray(m.skills) ? [...m.skills] : [],
+      expanded: false,
+      payload: m,
+      position: {
+        x: laneX + col * cfg.edgeLaneSpacingX,
+        y: cfg.borderY + 6 - row * cfg.edgeSpacingY,
+        z: 0,
+      },
+    });
+  });
+
   // ── Bands: always emitted, even when empty (FR-033) ──
   const bands = [
     {
@@ -173,7 +196,7 @@ export function computeLayout(n2n, integrationCatalog, nowEpochS, opts = {}) {
       id: 'edgeLane',
       label: 'Mobile edges',
       y: cfg.borderY,
-      x: cfg.edgeLaneX,
+      x: laneX,
       empty: edges.length === 0,
       emptyCta: 'No devices paired. Enrol a phone to receive pushes.',
     },

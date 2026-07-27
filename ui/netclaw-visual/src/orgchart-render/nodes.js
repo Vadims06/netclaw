@@ -23,37 +23,44 @@ import * as THREE from 'three';
 export const TREATMENTS = {
   HOT: {
     shape: 'sphere',
-    color: 0x37d67a,
-    emissive: 0x0f7a3c,
-    lightness: 0.82,
-    scale: 1.0,
+    color: 0x4dff9b,
+    emissive: 0x1fbf68,
+    emissiveIntensity: 1.5,
+    lightness: 0.88,
+    scale: 1.06,
     pulse: 0.10,          // alive: gentle breathing
     label: 'Running now',
   },
   WARM: {
     shape: 'rounded',
-    color: 0x6fa8dc,
-    emissive: 0x1d3f5c,
-    lightness: 0.58,
-    scale: 0.86,
+    color: 0x8fc7ff,
+    emissive: 0x2f6da8,
+    emissiveIntensity: 1.0,
+    lightness: 0.68,
+    scale: 0.9,
     pulse: 0.0,           // idle: still
     label: 'Seen recently, idle',
   },
   COLD: {
     shape: 'flat',        // a disc reads as inert next to a lit sphere
-    color: 0x3a4654,
-    emissive: 0x0a0f16,
-    lightness: 0.26,
-    scale: 0.68,
+    // Lifted from near-black: cold must read as INERT, not as absent. An
+    // operator still needs to see what capacity exists before deciding to
+    // warm it, and 22 invisible claws is not "distinctly cold" (FR-009).
+    color: 0x7d8ea3,
+    emissive: 0x2c3a4a,
+    emissiveIntensity: 0.5,
+    lightness: 0.5,
+    scale: 0.74,
     pulse: 0.0,
     label: 'Never started — inert by design',
   },
   FAULT: {
     shape: 'ring',        // a broken outline, unmistakable at any zoom
-    color: 0xff5d5d,
-    emissive: 0x8b1a1a,
-    lightness: 0.66,
-    scale: 1.06,          // FR-009b: most salient state after HOT
+    color: 0xff7a7a,
+    emissive: 0xd32f2f,
+    emissiveIntensity: 2.1,
+    lightness: 0.74,
+    scale: 1.14,          // FR-009b: most salient state after HOT
     pulse: 0.22,          // urgent, faster and deeper than HOT's breathing
     label: 'Was reachable, now unreachable',
   },
@@ -103,9 +110,9 @@ export function buildNodes(layoutNodes, makeLabel) {
     const material = new THREE.MeshStandardMaterial({
       color,
       emissive: isStructural ? 0x102030 : treatment.emissive,
-      emissiveIntensity: node.health === 'FAULT' ? 1.5 : 0.85,
-      roughness: node.health === 'COLD' ? 0.95 : 0.35,
-      metalness: node.health === 'COLD' ? 0.05 : 0.45,
+      emissiveIntensity: isStructural ? 1.1 : (treatment.emissiveIntensity ?? 1.0),
+      roughness: node.health === 'COLD' ? 0.8 : 0.28,
+      metalness: node.health === 'COLD' ? 0.1 : 0.5,
     });
     materials.push(material);
 
@@ -139,10 +146,10 @@ export function buildNodes(layoutNodes, makeLabel) {
 }
 
 function colorForStructural(node) {
-  if (node.kind === 'border') return 0xffc857;
-  if (node.severed) return 0x6b3f3f;
-  if (node.channelState === 'unreachable' || node.channelState === 'reconnecting') return 0x5b7fa6;
-  return 0x65c3ff;
+  if (node.kind === 'border') return 0xffd97a;
+  if (node.severed) return 0xa85c5c;
+  if (node.channelState === 'unreachable' || node.channelState === 'reconnecting') return 0x86a9cc;
+  return 0x8ad6ff;
 }
 
 /**
@@ -192,7 +199,7 @@ export function applyHighlight(entries, matches, searching) {
     const hit = !searching || matches(e.node);
     e.material.opacity = hit ? 1 : 0.18;
     e.material.transparent = !hit;
-    e.material.emissiveIntensity = hit ? (e.node.health === 'FAULT' ? 1.5 : 0.85) : 0.05;
+    e.material.emissiveIntensity = hit ? (TREATMENTS[e.node.health]?.emissiveIntensity ?? 1.0) : 0.08;
     if (e.label?.element) e.label.element.style.opacity = hit ? '1' : '0.2';
   }
 }

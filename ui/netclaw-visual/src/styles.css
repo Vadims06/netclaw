@@ -1249,3 +1249,21 @@ input {
   color: #fff; font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
   border-radius: 0 0 6px 6px; pointer-events: none;
 }
+
+/* Tool overlay revealed on click (FR-020..025). Overlays rather than claiming
+   layout space, so expanding never reflows a sibling (FR-022). */
+.tool-header {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  color: #cfe6ff; background: rgba(8, 16, 28, 0.92);
+  border: 1px solid rgba(120, 190, 255, 0.45); border-radius: 4px;
+  padding: 2px 8px; white-space: nowrap; pointer-events: none;
+}
+.tool-item {
+  font-size: 10px; color: #a9c8e8; background: rgba(8, 16, 28, 0.85);
+  border-left: 2px solid rgba(120, 190, 255, 0.5);
+  padding: 1px 7px; white-space: nowrap; pointer-events: none;
+}
+/* Cold claws expand too — what a cold claw would bring is what decides
+   whether to warm it (FR-025). */
+.tool-item-cold { color: #8fa3b8; border-left-color: rgba(125, 142, 163, 0.55); }
+.tool-more { font-style: italic; color: #7d94ad; }
