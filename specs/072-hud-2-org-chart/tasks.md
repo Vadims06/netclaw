@@ -73,7 +73,7 @@ covered without a browser or GPU.
 - [ ] T020 [US1] Wire the org chart into `ui/netclaw-visual/src/main.js`: consume `orgchart/` output, place Border on the centre line, peers north, members south (FR-003, FR-004, FR-005)
 - [ ] T021 [US1] Add the health-state legend to `ui/netclaw-visual/index.html` (FR-009c)
 - [ ] T022 [US1] Render empty bands with per-band CTAs and keep loading distinct from empty in `ui/netclaw-visual/src/orgchart-render/bands.js`; remove the `role !== 'border'` early return (FR-033, FR-033a, FR-033b, FR-033d)
-- [ ] T023 [US1] Verify all fixtures in `specs/072-hud-2-org-chart/fixtures/` render via `?fixture=` — no overlap, no blank labels, bands always present
+- [ ] T023 [US1] Verify all fixtures in `specs/072-hud-2-org-chart/fixtures/` render via `?fixture=` — no overlap, no blank labels, bands always present (SC-004, SC-012)
 
 **Checkpoint**: MVP. The org chart renders and is readable. Orbit code still
 present but unused — deliberately, so the branch is never in a state with
@@ -104,7 +104,7 @@ neither layout working.
 
 - [ ] T028 [US3] Wire picking so click/tap invokes the existing `setDetail(kind, payload, related)` unchanged in `ui/netclaw-visual/src/main.js` (FR-017, FR-020a, US3 AC1)
 - [ ] T029 [US3] Implement the always-visible expand affordance (chevron/`+`), separate from the click that selects, in `ui/netclaw-visual/src/orgchart-render/expansion.js` (FR-020, FR-020a, FR-020b)
-- [ ] T030 [US3] Render an expanded member's tools from `member.skills[]` in `ui/netclaw-visual/src/orgchart-render/expansion.js`, with no new API call (FR-021)
+- [ ] T030 [US3] Render an expanded member's tools from `member.skills[]` in `ui/netclaw-visual/src/orgchart-render/expansion.js`, with no new API call (FR-021, FR-030a, SC-008)
 - [ ] T031 [US3] Guarantee expansion never reflows siblings in `ui/netclaw-visual/src/orgchart-render/expansion.js` — reserve or overlay space, never re-pack (FR-022)
 - [ ] T032 [P] [US3] Support simultaneous expansion of multiple members in `ui/netclaw-visual/src/orgchart-render/expansion.js` (FR-023)
 - [ ] T033 [P] [US3] Show tool count on collapsed nodes in `ui/netclaw-visual/src/orgchart-render/nodes.js` (FR-024)
@@ -135,10 +135,10 @@ Spans all three stories, so it follows them rather than sitting inside one.
 **⚠️ Deliberately last.** Deleting before Phases 3–6 land would leave the branch
 with neither layout functioning.
 
-- [ ] T042 Delete orbit positioning from `ui/netclaw-visual/src/main.js`: `CORE_POSITIONS`, `CORE_CENTROID`, `RISK_LAYOUT.tierRadius`, per-core orbit animation, and the edge close-orbit slots (FR-027)
+- [ ] T042 Delete orbit positioning (completing the FR-026 hard replace) from `ui/netclaw-visual/src/main.js`: `CORE_POSITIONS`, `CORE_CENTROID`, `RISK_LAYOUT.tierRadius`, per-core orbit animation, and the edge close-orbit slots (FR-027)
 - [ ] T043 **Verify FR-030d before deleting anything in T044** — confirm which fields of `state.integrations` / `state.devices` `renderSidebar` and `renderMetrics` still read; keep `fetchGraph()` and the `/api/graph` request alive (R5)
 - [ ] T044 Delete the scene-layer functions `buildIntegrations`, `buildDevices`, `createSkillSprites`, `computeDendritePositions`, `createDendriteMaterial`, `lightIntegration`, `lightDevice`, and the integration/device branches of `applyFilters`, from `ui/netclaw-visual/src/main.js` (FR-030, FR-030c)
-- [ ] T045 Confirm `renderSidebar`, `renderMetrics` and every renderer named in FR-018 still work after T044, in `ui/netclaw-visual/src/main.js` (FR-030d)
+- [ ] T045 Confirm `renderSidebar`, `renderMetrics` and every renderer named in FR-018 still work after T044, **and that devices remain listed in the right-hand panel**, in `ui/netclaw-visual/src/main.js` (FR-030b, FR-030d)
 - [ ] T046 Confirm no orbit or integration/device scene code remains: `git grep` for the removed identifiers returns nothing outside history
 
 > **T043 is the single highest-risk task in the feature.** It is the one realistic
@@ -151,12 +151,13 @@ with neither layout functioning.
 
 - [ ] T047 [P] Update `ui/netclaw-visual/README.md` — new layout, health states, keyboard model, fixture usage (Constitution XI, XII)
 - [ ] T048 [P] Confirm SC-006: `git grep` over `ui/netclaw-visual/src/orgchart/` finds no hardcoded member name
-- [ ] T049 Verify SC-005 — `ui/netclaw-visual/src/panels/` and the chat surface behave identically to `main`, by diffing behaviour rather than eyeballing
+- [ ] T049 Verify SC-005 / SC-008 — `ui/netclaw-visual/src/panels/` and the chat surface behave identically to `main`, by diffing behaviour rather than eyeballing (FR-016, FR-017, FR-018)
 - [ ] T050 Verify SC-007 / SC-010 via `chrome-devtools-mcp` — four states separable in a greyscale screenshot, and again under emulated `prefers-reduced-motion`
 - [ ] T051 Verify SC-007a using `specs/072-hud-2-org-chart/fixtures/scale-100.json` — one FAULT among 25 COLD located in under 5 s
 - [ ] T052 Verify SC-009 against `specs/072-hud-2-org-chart/fixtures/live-29.json` — every node reachable and operable by keyboard alone
 - [ ] T053 Verify SC-011 against the live Border — node coordinates identical between first frame and 30 minutes of state churn
 - [ ] T054 Verify SC-013 — 60 fps on `scale-100.json` with 5 expanded during pan/zoom, and no slower than HUD 1.0 on `live-29.json` (FR-029b, FR-029c)
+- [ ] T056 Verify SC-003 against `specs/072-hud-2-org-chart/fixtures/live-29.json` — no drag, scroll or keyboard input can produce a view with the external band below the internal band (FR-012)
 - [ ] T055 Verify SC-001 / SC-002 — external vs internal identified on first view; HOT members identifiable within 2 s
 
 ---
@@ -219,5 +220,5 @@ lands before building on it), and after T045 (the riskiest deletion verified).
 
 ---
 
-**Total: 55 tasks** — Setup 4 · Foundational 10 · US1 9 · US2 4 · US3 10 ·
-A11y 4 · Removal 5 · Polish 9
+**Total: 56 tasks** — Setup 4 · Foundational 10 · US1 9 · US2 4 · US3 10 ·
+A11y 4 · Removal 5 · Polish 10

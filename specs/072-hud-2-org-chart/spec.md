@@ -96,6 +96,19 @@ The Border reads as the centre of a vertical stack and as the root of the
 internal chart at the same time — external above the boundary, internal below,
 edges in their own lane at the boundary line.
 
+## Glossary
+
+Three terms are used for overlapping concepts across these artifacts. They are
+not interchangeable:
+
+| Term | Means | Used in |
+|---|---|---|
+| **member** | The data entity from `/api/n2n` `members[]` | Data model, pure logic, requirements |
+| **claw** | The user-facing name for a NetClaw agent (member or peer) | Prose, UI copy, user stories |
+| **node** | A rendered object in the scene — the visual of a member, peer, Border or edge | Render layer, layout maths |
+
+A member is data; a claw is what the operator calls it; a node is what gets drawn.
+
 ## Clarifications
 
 ### Session 2026-07-27
@@ -447,7 +460,7 @@ jump or reframe.
 - **FR-034b**: A member that enrols mid-session MUST be appended within its
   category without displacing existing nodes, preserving the incremental
   behaviour `refreshRiskMembers()` already provides.
-- **FR-034c**: A manual re-sort/re-layout control MAY be offered, so an operator
+- **FR-034c**: *(Optional — MAY; no task required.)* A manual re-sort/re-layout control MAY be offered, so an operator
   can opt into re-ranking after a lot of state churn. If offered it MUST be
   explicit and operator-initiated, never automatic.
 - **FR-034d**: A full page reload re-computes order from current heat. Position
@@ -467,8 +480,13 @@ jump or reframe.
 - **FR-033b**: `buildRiskMembers()` currently early-returns unless
   `risk.role === 'border'`. Under FR-033 a non-Border install MUST still render
   the structure rather than an empty scene.
-- **FR-033c**: A synthetic/demo topology MUST NOT be rendered. In a security
-  tool, a fabricated claw that could be mistaken for a real one is a hazard.
+- **FR-033c**: A synthetic/demo topology MUST NOT be rendered **as a substitute
+  for real data, or without the operator explicitly asking for it**. In a
+  security tool, a fabricated claw that could be mistaken for a real one is a
+  hazard. This prohibits filling an empty first-run chart with example claws; it
+  does **not** prohibit the explicit, opt-in `?fixture=` developer loader
+  (tasks T004), which renders only when deliberately requested and never in
+  place of a live feed. Any fixture-sourced view MUST be visibly marked as such.
 - **FR-033d**: Loading MUST be distinguishable from empty. The existing
   `setLoading(progress, text)` path MUST cover the interval before the first
   `/api/n2n` response, so a slow poll never looks like an unfederated install.
@@ -491,8 +509,8 @@ jump or reframe.
   so when motion is suppressed the remaining channels (form, colour
   temperature) MUST still satisfy SC-007 on their own. Reduced motion must not
   collapse the health encoding.
-- **FR-032d**: Full WCAG 2.1 AA conformance is explicitly OUT of scope for this
-  feature.
+- **FR-032d**: *(Scope exclusion — no implementation task.)* Full WCAG 2.1 AA
+  conformance is explicitly OUT of scope for this feature.
 
 ### Search and navigation
 
@@ -593,7 +611,7 @@ jump or reframe.
 - **SC-002**: The HOT members are identifiable within 2 seconds of load,
   without counting or zooming (4 of 29 on the reference deployment).
 - **SC-003**: No camera input can produce a view in which the external band is
-  not above the internal band.
+  not above the internal band. *(Verified by task T056.)*
 - **SC-004**: All 29 members, 4 peers, and 2 edge nodes render without label
   collision or node overlap at default zoom.
 - **SC-005**: Chat and the right-hand panel behave identically to HUD 1.0 —

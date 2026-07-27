@@ -113,6 +113,7 @@ specs/072-hud-2-org-chart/
 
 ```text
 ui/netclaw-visual/
+├── package.json                 # +"test" script only (research R2)
 ├── server.js                    # UNCHANGED (FR-019; see violation note above)
 ├── index.html                   # #search retargeted (FR-031); legend added (FR-009c)
 └── src/
