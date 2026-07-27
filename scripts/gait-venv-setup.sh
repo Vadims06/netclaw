@@ -52,5 +52,23 @@ echo ""
 echo "Verifying..."
 "${GAIT_VENV}/bin/python" -c "import gait, mcp, fastmcp; print('  gait   :', gait.__file__)"
 
+# The venv only covers callers that go through scripts/gait-stdio.py. Some
+# long-running servers import gait *directly* in-process and cannot re-exec:
+#   mcp-servers/memory-mcp/memory_mcp_server.py  (gait_log)
+#   mcp-servers/rag-mcp/rag_mcp_server.py        (gait_log)
+# Both wrap the import in `except Exception: pass`, so a missing gait makes
+# their audit logging a silent no-op rather than an error. Ensure the default
+# interpreter can import it too.
+echo ""
+if "${PYTHON_BIN}" -c "import gait" 2>/dev/null; then
+    echo "Direct importers: ${PYTHON_BIN} can already import gait."
+else
+    echo "Installing gait-ai for ${PYTHON_BIN} (direct in-process importers)..."
+    "${PYTHON_BIN}" -m pip install --user --break-system-packages -q gait-ai \
+        || echo "  WARNING: could not install gait-ai for ${PYTHON_BIN};" \
+                "memory-mcp and rag-mcp audit logging will silently no-op."
+    "${PYTHON_BIN}" -c "import gait; print('  ok:', gait.__file__)" 2>/dev/null || true
+fi
+
 echo ""
 echo "GAIT venv ready. scripts/gait-stdio.py will re-exec into it as needed."
