@@ -123,6 +123,36 @@ edges in their own lane at the boundary line.
 - Q: Should a member's tools be visible? → A: Yes, via per-node expand/collapse
   (FR-020).
 
+### Session 2026-07-27 (clarify, pass 2)
+
+- Q: FR-020 (expand tools) and US3/AC1 (click selects → detail panel) both claim
+  the click. Which gesture does what? → A: **Click = select** (invokes
+  `setDetail`, panel unchanged); **expand is a dedicated affordance** on the
+  node (chevron/`+`). Two independent, separately discoverable actions. See
+  FR-020a.
+
+- Q: What accessibility scope does HUD 2.0 carry? → A: **Keyboard + screen
+  reader via a DOM overlay** — every node focusable and labelled, arrow/tab
+  traversal, Enter selects, expand affordance reachable. Reuses the existing
+  CSS2D layer. Full WCAG AA conformance is out of scope. See FR-032.
+
+- Q: FR-029b's "interactive frame rate on the reference machine" is undefined.
+  What is the target? → A: **60 fps sustained on a discrete GPU** at the FR-029
+  ceiling. A relative regression guard (never slower than HUD 1.0 on identical
+  data) applies alongside it. See FR-029b/029c.
+
+- Q: A fresh install has no risk, no members and no peers — and FR-030 removes
+  the integration/device populations. What does a first-run HUD 2.0 render?
+  → A: **Structure always visible.** Bands and the trust boundary render even
+  when empty, each with an empty state and a short CTA. See FR-033.
+
+- Q: FR-006b orders categories by heat, but the HUD polls continuously — so a
+  claw changing state would re-rank its category and re-pack the whole chart,
+  contradicting the spatial-memory principle behind FR-022/FR-031a. Live
+  re-sort or stable order? → A: **Stable within session.** Order is computed
+  once at load; live updates change appearance only. See FR-006b (amended) and
+  FR-034.
+
 ### Session 2026-07-27 (clarify)
 
 - Q: Migration strategy — hard replace the orbit layout, coexist behind a view
@@ -295,11 +325,14 @@ jump or reframe.
 
 - **FR-006b**: The layout MUST adapt to however many categories a deployment
   yields — 1 to N — with column packing and wrapping. It MUST NOT assume a
-  fixed set. Categories MUST be ordered **by heat first, then by size**: groups
-  containing live members lead, so the handful of hot claws are always the most
-  prominent thing on screen regardless of how many cold categories exist. On
+  fixed set. Categories are ordered **by heat first, then by size**, so the
+  handful of hot claws lead regardless of how many cold categories exist. On
   this deployment that places Labs, Device Automation, Visualization and
   Uncategorised (the 4 hot groups) ahead of 18 cold ones.
+
+  **This ordering is computed once per session, at load — never live.** See
+  FR-034; heat ordering helps on arrival, when the operator has no spatial
+  memory yet, and works against them afterwards.
 - **FR-007**: Mobile edge nodes MUST render in a dedicated lane flanking the
   Border — inside the trust boundary, outside the member chart — and MUST NOT be
   interleaved with member claws.
@@ -356,6 +389,15 @@ jump or reframe.
 - **FR-020**: Every member node MUST support expand/collapse to reveal the tools
   (skills) it holds. Collapsed is the default; the chart must be readable as a
   chart before anything is expanded.
+- **FR-020a**: Expand and select MUST be **separate gestures**. Click (and tap)
+  selects the node and invokes `setDetail()` — unchanged from HUD 1.0.
+  Expansion MUST be driven by a dedicated affordance rendered on the node
+  (chevron / `+`), never by the click that selects. Consequences:
+  inspecting a claw MUST NOT reflow the chart, and expanding one MUST NOT
+  change what the right-hand panel is showing.
+- **FR-020b**: The expand affordance MUST be visible without hover, so the
+  capability is discoverable on first sight and usable on touch. Hover-only
+  affordances are not acceptable at the FR-029 node count.
 - **FR-021**: An expanded member MUST show its skills from the existing
   `member.skills[]` payload — no new API call and no server change. Members
   already carry both `skills[]` and `specialty_count`.
@@ -391,6 +433,66 @@ jump or reframe.
   `renderFederationSection`, `renderEdgeNodes`, `renderPostureBadge`,
   `renderGaitTrail`, `renderChannelSecurity`, `renderReplicationJobs`,
   `renderRecentPushes` — MUST continue to work against the same data.
+
+### Layout stability
+
+- **FR-034**: Node and category positions MUST be **stable for the lifetime of a
+  session**. Position is assigned once, on first layout, and MUST NOT change in
+  response to polled state.
+- **FR-034a**: Live updates MUST change **appearance only** — health state,
+  links, badges, counts. A claw that fails MUST change how it looks, never
+  where it is. This is the same principle FR-022 (expansion must not reflow)
+  and FR-031a (search dims rather than hides) already enforce; live re-sorting
+  would violate it more severely than either, because it happens unprompted.
+- **FR-034b**: A member that enrols mid-session MUST be appended within its
+  category without displacing existing nodes, preserving the incremental
+  behaviour `refreshRiskMembers()` already provides.
+- **FR-034c**: A manual re-sort/re-layout control MAY be offered, so an operator
+  can opt into re-ranking after a lot of state churn. If offered it MUST be
+  explicit and operator-initiated, never automatic.
+- **FR-034d**: A full page reload re-computes order from current heat. Position
+  stability is a within-session guarantee, not a persisted one.
+
+### Empty and first-run states
+
+- **FR-033**: The three bands and the trust boundary MUST render even when
+  empty. A NetClaw with no risk, no members and no peers is the **normal first
+  state for a new operator**, not an edge case, and with FR-030 removing the
+  integration and device populations there is nothing else left to draw.
+- **FR-033a**: Each empty band MUST carry its own empty state naming what
+  belongs there and the action that populates it (no federated peers / no
+  members enrolled / no devices paired). The empty chart is the primary
+  explanation of NetClaw's trust model for a first-time user, so it MUST read
+  as "nothing here yet", never as a failure.
+- **FR-033b**: `buildRiskMembers()` currently early-returns unless
+  `risk.role === 'border'`. Under FR-033 a non-Border install MUST still render
+  the structure rather than an empty scene.
+- **FR-033c**: A synthetic/demo topology MUST NOT be rendered. In a security
+  tool, a fabricated claw that could be mistaken for a real one is a hazard.
+- **FR-033d**: Loading MUST be distinguishable from empty. The existing
+  `setLoading(progress, text)` path MUST cover the interval before the first
+  `/api/n2n` response, so a slow poll never looks like an unfederated install.
+
+### Accessibility
+
+- **FR-032**: Every interactive node (peer, Border, member, edge) MUST be
+  reachable and operable without a pointer. A WebGL canvas exposes no focusable
+  elements, so the chart MUST carry a DOM overlay of focusable, labelled
+  elements positioned over the canvas — the standard technique, and the same
+  mechanism `CSS2DRenderer` already provides for labels.
+- **FR-032a**: Keyboard model: Tab moves between bands/categories, arrow keys
+  move between siblings within one, Enter selects (equivalent to click,
+  FR-020a), and the expand affordance is separately reachable.
+- **FR-032b**: Each focusable node MUST expose an accessible name and its health
+  state as text, so a screen-reader user receives what FR-008's visual encoding
+  conveys. State MUST NOT be communicated by colour or motion alone.
+- **FR-032c**: `prefers-reduced-motion` MUST be honoured. **This interacts with
+  FR-009a**: motion is one of the channels distinguishing HOT/WARM/COLD/FAULT,
+  so when motion is suppressed the remaining channels (form, colour
+  temperature) MUST still satisfy SC-007 on their own. Reduced motion must not
+  collapse the health encoding.
+- **FR-032d**: Full WCAG 2.1 AA conformance is explicitly OUT of scope for this
+  feature.
 
 ### Search and navigation
 
@@ -439,11 +541,22 @@ jump or reframe.
 - **FR-029a**: Node geometry SHOULD be instanced or otherwise shared so member
   count drives draw calls sub-linearly. At 100 members with tools expanded, the
   scene must not require per-node unique geometry.
-- **FR-029b**: The chart MUST hold an interactive frame rate at the FR-029
-  ceiling on the reference machine. If the existing postprocessing chain
-  (bloom/SMAA/afterimage) cannot sustain that with 100 nodes plus expanded
-  tools, the postprocessing MUST be reduced rather than the node count capped —
-  legibility of the chart outranks the glow.
+- **FR-029b**: The chart MUST sustain **60 fps on a discrete GPU** at the
+  FR-029 ceiling (100 members, ~25 categories, 5 members expanded) during pan
+  and zoom. If the existing postprocessing chain (bloom/SMAA/afterimage) cannot
+  hold that, the postprocessing MUST be reduced rather than the node count
+  capped — legibility of the chart outranks the glow.
+- **FR-029c**: Regression guard, independent of FR-029b: HUD 2.0 MUST NOT be
+  slower than HUD 1.0 on identical data. It draws strictly less (FR-030 removes
+  the integration and device populations entirely), so any slowdown indicates a
+  defect in the new layout rather than an inherent cost.
+
+  > **Known gap, accepted:** the target is specified against a discrete GPU, so
+  > behaviour on integrated graphics — the likelier deployment for an operator
+  > laptop — is unspecified and untested by FR-029b. FR-029c partially covers
+  > this by preventing regression against HUD 1.0 on whatever hardware is used.
+  > If integrated-graphics performance later proves inadequate, the remedy is
+  > the FR-029b fallback (reduce postprocessing), not a redesign.
 
 ### Migration
 
@@ -496,6 +609,19 @@ jump or reframe.
   operator in under 5 seconds, without search.
 - **SC-008**: An operator can determine which tools a given claw holds, hot or
   cold, without leaving the chart or opening the detail panel.
+- **SC-009**: The entire chart is operable with a keyboard alone — every node
+  reachable, selectable, and expandable — and each node's health state is
+  announced as text by a screen reader (FR-032).
+- **SC-010**: With `prefers-reduced-motion` set, all four health states remain
+  distinguishable, and SC-007's greyscale test still passes (FR-032c).
+- **SC-011**: Over a 30-minute session in which members change state, no node
+  changes position. Verified by comparing node coordinates between the first
+  frame and the last (FR-034).
+- **SC-012**: A NetClaw with no risk, no members and no peers renders the full
+  band structure with empty states, and is never mistaken for a failed load —
+  loading and empty are visually distinct (FR-033).
+- **SC-013**: HUD 2.0 sustains 60 fps on a discrete GPU at 100 members with 5
+  expanded, and is no slower than HUD 1.0 on identical data (FR-029b/029c).
 
 ## Assumptions
 
