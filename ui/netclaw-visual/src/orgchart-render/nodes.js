@@ -33,7 +33,7 @@ export const TREATMENTS = {
   },
   WARM: {
     shape: 'rounded',
-    color: 0x8fc7ff,
+    color: 0x86bdf5,
     emissive: 0x2f6da8,
     emissiveIntensity: 1.0,
     lightness: 0.68,
@@ -43,10 +43,14 @@ export const TREATMENTS = {
   },
   COLD: {
     shape: 'flat',        // a disc reads as inert next to a lit sphere
-    // Lifted from near-black: cold must read as INERT, not as absent. An
-    // operator still needs to see what capacity exists before deciding to
-    // warm it, and 22 invisible claws is not "distinctly cold" (FR-009).
-    color: 0x7d8ea3,
+    // Lifted well off near-black (was 0x3a4654, luminance ~66): cold must read
+    // as INERT, not as absent — an operator has to see what capacity exists
+    // before deciding to warm it. But NOT as bright as the first attempt
+    // (0x7d8ea3, luminance 140), which landed within 10 luminance of FAULT and
+    // made the two indistinguishable in greyscale. treatments.test.js caught
+    // that. Luminance 107: clearly present, clearly dimmer than HOT, and 43
+    // clear of FAULT.
+    color: 0x5f6d80,
     emissive: 0x2c3a4a,
     emissiveIntensity: 0.5,
     lightness: 0.5,

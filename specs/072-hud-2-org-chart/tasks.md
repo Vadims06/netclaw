@@ -152,11 +152,11 @@ with neither layout functioning.
 - [x] T047 [P] Update `ui/netclaw-visual/README.md` — new layout, health states, keyboard model, fixture usage (Constitution XI, XII)
 - [x] T048 [P] Confirm SC-006: `git grep` over `ui/netclaw-visual/src/orgchart/` finds no hardcoded member name
 - [x] T049 Verify SC-005 / SC-008 — `ui/netclaw-visual/src/panels/` and the chat surface behave identically to `main`, by diffing behaviour rather than eyeballing (FR-016, FR-017, FR-018)
-- [ ] T050 Verify SC-007 / SC-010 via `chrome-devtools-mcp` — four states separable in a greyscale screenshot, and again under emulated `prefers-reduced-motion`
-- [ ] T051 Verify SC-007a using `specs/072-hud-2-org-chart/fixtures/scale-100.json` — one FAULT among 25 COLD located in under 5 s
-- [ ] T052 Verify SC-009 against `specs/072-hud-2-org-chart/fixtures/live-29.json` — every node reachable and operable by keyboard alone
+- [x] T050 Verify SC-007 / SC-010 via `chrome-devtools-mcp` — four states separable in a greyscale screenshot, and again under emulated `prefers-reduced-motion`
+- [x] T051 Verify SC-007a using `specs/072-hud-2-org-chart/fixtures/scale-100.json` — one FAULT among 25 COLD located in under 5 s
+- [x] T052 Verify SC-009 against `specs/072-hud-2-org-chart/fixtures/live-29.json` — every node reachable and operable by keyboard alone
 - [x] T053 Verify SC-011 against the live Border — node coordinates identical between first frame and 30 minutes of state churn
-- [ ] T054 Verify SC-013 — 60 fps on `scale-100.json` with 5 expanded during pan/zoom, and no slower than HUD 1.0 on `live-29.json` (FR-029b, FR-029c)
+- [ ] T054 Verify SC-013 — 60 fps on `scale-100.json` with 5 expanded during pan/zoom, and no slower than HUD 1.0 on `live-29.json` (FR-029b, FR-029c)  **[BLOCKED: needs a discrete GPU — headless runs on swiftshader at 3 fps, which measures the software rasteriser, not the FR-029b target]**
 - [x] T056 Verify SC-003 against `specs/072-hud-2-org-chart/fixtures/live-29.json` — no drag, scroll or keyboard input can produce a view with the external band below the internal band (FR-012)
 - [x] T055 Verify SC-001 / SC-002 — external vs internal identified on first view; HOT members identifiable within 2 s
 
