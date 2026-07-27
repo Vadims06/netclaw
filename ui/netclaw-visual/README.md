@@ -16,7 +16,8 @@ A Three.js 3D network operations dashboard for [NetClaw](https://github.com/auto
 4. [Peer with Other NetClaws (Optional)](#4-peer-with-other-netclaws-optional)
 5. [Start the Visual HUD](#5-start-the-visual-hud)
 6. [Using the HUD](#6-using-the-hud)
-7. [Architecture](#architecture)
+7. [Reading the Org Chart](#7-reading-the-org-chart)
+8. [Architecture](#architecture)
 8. [API Reference](#api-reference)
 9. [Troubleshooting](#troubleshooting)
 
@@ -362,6 +363,96 @@ The detail panel below shows context for the selected node:
 - **Gateway** — gateway connection status
 - **Socket** — WebSocket connection state (CONNECTED / RECONNECTING)
 - **Updated** — timestamp of last data refresh
+
+---
+
+## 7. Reading the Org Chart
+
+The HUD renders your NetClaw's **trust topology** as a top-down org chart. It
+replaced an orbiting-cores scene in feature 072; the layout is planar and the
+camera cannot rotate, because "external vs internal" only reads if the layout
+and the viewer agree on which way is up.
+
+### The three bands
+
+```
+  ══════ EXTERNAL — eN2N peers ══════      above the boundary: other orgs
+  ─────── TRUST BOUNDARY ────────────      drawn explicitly, not implied
+        [ BORDER ]   ╌╌► [ edges ]         you, plus mobile devices
+  ─────── INTERNAL — iN2N members ────      your own claws, by category
+```
+
+Peers north of the boundary are **outside your organisation**. The Border is
+you. Member claws fan out below, grouped into categories. Mobile edge devices
+get their own lane beside the Border — inside the boundary, but not part of the
+member chart, because a phone receives pushes rather than serving delegations.
+
+### Claw health — four states
+
+| | State | Meaning |
+|---|---|---|
+| ● | **Hot** | Running now |
+| ◆ | **Warm** | Seen within 15 minutes; idle, not a fault |
+| ▬ | **Cold** | Never started — inert **by design**, entirely normal |
+| ◻ | **Fault** | Was reachable, no longer is — needs attention |
+
+Cold and Fault are deliberately kept apart. Most claws are cold on purpose
+(on-demand), so merging the two would bury a genuine fault inside a crowd of
+healthy-but-idle ones. Fault is the most prominent state after Hot for exactly
+that reason.
+
+States differ in **shape, colour and motion at once**, never opacity alone, so
+the encoding survives a greyscale screenshot and `prefers-reduced-motion`.
+
+### Categories are derived, not configured
+
+A member's category comes from the skills it holds, matched against the shipped
+integration catalog (`server.js`, ~70 integrations across 22 categories). No
+member names are hardcoded anywhere, so the chart works on a deployment it has
+never seen. A claw whose skills match nothing lands in **Uncategorised** rather
+than being dropped.
+
+Categories are ordered by heat, then size — but **only once, at load**. Live
+updates repaint; they never move anything. A claw that fails changes how it
+looks, never where it is.
+
+### Interacting
+
+| Action | Result |
+|---|---|
+| **Click a claw** | Opens its detail panel *and* reveals its tools |
+| **Drag** | Pans. Rotation is disabled by design |
+| **Scroll** | Zooms |
+| **Search** | Matches claws, categories and tool names — highlights in place, never hides or re-packs |
+| **Tab / arrows** | Moves between and within bands |
+| **Enter** | Selects |
+| **`e`** | Expands tools without selecting |
+
+Cold claws expand too: what a cold claw *would* bring is exactly what tells you
+whether to warm it.
+
+### Development
+
+```bash
+npm test                       # pure layout logic — no browser, no GPU
+npm run dev                    # API :3001 + vite :3000
+```
+
+Load a fixture instead of live data — useful for an empty first-run view or the
+100-member ceiling:
+
+```
+http://localhost:3000/?fixture=empty
+http://localhost:3000/?fixture=scale-100
+```
+
+Fixtures live in `specs/072-hud-2-org-chart/fixtures/` and always render a
+banner, so synthetic data can never be mistaken for your real Border.
+
+Layout logic under `src/orgchart/` is pure — it imports nothing from three.js
+and holds no DOM references, which is what lets it be unit tested. Rendering
+lives in `src/orgchart-render/` and consumes that output without re-deriving it.
+Keep that boundary; the test suite runs in bare Node and will fail if it breaks.
 
 ---
 

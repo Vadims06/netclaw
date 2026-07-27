@@ -127,11 +127,19 @@ export function buildNodes(layoutNodes, makeLabel) {
     if (node.kind === 'member' && node.toolCount > 0) text += `  ·${node.toolCount}`;
     if (node.kind === 'edge' && node.heartbeatAgeS != null) text += `  ${formatAge(node.heartbeatAgeS)}`;
 
+    // The label is a sibling of the mesh, NOT a child. Parenting it to the mesh
+    // made it inherit the pulse scale, so every HOT and FAULT label drifted a
+    // few pixels each frame — caught by SC-011, which requires positions to be
+    // stable. Anchoring in world space decouples the label from the animation.
     const label = makeLabel(text);
-    label.position.set(0, -(scale * 1.6 + 1.4), 0);
-    mesh.add(label);
+    label.position.set(
+      node.position.x,
+      node.position.y - (scale * 1.6 + 1.4),
+      node.position.z,
+    );
 
     group.add(mesh);
+    group.add(label);
     entries.push({ node, mesh, material, label, baseScale: scale, pulse: treatment.pulse });
   }
 

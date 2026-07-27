@@ -32,7 +32,8 @@ export function categoryHeat(members, nowEpochS) {
  * Rules, in order:
  *   1. `Uncategorised` always sorts last, whatever its heat. It is a residue
  *      bucket, not a peer of the real categories — even when it contains a hot
- *      member, which it does on the reference Border (`ipfabric`).
+ *      member — which happens whenever a live claw's skills match no
+ *      integration prefix.
  *   2. More HOT members first.
  *   3. Larger groups first.
  *   4. Name, ascending — the final tiebreak, so the result is deterministic.
