@@ -10,6 +10,17 @@ import { AfterimagePass } from 'three/addons/postprocessing/AfterimagePass.js';
 import { FilmPass } from 'three/addons/postprocessing/FilmPass.js';
 import { GlitchPass } from 'three/addons/postprocessing/GlitchPass.js';
 import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
+
+// ── HUD 2.0: top-down trust org chart (feature 072) ───────────────────────
+// The orbit layout is replaced by these; everything else in this file —
+// materials, ribbons, labels, picking, polling, panels — is preserved (FR-028).
+import {
+  mountOrgChart, updateOrgChart, searchOrgChart,
+  pickableObjects, chartNodes, tickOrgChart,
+} from './orgchart-render/index.js';
+import {
+  createChartCamera, createChartControls, resizeChartCamera, frameChart,
+} from './orgchart-render/camera.js';
 import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import gsap from 'gsap';
@@ -384,8 +395,12 @@ function initScene() {
   state.scene = new THREE.Scene();
   state.scene.fog = new THREE.FogExp2(0x040a14, 0.006);
 
-  state.camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 260);
-  state.camera.position.set(12, 55, 110);
+  // HUD 2.0 (FR-012/013): orthographic and rotation-locked. A perspective
+  // camera under free OrbitControls was the dominant cause of "hard to
+  // navigate" — hierarchy only reads if the layout and the viewer agree on
+  // which way is up. Ortho additionally renders equal-tier siblings at equal
+  // size, which is what makes a chart read as a chart.
+  state.camera = createChartCamera(window.innerWidth / window.innerHeight);
 
   state.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
   state.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -436,13 +451,9 @@ function initScene() {
   // 9. Output (sRGB tone mapping)
   state.composer.addPass(new OutputPass());
 
-  state.controls = new OrbitControls(state.camera, state.renderer.domElement);
-  state.controls.enableDamping = true;
-  state.controls.dampingFactor = 0.06;
-  state.controls.minDistance = 12;
-  state.controls.maxDistance = 180;
-  state.controls.maxPolarAngle = Math.PI * 0.48;
-  state.controls.target.set(CORE_CENTROID.x, CORE_CENTROID.y, CORE_CENTROID.z);
+  // Pan and zoom only — rotation is disabled so the bands can never invert
+  // (FR-012, SC-003).
+  state.controls = createChartControls(state.camera, state.renderer.domElement);
 
   // ── Enhanced lighting (Section E) ─────────────────────────────
   state.scene.add(new THREE.AmbientLight(0x4a7cb5, 0.35));
@@ -2769,6 +2780,11 @@ function animate() {
   const elapsed = state.clock.getElapsedTime();
   const frozen = !!state.selected;
 
+  // HUD 2.0 node pulses. Motion is a redundant channel (R8) — the four health
+  // states are already separable by form and colour — so honouring reduced
+  // motion simply skips it without weakening the encoding.
+  tickOrgChart(elapsed);
+
   // Track time offset for freeze: when frozen, hold rotations at the moment of freeze
   if (frozen && state._frozenAt == null) state._frozenAt = elapsed;
   if (!frozen) state._frozenAt = null;
@@ -2921,9 +2937,22 @@ function animate() {
   state.labels.render(state.scene, state.camera);
 }
 
+/**
+ * Banner for fixture mode (FR-033c). A synthetic topology must never be
+ * mistakable for live data — in a security tool a fabricated claw read as real
+ * is a hazard.
+ */
+function markFixtureMode(name) {
+  const el = document.createElement('div');
+  el.id = 'fixture-banner';
+  el.textContent = `FIXTURE: ${name} — synthetic data, not this Border`;
+  document.body.appendChild(el);
+}
+
 function onResize() {
-  state.camera.aspect = window.innerWidth / window.innerHeight;
-  state.camera.updateProjectionMatrix();
+  // Orthographic: no .aspect property — the frustum bounds must be recomputed
+  // instead, or a resize silently stretches the chart (FR-013).
+  resizeChartCamera(state.camera, window.innerWidth / window.innerHeight);
   state.renderer.setSize(window.innerWidth, window.innerHeight);
   state.labels.setSize(window.innerWidth, window.innerHeight);
   state.composer.setSize(window.innerWidth, window.innerHeight);
@@ -3003,6 +3032,11 @@ function wireUI() {
   dom.search.addEventListener('input', (event) => {
     state.filters.query = event.target.value;
     applyFilters();
+    // HUD 2.0 (FR-031/031a): match members, categories and tool names by
+    // highlighting and dimming IN PLACE. Never hides, never re-packs — hiding
+    // would re-flow the chart and destroy the spatial memory the layout exists
+    // to build.
+    searchOrgChart(event.target.value);
   });
 
   document.querySelectorAll('.segmented-btn').forEach((button) => {
@@ -3253,10 +3287,19 @@ async function boot() {
     } catch { state.bgp = null; }
 
     // N2N federation state (feature 052) — optional, degrades gracefully
+    // ?fixture=<name> substitutes a committed /api/n2n fixture for the live
+    // feed (T004). Client-side on purpose: server.js stays untouched, so no
+    // endpoint is added and the API surface never widens (FR-019). Opt-in
+    // only, and marked on screen — FR-033c forbids a synthetic topology
+    // appearing without the operator asking for it.
+    state.fixtureName = new URLSearchParams(location.search).get('fixture');
     try {
-      const n2nRes = await fetch('/api/n2n');
-      state.n2n = await n2nRes.json();
+      const url = state.fixtureName
+        ? `/fixtures/${state.fixtureName}.json`
+        : '/api/n2n';
+      state.n2n = await (await fetch(url)).json();
     } catch { state.n2n = null; }
+    if (state.fixtureName) markFixtureMode(state.fixtureName);
 
     setLoading(36, 'Spinning up scene');
     initScene();
@@ -3328,24 +3371,28 @@ async function boot() {
       buildPeerLinks();
     }
 
-    setLoading(58, 'Rendering integration lattice');
-    // 056: a Border orbits ONLY its broker skills — the domain integrations moved
-    // to their member spokes, so the Border is no longer the 190-skill monolith.
-    const BORDER_KEEP = new Set(['gait', 'protocol', 'n2n', 'memory', 'mempalace',
-      'humanrail', 'slack', 'webex', 'servicenow', 'pagerduty', 'twilio', 'twitter',
-      'msgraph', 'subnet-calculator', 'subnet', 'rfc', 'wikipedia', 'token-tracker']);
-    const _graphForBorder = (state.n2n?.risk?.role === 'border')
-      ? { ...state.graph, integrations: state.graph.integrations.filter((i) => BORDER_KEEP.has(i.id)) }
-      : state.graph;
-    buildIntegrations(_graphForBorder);
+    setLoading(58, 'Laying out the trust org chart');
+    // ── HUD 2.0 (feature 072) ────────────────────────────────────────────
+    // The orbit builders below are deliberately no longer called. They stay
+    // defined until Phase 7 deletes them, so this branch never sits in a state
+    // with neither layout working:
+    //   buildIntegrations()  buildRiskMembers()  buildDevices()
+    // The integration and device populations leave the scene entirely
+    // (FR-030): the HUD was drawing a capability catalogue and a managed
+    // estate on top of a trust topology. Integrations now surface as member
+    // tool expansion; devices remain in the right-hand panel (FR-030b).
+    //
+    // The category taxonomy arrives as DATA, not an import — /api/graph
+    // already serves integrations[] with category and prefixes, which is what
+    // keeps FR-006 vendor-neutral for every operator, not just this one.
+    state.orgCatalog = (state.graph?.integrations || [])
+      .filter((i) => i && i.category && Array.isArray(i.prefixes))
+      .map((i) => ({ id: i.id, category: i.category, prefixes: i.prefixes }));
 
-    // 056: iN2N risk — render member claws as spokes SOUTH of the Border, each
-    // with its own orbiting skills, colored by class (green member / red
-    // quarantined / dim cold). Additive + guarded: no-op for standalone claws.
-    buildRiskMembers();
+    state.orgLayout = mountOrgChart(state.scene, state.n2n, state.orgCatalog, makeLabel);
+    frameChart(state.camera, state.controls, chartNodes());
 
-    setLoading(72, 'Placing device ring');
-    buildDevices(state.graph);
+    setLoading(72, 'Placing bands');
 
     setLoading(78, 'Initializing activation beams');
     initBeamPool();
@@ -3382,7 +3429,10 @@ async function boot() {
       // A member (e.g. a phone) that enrolls after this page already loaded
       // never got a 3D spoke, since buildRiskMembers() only ran once at
       // boot -- add spokes for any newly-arrived members on every poll.
-      refreshRiskMembers();
+      // HUD 2.0: repaint health and append newly-enrolled members. Positions
+      // are never recomputed and categories are never re-ordered — a claw that
+      // fails changes how it looks, never where it is (FR-034a).
+      updateOrgChart(state.scene, state.n2n, makeLabel);
     }, 30000);
     animate();
 

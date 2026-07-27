@@ -23,10 +23,10 @@ Tests are written **with** each pure module, not after.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Add `"test": "node --test src/"` to `scripts` in `ui/netclaw-visual/package.json` (no new dependency — research R2)
-- [ ] T002 [P] Create directory `ui/netclaw-visual/src/orgchart/` for pure logic (must never import three.js)
-- [ ] T003 [P] Create directory `ui/netclaw-visual/src/orgchart-render/` for three.js rendering
-- [ ] T004 Add a **client-side** fixture loader in `ui/netclaw-visual/src/main.js`: `?fixture=<name>` fetches `specs/072-hud-2-org-chart/fixtures/<name>.json` instead of `/api/n2n`
+- [x] T001 Add `"test": "node --test src/"` to `scripts` in `ui/netclaw-visual/package.json` (no new dependency — research R2)
+- [x] T002 [P] Create directory `ui/netclaw-visual/src/orgchart/` for pure logic (must never import three.js)
+- [x] T003 [P] Create directory `ui/netclaw-visual/src/orgchart-render/` for three.js rendering
+- [x] T004 Add a **client-side** fixture loader in `ui/netclaw-visual/src/main.js`: `?fixture=<name>` fetches `specs/072-hud-2-org-chart/fixtures/<name>.json` instead of `/api/n2n`
 
 > **T004 note — resolves a conflict between plan.md and research.md.** research R4
 > said "the dev server gains a way to serve a fixture", but plan.md marks
@@ -43,16 +43,16 @@ Tests are written **with** each pure module, not after.
 `contracts/layout-contract.md`. Each imports nothing from three.js; each ships
 with its tests. All five are independent of one another → all `[P]`.
 
-- [ ] T005 [P] Implement `dedupePeers()` and `resolveLabel()` in `ui/netclaw-visual/src/orgchart/normalize.js` per the contract (FR-014, FR-015)
-- [ ] T006 [P] Write `ui/netclaw-visual/src/orgchart/normalize.test.js`: real duplicated-`Hermes` payload collapses to one peer in `severed`; both edge nodes with `display_name: null` resolve to non-empty labels
-- [ ] T007 [P] Implement `classifyHealth(member, nowEpochS)` and `WARM_THRESHOLD_S = 900` in `ui/netclaw-visual/src/orgchart/health.js`, precedence HOT → FAULT → WARM → COLD (FR-008, FR-008a)
-- [ ] T008 [P] Write `ui/netclaw-visual/src/orgchart/health.test.js`: all four states; exact 900 s boundary; `active` but `!live`; `unreachable` with fresh heartbeat still FAULT; **null heartbeat ⇒ COLD not FAULT** (highest-value assertion — conflating COLD and FAULT is the failure this design prevents)
-- [ ] T009 [P] Implement `categorizeMembers(members, integrationCatalog)` in `ui/netclaw-visual/src/orgchart/categorize.js`, catalog as an argument never an import (FR-006, FR-006a)
-- [ ] T010 [P] Write `ui/netclaw-visual/src/orgchart/categorize.test.js`: `live-29.json` yields 25 categorised; empty catalog ⇒ all `Uncategorised`; zero-skill member; **an alternate synthetic catalog produces a different correct chart** (proves Constitution VI vendor neutrality)
-- [ ] T011 [P] Implement `orderCategories()` in `ui/netclaw-visual/src/orgchart/ordering.js` — heat desc, size desc, name; `Uncategorised` always last (FR-006b)
-- [ ] T012 [P] Write `ui/netclaw-visual/src/orgchart/ordering.test.js`: hot before cold; equal heat falls to size; equal both falls to name; `Uncategorised` last even when it holds a HOT member (true of `ipfabric` in live data)
-- [ ] T013 Implement `computeLayout()` and `appendMember()` in `ui/netclaw-visual/src/orgchart/layout.js` — three bands + edge lane, category columns with wrap, positions assigned once (R6, FR-034)
-- [ ] T014 Write `ui/netclaw-visual/src/orgchart/layout.test.js` against all five fixtures: no two nodes share a position; `appendMember` leaves every prior coordinate byte-identical; edge nodes never get a member-column position; bands exist at zero members
+- [x] T005 [P] Implement `dedupePeers()` and `resolveLabel()` in `ui/netclaw-visual/src/orgchart/normalize.js` per the contract (FR-014, FR-015)
+- [x] T006 [P] Write `ui/netclaw-visual/src/orgchart/normalize.test.js`: real duplicated-`Hermes` payload collapses to one peer in `severed`; both edge nodes with `display_name: null` resolve to non-empty labels
+- [x] T007 [P] Implement `classifyHealth(member, nowEpochS)` and `WARM_THRESHOLD_S = 900` in `ui/netclaw-visual/src/orgchart/health.js`, precedence HOT → FAULT → WARM → COLD (FR-008, FR-008a)
+- [x] T008 [P] Write `ui/netclaw-visual/src/orgchart/health.test.js`: all four states; exact 900 s boundary; `active` but `!live`; `unreachable` with fresh heartbeat still FAULT; **null heartbeat ⇒ COLD not FAULT** (highest-value assertion — conflating COLD and FAULT is the failure this design prevents)
+- [x] T009 [P] Implement `categorizeMembers(members, integrationCatalog)` in `ui/netclaw-visual/src/orgchart/categorize.js`, catalog as an argument never an import (FR-006, FR-006a)
+- [x] T010 [P] Write `ui/netclaw-visual/src/orgchart/categorize.test.js`: `live-29.json` yields 25 categorised; empty catalog ⇒ all `Uncategorised`; zero-skill member; **an alternate synthetic catalog produces a different correct chart** (proves Constitution VI vendor neutrality)
+- [x] T011 [P] Implement `orderCategories()` in `ui/netclaw-visual/src/orgchart/ordering.js` — heat desc, size desc, name; `Uncategorised` always last (FR-006b)
+- [x] T012 [P] Write `ui/netclaw-visual/src/orgchart/ordering.test.js`: hot before cold; equal heat falls to size; equal both falls to name; `Uncategorised` last even when it holds a HOT member (true of `ipfabric` in live data)
+- [x] T013 Implement `computeLayout()` and `appendMember()` in `ui/netclaw-visual/src/orgchart/layout.js` — three bands + edge lane, category columns with wrap, positions assigned once (R6, FR-034)
+- [x] T014 Write `ui/netclaw-visual/src/orgchart/layout.test.js` against all five fixtures: no two nodes share a position; `appendMember` leaves every prior coordinate byte-identical; edge nodes never get a member-column position; bands exist at zero members
 
 **Checkpoint**: `npm test` green. Every falsifiable rule in the spec is now
 covered without a browser or GPU.
@@ -65,15 +65,15 @@ covered without a browser or GPU.
 
 **Independent test**: Load with `?fixture=live-29`. Without input, confirm the three bands, the drawn trust boundary, and that HOT members dominate.
 
-- [ ] T015 [US1] Implement orthographic camera with `enableRotate = false`, pan/zoom retained, zoom clamped, in `ui/netclaw-visual/src/orgchart-render/camera.js` (FR-012, FR-013, R7)
-- [ ] T016 [P] [US1] Render the three bands and the **explicitly drawn** trust boundary in `ui/netclaw-visual/src/orgchart-render/bands.js` (FR-001, FR-002)
-- [ ] T017 [P] [US1] Implement instanced node geometry with four health treatments in `ui/netclaw-visual/src/orgchart-render/nodes.js` — differing in form, colour temperature and motion, never opacity alone (FR-009a, FR-029a)
-- [ ] T018 [US1] Make FAULT the most salient state after HOT in `ui/netclaw-visual/src/orgchart-render/nodes.js` (FR-009b)
-- [ ] T019 [P] [US1] Implement the six link styles in `ui/netclaw-visual/src/orgchart-render/links.js`, reusing existing ribbon/tube helpers (FR-010, FR-028)
-- [ ] T020 [US1] Wire the org chart into `ui/netclaw-visual/src/main.js`: consume `orgchart/` output, place Border on the centre line, peers north, members south (FR-003, FR-004, FR-005)
-- [ ] T021 [US1] Add the health-state legend to `ui/netclaw-visual/index.html` (FR-009c)
-- [ ] T022 [US1] Render empty bands with per-band CTAs and keep loading distinct from empty in `ui/netclaw-visual/src/orgchart-render/bands.js`; remove the `role !== 'border'` early return (FR-033, FR-033a, FR-033b, FR-033d)
-- [ ] T023 [US1] Verify all fixtures in `specs/072-hud-2-org-chart/fixtures/` render via `?fixture=` — no overlap, no blank labels, bands always present (SC-004, SC-012)
+- [x] T015 [US1] Implement orthographic camera with `enableRotate = false`, pan/zoom retained, zoom clamped, in `ui/netclaw-visual/src/orgchart-render/camera.js` (FR-012, FR-013, R7)
+- [x] T016 [P] [US1] Render the three bands and the **explicitly drawn** trust boundary in `ui/netclaw-visual/src/orgchart-render/bands.js` (FR-001, FR-002)
+- [x] T017 [P] [US1] Implement instanced node geometry with four health treatments in `ui/netclaw-visual/src/orgchart-render/nodes.js` — differing in form, colour temperature and motion, never opacity alone (FR-009a, FR-029a)
+- [x] T018 [US1] Make FAULT the most salient state after HOT in `ui/netclaw-visual/src/orgchart-render/nodes.js` (FR-009b)
+- [x] T019 [P] [US1] Implement the six link styles in `ui/netclaw-visual/src/orgchart-render/links.js`, reusing existing ribbon/tube helpers (FR-010, FR-028)
+- [x] T020 [US1] Wire the org chart into `ui/netclaw-visual/src/main.js`: consume `orgchart/` output, place Border on the centre line, peers north, members south (FR-003, FR-004, FR-005)
+- [x] T021 [US1] Add the health-state legend to `ui/netclaw-visual/index.html` (FR-009c)
+- [x] T022 [US1] Render empty bands with per-band CTAs and keep loading distinct from empty in `ui/netclaw-visual/src/orgchart-render/bands.js`; remove the `role !== 'border'` early return (FR-033, FR-033a, FR-033b, FR-033d)
+- [x] T023 [US1] Verify all fixtures in `specs/072-hud-2-org-chart/fixtures/` render via `?fixture=` — no overlap, no blank labels, bands always present (SC-004, SC-012)
 
 **Checkpoint**: MVP. The org chart renders and is readable. Orbit code still
 present but unused — deliberately, so the branch is never in a state with
@@ -87,10 +87,10 @@ neither layout working.
 
 **Independent test**: With `live-29.json` (2 edge nodes, `display_name: null`), confirm both render in their own lane with non-blank labels.
 
-- [ ] T024 [US2] Render the edge lane flanking the Border, inside the boundary and outside the member chart, in `ui/netclaw-visual/src/orgchart-render/bands.js` (FR-007)
-- [ ] T025 [US2] Implement the asymmetric Border→device push link, visually distinct from a member delegation link, in `ui/netclaw-visual/src/orgchart-render/links.js` (FR-011)
-- [ ] T026 [US2] Surface each edge node's last-seen age on the node in `ui/netclaw-visual/src/orgchart-render/nodes.js`, without opening the detail panel (US2 AC2)
-- [ ] T027 [US2] Add an edge-lane overflow case to `ui/netclaw-visual/src/orgchart/layout.test.js` — more edges than slots must wrap, never overlap as HUD 1.0's three-slot stacking did (spec Edge Cases)
+- [x] T024 [US2] Render the edge lane flanking the Border, inside the boundary and outside the member chart, in `ui/netclaw-visual/src/orgchart-render/bands.js` (FR-007)
+- [x] T025 [US2] Implement the asymmetric Border→device push link, visually distinct from a member delegation link, in `ui/netclaw-visual/src/orgchart-render/links.js` (FR-011)
+- [x] T026 [US2] Surface each edge node's last-seen age on the node in `ui/netclaw-visual/src/orgchart-render/nodes.js`, without opening the detail panel (US2 AC2)
+- [x] T027 [US2] Add an edge-lane overflow case to `ui/netclaw-visual/src/orgchart/layout.test.js` — more edges than slots must wrap, never overlap as HUD 1.0's three-slot stacking did (spec Edge Cases)
 
 **Checkpoint**: Phones are unmistakable and the known overflow bug is not carried forward.
 
@@ -109,7 +109,7 @@ neither layout working.
 - [ ] T032 [P] [US3] Support simultaneous expansion of multiple members in `ui/netclaw-visual/src/orgchart-render/expansion.js` (FR-023)
 - [ ] T033 [P] [US3] Show tool count on collapsed nodes in `ui/netclaw-visual/src/orgchart-render/nodes.js` (FR-024)
 - [ ] T034 [P] [US3] Ensure COLD and FAULT members expand too in `ui/netclaw-visual/src/orgchart-render/expansion.js` — what a cold claw *would* bring decides whether to warm it (FR-025)
-- [ ] T035 [US3] Retarget `#search` in `ui/netclaw-visual/index.html` and `main.js` to members, categories and tool names (FR-031)
+- [x] T035 [US3] Retarget `#search` in `ui/netclaw-visual/index.html` and `main.js` to members, categories and tool names (FR-031)
 - [ ] T036 [US3] Implement highlight/dim matching that never hides or re-packs; a tool match makes its collapsed owner discoverable; clearing restores prior state including expansions (FR-031a, FR-031b, FR-031c)
 - [ ] T037 [US3] Enforce session-stable positions in `ui/netclaw-visual/src/main.js`: the poll path repaints only, never repositions or reorders (FR-034, FR-034a), and mid-session enrolment routes through `appendMember` (FR-034b)
 

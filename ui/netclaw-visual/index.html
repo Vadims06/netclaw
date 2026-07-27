@@ -47,8 +47,22 @@
         <button class="panel-toggle" id="toggle-left" type="button" aria-label="Collapse left sidebar">&lsaquo;</button>
         <section>
           <p class="eyebrow">Filters</p>
-          <input id="search" class="search" type="search" placeholder="Search skills, integrations, devices" />
+          <input id="search" class="search" type="search" placeholder="Search claws, categories, tools" />
           <div id="category-list" class="toggle-list"></div>
+        </section>
+
+        <!-- HUD 2.0 legend (FR-009c). Four states is past the point where an
+             operator can be expected to infer the encoding. Each swatch carries
+             a distinct SHAPE as well as a colour, so the legend still works in
+             greyscale (SC-007) and under reduced motion (SC-010). -->
+        <section class="sidebar-section" id="health-legend">
+          <p class="eyebrow">Claw health</p>
+          <ul class="legend-list">
+            <li><span class="legend-swatch legend-hot">&#9679;</span> <b>Hot</b> — running now</li>
+            <li><span class="legend-swatch legend-warm">&#9670;</span> <b>Warm</b> — seen recently, idle</li>
+            <li><span class="legend-swatch legend-cold">&#9644;</span> <b>Cold</b> — never started, by design</li>
+            <li><span class="legend-swatch legend-fault">&#9723;</span> <b>Fault</b> — was reachable, now not</li>
+          </ul>
         </section>
 
         <section class="sidebar-section">
