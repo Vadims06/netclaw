@@ -1286,13 +1286,22 @@ class FederationService:
         return {"registered": True}
 
     async def _edge_on_approval_resolve(self, channel, params):
-        """The phone resolves a pushed approval via biometric authentication
-        (feature 068, US1). Calls the EXISTING Authorizer.resolve_approval()
-        unchanged (research D6) -- no biometric proof travels over the wire;
-        the Border trusts the phone's report the same way it trusts any
-        other edge-node action (research D7). The existing 'first resolution
-        wins' behavior (resolve_approval's WHERE status='pending' clause)
-        applies unmodified if the CLI/HTTP path resolved it first."""
+        """The phone (or an Apple Watch relaying through it, feature 072)
+        resolves a pushed approval. Calls the EXISTING
+        Authorizer.resolve_approval() unchanged (research D6) -- no
+        biometric/passcode proof travels over the wire; the Border trusts
+        the phone's report the same way it trusts any other edge-node action
+        (research D7). The existing 'first resolution wins' behavior
+        (resolve_approval's WHERE status='pending' clause) applies unmodified
+        if the CLI/HTTP path resolved it first.
+
+        `confirmation_method` (feature 072, research D4) is optional and
+        defaults to "biometric" -- the phone's own approvals_screen.dart
+        never sends this field, so that default preserves today's exact
+        behavior byte-for-byte. A watch-relayed resolution sends
+        "watch_passcode" explicitly, since no biometric sensor exists there;
+        recording that accurately (never as "biometric") is the whole point
+        of this field existing."""
         from .edge import RpcError
         if not channel.trusted or not channel.member_id:
             raise RpcError(-32023, "edge node not authenticated")
@@ -1300,7 +1309,8 @@ class FederationService:
         action = params.get("action")
         if approval_id is None or action not in ("approve", "deny"):
             raise RpcError(-32602, "approval_id and action ('approve'|'deny') required")
-        self.authz.resolve_approval(int(approval_id), action, via="biometric")
+        confirmation_method = params.get("confirmation_method", "biometric")
+        self.authz.resolve_approval(int(approval_id), action, via=confirmation_method)
         return {"approval_id": approval_id, "resolved": True}
 
     async def _edge_on_ask(self, channel, params):

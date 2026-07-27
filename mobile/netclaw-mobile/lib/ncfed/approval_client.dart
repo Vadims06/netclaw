@@ -61,12 +61,21 @@ class ApprovalClient {
   }
 
   /// Resolves an approval. The caller MUST have already completed a
-  /// successful biometric authentication before calling this — there is no
-  /// enforcement of that here (FR-002/FR-003).
-  Future<void> resolve(int approvalId, String action) async {
+  /// successful confirmation step before calling this — there is no
+  /// enforcement of that here (FR-002/FR-003). [confirmationMethod] defaults
+  /// to `"biometric"` (the existing phone path, via Face ID/Touch ID) and is
+  /// omitted from the wire request in that case, so the phone's own call
+  /// site (`approvals_screen.dart`) produces byte-for-byte the same request
+  /// it always has. The watch relay (feature 072) passes `"watch_passcode"`
+  /// instead, since no biometric sensor exists there (research D4) — the
+  /// Border must never see a watch-confirmed approval mislabeled as
+  /// biometric.
+  Future<void> resolve(int approvalId, String action,
+      {String confirmationMethod = 'biometric'}) async {
     await client.call('n2n/edge/approval_resolve', {
       'approval_id': approvalId,
       'action': action,
+      if (confirmationMethod != 'biometric') 'confirmation_method': confirmationMethod,
     });
     _pending.remove(approvalId);
     _updates.add(currentPending);

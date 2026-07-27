@@ -184,6 +184,37 @@ async def _edge_approval_resolve(tmp_path):
     border.manager.close()
 
 
+def test_edge_approval_resolve_confirmation_method_passthrough(tmp_path):
+    """Feature 072, research D4: an explicit confirmation_method (e.g. an
+    Apple Watch relaying through the phone) is recorded as-is, never coerced
+    to 'biometric' -- the whole point of this field is that the Border's own
+    audit record must not claim a biometric confirmation that never happened."""
+    asyncio.run(_edge_approval_resolve_confirmation_method(tmp_path))
+
+
+async def _edge_approval_resolve_confirmation_method(tmp_path):
+    border = _border(tmp_path / "border")
+    server, port = await _serve(border)
+    try:
+        phone = await _enroll(border, port)
+        _, approval_id = _make_pending_approval(border)
+
+        resp = await phone.call("n2n/edge/approval_resolve",
+                                {"approval_id": approval_id, "action": "approve",
+                                 "confirmation_method": "watch_passcode"})
+        assert resp["resolved"] is True
+
+        row = border.manager._conn.execute(
+            "SELECT status, resolved_via FROM approval_request WHERE id=?",
+            (approval_id,)).fetchone()
+        assert row["status"] == "approved"
+        assert row["resolved_via"] == "watch_passcode"
+        await phone.close()
+    finally:
+        server.close()
+    border.manager.close()
+
+
 def test_first_resolution_wins_cli_then_phone(tmp_path):
     """Closes T012's second half: if the CLI/HTTP path (n2n_approve) resolves
     an approval first, a subsequent phone resolution attempt on the SAME

@@ -16,5 +16,9 @@ import UIKit
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "EdgeIdentityPlugin") {
       EdgeIdentityPlugin.register(with: registrar)
     }
+    // feature 072: relays Apple Watch companion-app requests into Dart.
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "WatchRelayPlugin") {
+      WatchRelayPlugin.register(with: registrar)
+    }
   }
 }

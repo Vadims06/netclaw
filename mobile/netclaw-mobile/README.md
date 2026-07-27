@@ -237,6 +237,50 @@ Border, not a dependency.
     (needs a real device).
   Remaining work: `specs/071-ios-mobile-port/tasks.md` Phase 1 (T004/T005,
   both requiring the operator's hands) through the rest of the task list.
+- **watchOS** (spec `072-apple-watch-companion`, 2026-07-27): a native SwiftUI
+  watch companion app (`mobile/netclaw-mobile/ios/WatchApp Watch App/`) that
+  relays everything through the paired iPhone's already-running NetClaw Mobile
+  app via `WatchConnectivity` — it has no identity, enrollment, or network
+  connection of its own (FR-011). **Verified end to end on real hardware**
+  (a physical Apple Watch Series 7, watchOS 26.6, paired with the iPhone from
+  spec 071's real-device verification) — not just the Simulator, which hit an
+  unresolved rendering quirk (backend message exchange succeeded per device
+  logs, but the watch UI never visibly progressed past a spinner) and was set
+  aside in favor of hardware. All four tabs confirmed working against a real
+  Border: Approvals (approve/deny with a fresh on-device passcode confirmation
+  per FR-003, correctly attributed as `confirmation_method: "watch_passcode"`
+  — never `"biometric"` — on the Border's own audit record), Feed (read-only
+  pushed messages), Ask (dictated/typed question through the same
+  `n2n/edge/ask` path as the phone's chat), and History (an addition beyond
+  the original three-capability scope, added after real-device testing showed
+  the operator wanted past chat Q&A visible on the wrist).
+  - Getting a real watch discoverable in Xcode at all required unpairing and
+    re-trusting the paired iPhone in Xcode's Devices and Simulators window —
+    the watch's connection is proxied entirely through the phone's own trust
+    relationship with the Mac, not established independently.
+  - A cross-SDK build trap cost significant time: `xcodebuild -sdk
+    iphonesimulator`/`-sdk iphoneos` as a blunt global flag forces that SDK
+    onto every target in the build graph, including the embedded watchOS
+    dependency — breaking `WCSessionDelegate` conformance with confusing
+    "does not conform to protocol" errors. Fixed by using `-destination
+    'id=<device>'` exclusively and never `-sdk`.
+  - A Release-configuration build of `Runner` (needed to run the phone app
+    without Xcode attached at all — a Flutter debug/JIT build refuses to
+    launch without the tooling attached) hit a second, still-unresolved
+    variant of the same platform-bleed problem: even with a concrete
+    `-destination`, Xcode's implicit build of the embedded `WatchApp`
+    dependency compiled it against an iOS deployment target, breaking watchOS
+    10+-only APIs (`ContentUnavailableView`) and `WCSessionDelegate`
+    conformance identically. Worked around by temporarily detaching the
+    `WatchApp` target dependency and its "Embed Watch Content" copy-files
+    phase from `Runner` for the one-off Release build, then immediately
+    restoring both (verified via a subsequent clean Debug build) — the
+    shipped standalone Release phone build does **not** currently embed the
+    watch companion; the watch app remains a separately-installed Debug
+    build that itself needs no Xcode to launch day-to-day (it's a plain
+    native Swift binary, not subject to Flutter's JIT-tooling restriction).
+    Producing one Release archive with both apps properly embedded together
+    is deferred, unresolved follow-up work.
 - Push-notification delivery (FCM/APNs, feature 066 US3) needs real Firebase/Apple
   Developer credentials configured on the Border (`.env.example`'s
   `FCM_SERVICE_ACCOUNT_JSON`/`APNS_*` vars) and a real `Firebase.initializeApp()`
