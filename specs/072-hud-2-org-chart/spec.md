@@ -68,15 +68,26 @@ Three consequences:
                      │
         ─────────────┴──── INTERNAL — iN2N ──────────────────────────────
                      │
-        ┌────────────┼───────────┬──────────────┬───────────────┐
-     [Lab&Emul]  [Assurance]  [Src of Truth] [Security]   [Controllers]
-        │            │             │              │              │
-   SOUTH ●cml      ●pyats       ●ipfabric     ·ise ·f5      ·aci ·nso
-        ·clab      ·suzieq       ·netbox      ·palo ·nmap   ·sdwan ·aap
-        ·gns3      ·batfish      ·infrahub    ·nvd  ·fwrule ·itential
-                   ·forward      ·infoblox
-        ● = live (4)      · = cold / provisioned (25, collapsed)
+       ┌─────────────┼──────────────┬─────────────┬──────────┬─── … ───┐
+   HOT GROUPS FIRST (categories containing a live member lead)   COLD GROUPS →
+       │             │              │             │          │
+   [Device Autom.] [Labs]    [Visualization] [Uncategorised] [Security] [Observ.]
+       │             │              │             │          │          │
+ SOUTH ◆pyats      ◆cml           ◆viz        ◆ipfabric    ·ise      ·suzieq
+       │           ·containerlab                ·forward    ·paloalto ·gtrace
+       │                                                    ·nmap     ·packet
+       ├─ [expanded] ──────────┐                            ·nvd
+       │  pyats-health-check   │  ← FR-020: tools revealed  ·fwrule
+       │  pyats-troubleshoot   │    in place, siblings do   ·fortimanager
+       │  pyats-parallel-ops   │    not reflow (FR-022)
+       └───────────────────────┘
+
+   ◆ = HOT  (live, animated, saturated)    · = COLD (inert, desaturated)
+   Hot/cold differ in form + colour + motion — not opacity alone (FR-009a)
 ```
+
+Categories above are **derived**, not authored — see FR-006. A different
+operator's Border produces different columns from the same rule.
 
 The Border reads as the centre of a vertical stack and as the root of the
 internal chart at the same time — external above the boundary, internal below,
@@ -95,14 +106,19 @@ edges in their own lane at the boundary line.
   is retained for material quality, bloom, and link animation — not for
   free-form spatial arrangement.
 
-### Open — needs the operator's decision
+### Resolved 2026-07-27 (second pass)
 
-- **Q1 (blocking for FR-006): what is the member category taxonomy?** `profile`
-  is 1:1 with the member, so the middle tier must be a category map. A proposed
-  default is in FR-006; it is a starting point written by inspection of member
-  names, not domain truth. Confirm or replace it.
-- **Q2 (FR-009): should cold members be visible by default?** The spec assumes
-  collapsed-but-present. The alternative is hidden behind a toggle.
+- Q: Should the category taxonomy be a hardcoded map of this deployment's member
+  names? → A: **No.** NetClaw ships to every operator, and no two deployments
+  have the same members. A hardcoded list would categorise the author's lab and
+  leave everyone else with an "Uncategorised" chart. The middle tier MUST be
+  derived from data NetClaw already ships — see FR-006.
+- Q: Should cold members be hidden behind a toggle? → A: **No — visible, but
+  distinctly cold.** Coldness is information an operator wants on the face of
+  the chart. Hot and cold must be unmistakably different treatments, not a
+  slight opacity difference (FR-008/FR-009).
+- Q: Should a member's tools be visible? → A: Yes, via per-node expand/collapse
+  (FR-020).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -218,22 +234,46 @@ jump or reframe.
   root of the internal chart and the attachment point for external links.
 - **FR-005**: iN2N member claws MUST occupy the internal band below the Border,
   arranged as a top-down chart.
-- **FR-006**: Members MUST be grouped into a middle tier by category. `profile`
-  MUST NOT be used as the grouping key (it is 1:1 with the member).
-  Proposed default taxonomy — **pending operator confirmation (Q1)**:
+- **FR-006**: Members MUST be grouped into a middle tier by **category derived
+  from the shipped integration catalog**, not from a hardcoded list of member
+  names. `profile` MUST NOT be used as the grouping key (it is 1:1 with the
+  member).
 
-  | Category | Members |
-  |---|---|
-  | Lab & Emulation | `cml`, `containerlab`, `gns3` |
-  | Assurance & Test | `pyats`, `suzieq`, `batfish`, `forward`, `gtrace`, `packet` |
-  | Source of Truth | `netbox`, `nautobot`, `infrahub`, `infoblox`, `ipfabric` |
-  | Security | `ise`, `f5`, `paloalto`, `fortimanager`, `fwrule`, `nmap`, `nvd` |
-  | Controllers & Fabric | `aci`, `catalyst-center`, `sdwan`, `nso`, `aap`, `itential` |
-  | Cloud & Platform | `azure`, `github` |
-  | Visualisation | `viz` |
+  **This requirement exists because NetClaw ships to every operator.** No two
+  deployments have the same members, so any hand-written member→category map
+  categorises exactly one lab and degrades to "Uncategorised" everywhere else.
+  The grouping must be a *rule*, not a *list*.
 
-  Any member not in the map MUST fall into an explicit "Uncategorised" group
-  rather than being dropped.
+  The derivation, using data that already ships and is already maintained:
+
+  ```
+  member.skills[]  →  integration (match skill against integration.prefixes[])
+                   →  integration.category
+                   →  member category = most frequent category among its skills
+  ```
+
+  `ui/netclaw-visual/server.js` already defines the catalog: **72 integrations
+  across 22 categories**, each with `category` and `prefixes`. It is the same
+  catalog the HUD already uses to cluster skills, so the org chart inherits any
+  future catalog maintenance for free, on every install.
+
+  Measured against this deployment's live data: **25 of 29 members
+  auto-categorise (86%)**; excluding the 2 edge nodes, which belong in the edge
+  lane and must not be categorised at all, **25 of 27 agent members (93%)**.
+
+- **FR-006a**: A member whose skills match no integration prefix MUST fall into
+  an explicit "Uncategorised" group, never be dropped. On this deployment that
+  is `ipfabric` and `forward` — both are gaps in the shipped catalog's
+  `prefixes`, i.e. **data fixes to the catalog, not code changes to the chart**.
+  Fixing them there improves categorisation for every NetClaw install at once.
+
+- **FR-006b**: The layout MUST adapt to however many categories a deployment
+  yields — 1 to N — with column packing and wrapping. It MUST NOT assume a
+  fixed set. Categories MUST be ordered **by heat first, then by size**: groups
+  containing live members lead, so the handful of hot claws are always the most
+  prominent thing on screen regardless of how many cold categories exist. On
+  this deployment that places Labs, Device Automation, Visualization and
+  Uncategorised (the 4 hot groups) ahead of 18 cold ones.
 - **FR-007**: Mobile edge nodes MUST render in a dedicated lane flanking the
   Border — inside the trust boundary, outside the member chart — and MUST NOT be
   interleaved with member claws.
@@ -241,10 +281,17 @@ jump or reframe.
 ### Visual weight
 
 - **FR-008**: Live members (`live: true`) MUST be visually dominant over
-  cold/unreachable ones. Dominance MUST key off `live`, not `state`.
-- **FR-009**: Cold members MUST be collapsed into a compact, dimmed
-  representation that is expandable on demand, so 25 inactive nodes cannot
-  crowd out 4 active ones. *(Default-visible per Q2 assumption.)*
+  cold/unreachable ones. Dominance MUST key off `live`, not `state` — the two
+  disagree in live data (5 `active` vs 4 `live`).
+- **FR-009**: Cold members MUST remain **visible by default** — never hidden
+  behind a toggle. Their coldness is information the operator wants on the face
+  of the chart, not something to go looking for.
+- **FR-009a**: Hot and cold MUST be **categorically different treatments**, not
+  the same treatment at different opacity. A viewer must never have to compare
+  two nodes side by side to decide which is live. The distinction SHOULD be
+  carried by more than one channel at once (for example: form/silhouette,
+  colour temperature, and whether the node animates at all — a cold claw should
+  read as inert, a hot one as running).
 - **FR-010**: Link styling MUST distinguish, at a glance: healthy eN2N,
   unreachable eN2N, severed eN2N, healthy iN2N, cold iN2N, and the edge/push
   channel.
@@ -259,6 +306,27 @@ jump or reframe.
   equal tier render at equal size, which is what makes a chart readable as a
   chart. If perspective is retained for material reasons, tier scaling MUST be
   compensated so equal-tier nodes appear equal.
+
+### Tools / skills disclosure
+
+- **FR-020**: Every member node MUST support expand/collapse to reveal the tools
+  (skills) it holds. Collapsed is the default; the chart must be readable as a
+  chart before anything is expanded.
+- **FR-021**: An expanded member MUST show its skills from the existing
+  `member.skills[]` payload — no new API call and no server change. Members
+  already carry both `skills[]` and `specialty_count`.
+- **FR-022**: Expansion MUST be non-destructive to the layout: sibling nodes and
+  other categories MUST NOT reflow or jump when a node expands. Expansion
+  SHOULD claim space that is reserved for it, or overlay, rather than
+  re-packing the chart. An operator who expands a node must not lose their place.
+- **FR-023**: Multiple members MAY be expanded simultaneously; the design MUST
+  NOT assume single-selection. Comparing two claws' toolsets side by side is a
+  primary use.
+- **FR-024**: A collapsed member SHOULD indicate how many tools it holds, so the
+  operator can tell a rich claw from a bare one without expanding it.
+- **FR-025**: Skill disclosure MUST work for cold members too. Which tools a
+  cold claw *would* bring is exactly what an operator needs when deciding
+  whether to warm it.
 
 ### Data correctness (defects surfaced by this work)
 
@@ -302,6 +370,15 @@ jump or reframe.
   collision or node overlap at default zoom.
 - **SC-005**: Chat and the right-hand panel behave identically to HUD 1.0 —
   verified by diffing their behaviour, not by inspection.
+- **SC-006**: **Product generality.** The chart renders sensibly for a
+  deployment it has never seen, with zero configuration. Verified against at
+  least three synthetic Borders: one with 1 member, one with ~30, and one whose
+  members match no integration prefix at all (everything "Uncategorised"). No
+  member-name string appears anywhere in the layout code.
+- **SC-007**: Hot vs cold is distinguishable in a greyscale screenshot — proving
+  the distinction does not rest on colour alone.
+- **SC-008**: An operator can determine which tools a given claw holds, hot or
+  cold, without leaving the chart or opening the detail panel.
 
 ## Assumptions
 
