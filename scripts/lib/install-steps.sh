@@ -3111,7 +3111,10 @@ if [[ "$ENABLE_DEFENSECLAW" =~ ^[Yy] ]]; then
             fi
 
             # Update openclaw.json with security.mode = defenseclaw
-            OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
+            # security.mode belongs in the DefenseClaw config, not the gateway config:
+            # the gateway schema rejects a security.mode key and refuses the whole
+            # file. bgp/federation/controls.py reads this same path.
+            OPENCLAW_CONFIG="$HOME/.openclaw/config/openclaw.json"
             if [ -f "$OPENCLAW_CONFIG" ]; then
                 python3 -c "
 import json
@@ -3188,7 +3191,10 @@ else
     log_info "NetClaw will run in hobby mode (no security layer)."
 
     # Update openclaw.json with security.mode = hobby
-    OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
+    # security.mode belongs in the DefenseClaw config, not the gateway config:
+    # the gateway schema rejects a security.mode key and refuses the whole
+    # file. bgp/federation/controls.py reads this same path.
+    OPENCLAW_CONFIG="$HOME/.openclaw/config/openclaw.json"
     if [ -f "$OPENCLAW_CONFIG" ]; then
         python3 -c "
 import json

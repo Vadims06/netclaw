@@ -58,11 +58,39 @@ show_status() {
     echo ""
 
     # Ring 3: NetClaw
+    #
+    # A bare `pgrep -f "openclaw.*gateway"` is NOT sufficient here: container
+    # processes are visible in the host PID namespace, and — more importantly —
+    # a gateway running directly on the host also matches. That made this report
+    # "Running" (implying protected) while NetClaw was in fact executing outside
+    # Ring 1 entirely, with no container isolation. Classify by cgroup instead,
+    # and say plainly which side of the boundary the process is on.
     echo -e "${CYAN}Ring 3 - NetClaw (AI Agent):${NC}"
-    if pgrep -f "openclaw.*gateway" &> /dev/null; then
-        echo "  Gateway:  Running"
+    local host_pids=() sandboxed_pids=() pid
+    for pid in $(pgrep -f "openclaw.*gateway" 2>/dev/null); do
+        if grep -qE '(docker|kubepods|containerd|libpod)' "/proc/$pid/cgroup" 2>/dev/null; then
+            sandboxed_pids+=("$pid")
+        else
+            host_pids+=("$pid")
+        fi
+    done
+
+    if [ ${#sandboxed_pids[@]} -gt 0 ]; then
+        echo -e "  Gateway:  ${GREEN}Running inside a container (pid ${sandboxed_pids[0]})${NC}"
+        echo "  Isolation: Ring 1 applies to this process"
+    elif [ ${#host_pids[@]} -gt 0 ]; then
+        echo -e "  Gateway:  ${YELLOW}Running on the HOST (pid ${host_pids[0]})${NC}"
+        echo -e "  Isolation: ${YELLOW}NONE — this process is OUTSIDE Ring 1${NC}"
+        echo "             OpenShell cannot constrain a host process. Ring 2"
+        echo "             (DefenseClaw) still applies; Ring 1 does not."
+        echo "             To get full 3-ring coverage, run the gateway in the"
+        echo "             sandbox: ./scripts/netclaw-secure-start.sh"
     else
         echo "  Gateway:  Not running"
+    fi
+
+    if [ ${#host_pids[@]} -gt 0 ] && [ ${#sandboxed_pids[@]} -gt 0 ]; then
+        echo -e "  ${YELLOW}Warning: both a host and a sandboxed gateway are running.${NC}"
     fi
     echo ""
 }
