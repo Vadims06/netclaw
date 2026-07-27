@@ -2729,6 +2729,13 @@ else
         if [ -f "$NETCLAW_DIR/config/openclaw.json" ]; then
             cp "$NETCLAW_DIR/config/openclaw.json" "$OPENCLAW_DIR/openclaw.json"
             log_info "Deployed fallback openclaw.json (gateway.mode=local)"
+            # The template registers servers with repo-relative paths, but the
+            # gateway does not run from the repo — without an explicit cwd every
+            # one of them dies at launch with "can't open file".
+            python3 "$NETCLAW_DIR/scripts/normalize-mcp-cwd.py" \
+                --config "$OPENCLAW_DIR/openclaw.json" \
+                --repo   "$NETCLAW_DIR" \
+                || log_warn "Could not normalize MCP cwd entries — relative-path servers may fail to launch"
         else
             log_warn "config/openclaw.json not found in repo"
         fi
@@ -3104,7 +3111,7 @@ if [[ "$ENABLE_DEFENSECLAW" =~ ^[Yy] ]]; then
             fi
 
             # Update openclaw.json with security.mode = defenseclaw
-            OPENCLAW_CONFIG="$HOME/.openclaw/config/openclaw.json"
+            OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
             if [ -f "$OPENCLAW_CONFIG" ]; then
                 python3 -c "
 import json
@@ -3181,7 +3188,7 @@ else
     log_info "NetClaw will run in hobby mode (no security layer)."
 
     # Update openclaw.json with security.mode = hobby
-    OPENCLAW_CONFIG="$HOME/.openclaw/config/openclaw.json"
+    OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
     if [ -f "$OPENCLAW_CONFIG" ]; then
         python3 -c "
 import json

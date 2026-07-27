@@ -999,6 +999,23 @@
         "HALO_PAGE_SIZE": "${HALO_PAGE_SIZE:-50}",
         "HALO_MAX_PAGES": "${HALO_MAX_PAGES:-20}"
       }
+    },
+    "memory-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/memory-mcp/memory_mcp_server.py"
+      ],
+      "env": {
+        "MEMORY_DATA_DIR": "${MEMORY_DATA_DIR:-~/.openclaw/memory}"
+      }
+    },
+    "gait-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "scripts/gait-stdio.py"
+      ]
     }
   }
 }
