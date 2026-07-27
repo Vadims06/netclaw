@@ -102,16 +102,16 @@ neither layout working.
 
 **Independent test**: Click a peer, a member and an edge; panel updates exactly as on `main`, camera never moves, layout never reflows.
 
-- [ ] T028 [US3] Wire picking so click/tap invokes the existing `setDetail(kind, payload, related)` unchanged in `ui/netclaw-visual/src/main.js` (FR-017, FR-020a, US3 AC1)
-- [ ] T029 [US3] Implement the always-visible expand affordance (chevron/`+`), separate from the click that selects, in `ui/netclaw-visual/src/orgchart-render/expansion.js` (FR-020, FR-020a, FR-020b)
-- [ ] T030 [US3] Render an expanded member's tools from `member.skills[]` in `ui/netclaw-visual/src/orgchart-render/expansion.js`, with no new API call (FR-021, FR-030a, SC-008)
-- [ ] T031 [US3] Guarantee expansion never reflows siblings in `ui/netclaw-visual/src/orgchart-render/expansion.js` — reserve or overlay space, never re-pack (FR-022)
-- [ ] T032 [P] [US3] Support simultaneous expansion of multiple members in `ui/netclaw-visual/src/orgchart-render/expansion.js` (FR-023)
-- [ ] T033 [P] [US3] Show tool count on collapsed nodes in `ui/netclaw-visual/src/orgchart-render/nodes.js` (FR-024)
-- [ ] T034 [P] [US3] Ensure COLD and FAULT members expand too in `ui/netclaw-visual/src/orgchart-render/expansion.js` — what a cold claw *would* bring decides whether to warm it (FR-025)
+- [x] T028 [US3] Wire picking so click/tap invokes the existing `setDetail(kind, payload, related)` unchanged in `ui/netclaw-visual/src/main.js` (FR-017, FR-020a, US3 AC1)
+- [x] T029 [US3] Implement the always-visible expand affordance (chevron/`+`), separate from the click that selects, in `ui/netclaw-visual/src/orgchart-render/expansion.js` (FR-020, FR-020a, FR-020b)
+- [x] T030 [US3] Render an expanded member's tools from `member.skills[]` in `ui/netclaw-visual/src/orgchart-render/expansion.js`, with no new API call (FR-021, FR-030a, SC-008)
+- [x] T031 [US3] Guarantee expansion never reflows siblings in `ui/netclaw-visual/src/orgchart-render/expansion.js` — reserve or overlay space, never re-pack (FR-022)
+- [x] T032 [P] [US3] Support simultaneous expansion of multiple members in `ui/netclaw-visual/src/orgchart-render/expansion.js` (FR-023)
+- [x] T033 [P] [US3] Show tool count on collapsed nodes in `ui/netclaw-visual/src/orgchart-render/nodes.js` (FR-024)
+- [x] T034 [P] [US3] Ensure COLD and FAULT members expand too in `ui/netclaw-visual/src/orgchart-render/expansion.js` — what a cold claw *would* bring decides whether to warm it (FR-025)
 - [x] T035 [US3] Retarget `#search` in `ui/netclaw-visual/index.html` and `main.js` to members, categories and tool names (FR-031)
-- [ ] T036 [US3] Implement highlight/dim matching that never hides or re-packs; a tool match makes its collapsed owner discoverable; clearing restores prior state including expansions (FR-031a, FR-031b, FR-031c)
-- [ ] T037 [US3] Enforce session-stable positions in `ui/netclaw-visual/src/main.js`: the poll path repaints only, never repositions or reorders (FR-034, FR-034a), and mid-session enrolment routes through `appendMember` (FR-034b)
+- [x] T036 [US3] Implement highlight/dim matching that never hides or re-packs; a tool match makes its collapsed owner discoverable; clearing restores prior state including expansions (FR-031a, FR-031b, FR-031c)
+- [x] T037 [US3] Enforce session-stable positions in `ui/netclaw-visual/src/main.js`: the poll path repaints only, never repositions or reorders (FR-034, FR-034a), and mid-session enrolment routes through `appendMember` (FR-034b)
 
 **Checkpoint**: All three user stories complete. Feature is functionally whole.
 
@@ -121,10 +121,10 @@ neither layout working.
 
 Spans all three stories, so it follows them rather than sitting inside one.
 
-- [ ] T038 Build the focusable DOM overlay over the canvas, reusing the `CSS2DRenderer` layer, in `ui/netclaw-visual/src/orgchart-render/a11y.js` (FR-032)
-- [ ] T039 Implement the keyboard model — Tab between bands/categories, arrows between siblings, Enter selects, expand affordance separately reachable (FR-032a)
-- [ ] T040 Expose accessible name **and health state as text** for every node in `ui/netclaw-visual/src/orgchart-render/a11y.js`; state must never be conveyed by colour or motion alone (FR-032b)
-- [ ] T041 Honour `prefers-reduced-motion` in `ui/netclaw-visual/src/orgchart-render/nodes.js` and `ui/netclaw-visual/src/orgchart-render/a11y.js`; the four states must stay separable with motion suppressed, since motion is a redundant channel only (FR-032c, R8)
+- [x] T038 Build the focusable DOM overlay over the canvas, reusing the `CSS2DRenderer` layer, in `ui/netclaw-visual/src/orgchart-render/a11y.js` (FR-032)
+- [x] T039 Implement the keyboard model — Tab between bands/categories, arrows between siblings, Enter selects, expand affordance separately reachable (FR-032a)
+- [x] T040 Expose accessible name **and health state as text** for every node in `ui/netclaw-visual/src/orgchart-render/a11y.js`; state must never be conveyed by colour or motion alone (FR-032b)
+- [x] T041 Honour `prefers-reduced-motion` in `ui/netclaw-visual/src/orgchart-render/nodes.js` and `ui/netclaw-visual/src/orgchart-render/a11y.js`; the four states must stay separable with motion suppressed, since motion is a redundant channel only (FR-032c, R8)
 
 **Checkpoint**: Chart is fully operable without a pointer.
 
@@ -135,11 +135,11 @@ Spans all three stories, so it follows them rather than sitting inside one.
 **⚠️ Deliberately last.** Deleting before Phases 3–6 land would leave the branch
 with neither layout functioning.
 
-- [ ] T042 Delete orbit positioning (completing the FR-026 hard replace) from `ui/netclaw-visual/src/main.js`: `CORE_POSITIONS`, `CORE_CENTROID`, `RISK_LAYOUT.tierRadius`, per-core orbit animation, and the edge close-orbit slots (FR-027)
-- [ ] T043 **Verify FR-030d before deleting anything in T044** — confirm which fields of `state.integrations` / `state.devices` `renderSidebar` and `renderMetrics` still read; keep `fetchGraph()` and the `/api/graph` request alive (R5)
-- [ ] T044 Delete the scene-layer functions `buildIntegrations`, `buildDevices`, `createSkillSprites`, `computeDendritePositions`, `createDendriteMaterial`, `lightIntegration`, `lightDevice`, and the integration/device branches of `applyFilters`, from `ui/netclaw-visual/src/main.js` (FR-030, FR-030c)
-- [ ] T045 Confirm `renderSidebar`, `renderMetrics` and every renderer named in FR-018 still work after T044, **and that devices remain listed in the right-hand panel**, in `ui/netclaw-visual/src/main.js` (FR-030b, FR-030d)
-- [ ] T046 Confirm no orbit or integration/device scene code remains: `git grep` for the removed identifiers returns nothing outside history
+- [x] T042 Delete orbit positioning (completing the FR-026 hard replace) from `ui/netclaw-visual/src/main.js`: `CORE_POSITIONS`, `CORE_CENTROID`, `RISK_LAYOUT.tierRadius`, per-core orbit animation, and the edge close-orbit slots (FR-027)
+- [x] T043 **Verify FR-030d before deleting anything in T044** — confirm which fields of `state.integrations` / `state.devices` `renderSidebar` and `renderMetrics` still read; keep `fetchGraph()` and the `/api/graph` request alive (R5)
+- [x] T044 Delete the scene-layer functions `buildIntegrations`, `buildDevices`, `createSkillSprites`, `computeDendritePositions`, `createDendriteMaterial`, `lightIntegration`, `lightDevice`, and the integration/device branches of `applyFilters`, from `ui/netclaw-visual/src/main.js` (FR-030, FR-030c)
+- [x] T045 Confirm `renderSidebar`, `renderMetrics` and every renderer named in FR-018 still work after T044, **and that devices remain listed in the right-hand panel**, in `ui/netclaw-visual/src/main.js` (FR-030b, FR-030d)
+- [x] T046 Confirm no orbit or integration/device scene code remains: `git grep` for the removed identifiers returns nothing outside history
 
 > **T043 is the single highest-risk task in the feature.** It is the one realistic
 > way this work breaks something else, so it is separated from T044 with its own

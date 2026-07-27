@@ -17,6 +17,7 @@ import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
 import {
   mountOrgChart, updateOrgChart, searchOrgChart,
   pickableObjects, chartNodes, tickOrgChart, activateNode,
+  mountA11y, toggleNodeExpansion,
 } from './orgchart-render/index.js';
 import {
   createChartCamera, createChartControls, resizeChartCamera, frameChart,
@@ -38,19 +39,6 @@ const QUALITY_LABELS = { focus: 'FOCUS', balanced: 'BALANCED', broadcast: 'BROAD
 // orbiting skill sprites. Distinct colors per class. Spacing is widened so the
 // three tiers read clearly. This config is consumed by the scene-layout pass
 // (createMemberCores / positionClawsByRole) — tune live against the HUD.
-const RISK_LAYOUT = {
-  spacing: 34,             // widened inter-claw spacing (was ~18); tune live
-  borderAtOrigin: true,    // Border = center of the universe
-  externalAxis: +1,        // eN2N peer claws to the north (+Z)
-  memberAxis: -1,          // internal member claws to the south (-Z)
-  tierRadius: 46,          // distance of each tier ring from the Border
-  colors: {
-    border:   0xffd166,    // amber — the one you talk to, center of the universe
-    member:   0x68f5b2,    // neon green — internal, trusted, focused specialists
-    external: 0x38e8ff,    // cyan — external peer risks (other operators)
-    memberQuarantined: 0xff5d6c,  // red — an auto-quarantined / removed member
-  },
-};
 
 const state = {
   graph: null,
@@ -584,131 +572,7 @@ function makeLabel(text) {
 }
 
 // Triangular layout positions for multi-core topology
-const CORE_POSITIONS = {
-  local: new THREE.Vector3(-18, 0, 0),
-  peer1: new THREE.Vector3(52, 0, -28),
-  peer2: new THREE.Vector3(52, 0, 28),
-  peer3: new THREE.Vector3(18, 0, -56),
-  // NetClaw Mobile edge nodes (068 polish): a close, prominent orbit near
-  // the centroid like peers get, mirroring peer3's radius but on the
-  // opposite (+Z) side so the two groups read as visually distinct
-  // clusters rather than overlapping -- deliberately NOT the far-south
-  // member-spoke fan every other iN2N member uses, since a phone is the
-  // one member type an operator actually wants to spot at a glance.
-  edge1: new THREE.Vector3(18, -6, 56),
-  edge2: new THREE.Vector3(52, -6, 84),
-  edge3: new THREE.Vector3(-14, -6, 84),
-};
-const CORE_CENTROID = new THREE.Vector3(12, 0, 0);
 
-function buildCore(identity, position, labelText, colorTint) {
-  const pos = position || new THREE.Vector3(0, 0, 0);
-  const lbl = labelText || identity.name.toUpperCase();
-  const tint = colorTint || 0x66ccff;
-  const tintColor = new THREE.Color(tint);
-  const group = new THREE.Group();
-
-  // Shell — custom shader wireframe with fresnel + scan-lines (uniform-based color)
-  const shellMat = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uTintColor: { value: tintColor.clone() } },
-    vertexShader: `
-      varying vec3 vNormal;
-      varying vec3 vWorldPos;
-      void main() {
-        vNormal = normalize(normalMatrix * normal);
-        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float uTime;
-      uniform vec3 uTintColor;
-      varying vec3 vNormal;
-      varying vec3 vWorldPos;
-      void main() {
-        vec3 viewDir = normalize(cameraPosition - vWorldPos);
-        float fresnel = pow(1.0 - abs(dot(viewDir, vNormal)), 3.0);
-        float scan = sin(vWorldPos.y * 18.0 - uTime * 2.5) * 0.5 + 0.5;
-        scan = smoothstep(0.4, 0.6, scan) * 0.3;
-        vec3 col = uTintColor * (0.15 + fresnel * 0.8 + scan);
-        gl_FragColor = vec4(col, 0.12 + fresnel * 0.35);
-      }
-    `,
-    transparent: true,
-    wireframe: true,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-  const shell = new THREE.Mesh(_sharedGeo.coreShell, shellMat);
-  group.add(shell);
-
-  // Nucleus — thin glass shell
-  const nucleus = new THREE.Mesh(
-    _sharedGeo.coreNucleus,
-    new THREE.MeshPhysicalMaterial({
-      color: tint,
-      emissive: tint,
-      emissiveIntensity: 0.9,
-      roughness: 0.05,
-      metalness: 0.1,
-      iridescence: 1.0,
-      iridescenceIOR: 1.8,
-      transmission: 0.95,
-      ior: 1.5,
-      thickness: 0.3,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.05,
-      transparent: true,
-      opacity: 0.15,
-      depthWrite: false,
-    }),
-  );
-  nucleus.renderOrder = 1;
-  group.add(nucleus);
-
-  const torus = new THREE.Mesh(
-    new THREE.TorusGeometry(4.7, 0.08, 12, 120),
-    new THREE.MeshBasicMaterial({ color: 0xff7b54, transparent: true, opacity: 0.36 }),
-  );
-  torus.rotation.x = Math.PI / 2.8;
-  group.add(torus);
-
-  const torus2 = new THREE.Mesh(
-    new THREE.TorusGeometry(5.2, 0.05, 12, 120),
-    new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.22 }),
-  );
-  torus2.rotation.x = Math.PI / 1.6;
-  torus2.rotation.y = Math.PI / 3;
-  group.add(torus2);
-
-  const label = makeLabel(lbl);
-  label.position.set(0, 5.4, 0);
-  group.add(label);
-
-  // Logo sprite inside the nucleus
-  const logoTexture = new THREE.TextureLoader().load('/logos/netclaw.png');
-  logoTexture.colorSpace = THREE.SRGBColorSpace;
-  const logoSprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: logoTexture,
-      transparent: true,
-      opacity: 0.85,
-      depthWrite: false,
-      depthTest: false,
-      blending: THREE.AdditiveBlending,
-    }),
-  );
-  logoSprite.scale.set(2.8, 2.8 * 0.55, 1);
-  logoSprite.position.set(0, 0, 0);
-  logoSprite.renderOrder = 10;
-  group.add(logoSprite);
-
-  group.position.copy(pos);
-  group.userData = { type: 'core' };
-  state.scene.add(group);
-
-  return { group, shell, nucleus, torus, torus2, logoSprite, position: pos.clone() };
-}
 
 // ── Holographic ShaderMaterial for integration nodes (Section D) ──
 function createHolographicMaterial(color) {
@@ -924,298 +788,10 @@ function createTubeMaterial(color) {
   });
 }
 
-function buildIntegrations(graph) {
-  const grouped = graph.categories.map((category) => ({
-    ...category,
-    nodes: graph.integrations.filter((integration) => integration.category === category.name),
-  }));
 
-  const radiusBase = 34;
-  const coreAnchor = state.localCore ? state.localCore.position : new THREE.Vector3(0, 0, 0);
 
-  // Flatten all integrations into a single ordered list (grouped by category)
-  const allIntegrations = [];
-  grouped.forEach((bucket) => bucket.nodes.forEach((n) => allIntegrations.push(n)));
-  const totalN = allIntegrations.length;
-  const goldenRatio = (1 + Math.sqrt(5)) / 2;
 
-  // Build a look-up with spherical coords + unstable orbit parameters
-  const orbitMap = new Map();
-  allIntegrations.forEach((integration, i) => {
-    // Fibonacci sphere — even distribution across a full sphere
-    const theta0 = 2 * Math.PI * i / goldenRatio;
-    const phi0 = Math.acos(1 - 2 * (i + 0.5) / totalN);
-    const radius = radiusBase + (i % 3) * 2.5;
-    // Unique slow orbit speed + slight polar drift
-    const orbitSpeed = 0.0012 + (((i * 7 + 3) % 13) / 13) * 0.0018;
-    const axisTilt = ((i * 11 + 5) % 17) / 17 * 0.15 - 0.075;
-    const position = new THREE.Vector3(
-      coreAnchor.x + radius * Math.sin(phi0) * Math.cos(theta0),
-      radius * Math.cos(phi0),
-      coreAnchor.z + radius * Math.sin(phi0) * Math.sin(theta0),
-    );
-    orbitMap.set(integration.id, { position, theta0, phi0, radius, orbitSpeed, axisTilt });
-  });
 
-  grouped.forEach((bucket) => {
-    bucket.nodes.forEach((integration) => {
-      const orbitData = orbitMap.get(integration.id);
-      const position = orbitData.position;
-
-      const group = new THREE.Group();
-      group.position.copy(position);
-
-      const size = 0.7 + Math.min(integration.skillCount * 0.045, 1.4);
-      // Use holographic shader material for integration nodes
-      const holoMat = createHolographicMaterial(integration.color);
-      const node = new THREE.Mesh(new THREE.OctahedronGeometry(size, 1), holoMat);
-      node.castShadow = true;
-      group.add(node);
-
-      const halo = new THREE.Mesh(
-        getHaloGeometry(size + 0.45),
-        new THREE.MeshBasicMaterial({ color: integration.color, transparent: true, opacity: 0.26 }),
-      );
-      halo.rotation.x = Math.PI / 2;
-      group.add(halo);
-
-      const label = makeLabel(integration.name);
-      label.position.set(0, size + 1.25, 0);
-      group.add(label);
-
-      // Logo sprite — only for integrations with a logo file in public/logos/
-      const LOGO_IDS = new Set(['pyats']);
-      if (LOGO_IDS.has(integration.id)) {
-        const logoTex = new THREE.TextureLoader().load(`/logos/${integration.id}.png`);
-        logoTex.colorSpace = THREE.SRGBColorSpace;
-        const logoSprite = new THREE.Sprite(
-          new THREE.SpriteMaterial({
-            map: logoTex,
-            transparent: true,
-            opacity: 0.8,
-            depthWrite: false,
-            depthTest: false,
-            blending: THREE.AdditiveBlending,
-          }),
-        );
-        logoSprite.scale.set(size * 1.6, size * 1.6 * 0.5, 1);
-        logoSprite.position.set(0, 0, 0);
-        logoSprite.renderOrder = 10;
-        group.add(logoSprite);
-      }
-
-      // Connection ribbon with data-flow shader (replaces per-frame TubeGeometry)
-      const ribbonGeo = createRibbonGeometry(0.06);
-      const midY = Math.max(position.y, 0) + 4.5;
-      _v0.copy(coreAnchor);
-      _v1.set((coreAnchor.x + position.x) * 0.5, midY, (coreAnchor.z + position.z) * 0.5);
-      _v2.copy(position);
-      updateRibbonGeometry(ribbonGeo, _v0, _v1, _v2);
-      const tubeMat = createTubeMaterial(integration.color);
-      const tube = new THREE.Mesh(ribbonGeo, tubeMat);
-      // Keep a CatmullRomCurve3 for particle flow (updated on orbit)
-      const curve = new THREE.CatmullRomCurve3([
-        coreAnchor.clone(), _v1.clone(), position.clone(),
-      ]);
-      state.scene.add(tube);
-
-      const skills = graph.skills.filter((skill) => skill.integrationId === integration.id);
-      const skillSprites = createSkillSprites(position, skills, integration.color, position);
-
-      group.userData = { type: 'integration', payload: integration };
-      node.userData = { type: 'integration', payload: integration };
-      state.scene.add(group);
-
-      state.integrations.push({
-        group,
-        node,
-        halo,
-        tube,
-        tubeMat,
-        curve,
-        label,
-        basePosition: position.clone(),
-        payload: integration,
-        skills,
-        skillSprites,
-        orbit: orbitData,
-      });
-    });
-  });
-}
-
-// ── Virus-tree dendrite layout (Part B) ─────────────────────────────
-function computeDendritePositions(skillCount, integrationPosition) {
-  const positions = [];
-  if (skillCount === 0) return positions;
-  const baseRadius = 4.0;
-  const radiusSpread = 1.8;
-  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-
-  // Direction from core to integration — skills fan OUTWARD
-  const outDir = integrationPosition.clone().normalize();
-  const up = new THREE.Vector3(0, 1, 0);
-  const quat = new THREE.Quaternion().setFromUnitVectors(up, outDir);
-
-  for (let i = 0; i < skillCount; i++) {
-    const t = i / Math.max(skillCount - 1, 1);
-    const theta = goldenAngle * i;
-    const phi = Math.acos(1 - t * 0.85); // ~60deg cone
-    const radius = baseRadius + (i % 3) * (radiusSpread / 3);
-    const localPos = new THREE.Vector3(
-      radius * Math.sin(phi) * Math.cos(theta),
-      radius * Math.cos(phi),
-      radius * Math.sin(phi) * Math.sin(theta),
-    );
-    localPos.applyQuaternion(quat);
-    positions.push(localPos);
-  }
-  return positions;
-}
-
-// ── Dendrite wire shader (Part C) ───────────────────────────────────
-function createDendriteMaterial(color) {
-  const c = new THREE.Color(color);
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uTime: { value: 0 },
-      uColor: { value: c },
-      uOpacity: { value: 0.0 },
-      uProgress: { value: 0.0 },
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float uTime;
-      uniform vec3 uColor;
-      uniform float uOpacity;
-      uniform float uProgress;
-      varying vec2 vUv;
-      void main() {
-        if (vUv.x > uProgress) discard;
-        float pulse = smoothstep(0.38, 0.5, fract(vUv.x * 12.0 - uTime * 0.8));
-        pulse *= smoothstep(0.62, 0.5, fract(vUv.x * 12.0 - uTime * 0.8));
-        float edge = 1.0 - abs(vUv.y - 0.5) * 2.0;
-        edge = pow(edge, 0.8);
-        vec3 col = uColor * (0.4 + pulse * 1.2);
-        float alpha = uOpacity * edge * (0.4 + pulse * 0.6);
-        gl_FragColor = vec4(col, alpha);
-      }
-    `,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-}
-
-function createSkillSprites(anchor, skills, color, integrationPosition) {
-  const clampedSkills = skills.slice(0, 18);
-  const dendrites = computeDendritePositions(clampedSkills.length, integrationPosition);
-
-  return clampedSkills.map((skill, index) => {
-    const mesh = new THREE.Mesh(_sharedGeo.skillTetra, getSkillMaterial(color));
-    mesh.visible = false;
-    mesh.userData = { type: 'skill', payload: skill };
-    state.scene.add(mesh);
-
-    const label = makeLabel(skill.name);
-    label.visible = false;
-    state.scene.add(label);
-
-    // Dendrite wire from integration to skill
-    const localPos = dendrites[index];
-    const midPos = localPos.clone().multiplyScalar(0.5);
-    midPos.y += 0.3; // slight arc
-    const wireCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 0, 0),
-      midPos,
-      localPos.clone(),
-    ]);
-    const wireGeo = new THREE.TubeGeometry(wireCurve, 16, 0.02, 4, false);
-    const wireMat = createDendriteMaterial(color);
-    const wire = new THREE.Mesh(wireGeo, wireMat);
-    wire.visible = false;
-    state.scene.add(wire);
-
-    const sprite = {
-      mesh,
-      label,
-      payload: skill,
-      localPosition: localPos,
-      anchor: anchor.clone(),
-      wire,
-      wireMat,
-      wireCurve,
-    };
-    state.skillSprites.push(sprite);
-    return sprite;
-  });
-}
-
-function buildDevices(graph) {
-  // Devices hang off the pyATS integration node (testbed.yaml devices)
-  const pyatsEntry = state.integrations.find((e) => e.payload.id === 'pyats');
-  const anchor = pyatsEntry ? pyatsEntry.basePosition.clone() : new THREE.Vector3(0, 0, 0);
-
-  // Compute outward direction from core to pyATS
-  const outDir = anchor.clone().normalize();
-  const up = new THREE.Vector3(0, 1, 0);
-  const quat = new THREE.Quaternion().setFromUnitVectors(up, outDir);
-
-  const deviceRadius = 6.5;
-  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-
-  graph.devices.forEach((device, index) => {
-    const t = index / Math.max(graph.devices.length - 1, 1);
-    const theta = goldenAngle * index;
-    const phi = Math.acos(1 - t * 0.7);
-    const localOffset = new THREE.Vector3(
-      deviceRadius * Math.sin(phi) * Math.cos(theta),
-      deviceRadius * Math.cos(phi),
-      deviceRadius * Math.sin(phi) * Math.sin(theta),
-    );
-    localOffset.applyQuaternion(quat);
-    const position = anchor.clone().add(localOffset);
-
-    const isRouter = device.type.toLowerCase().includes('router');
-    const color = isRouter ? 0x68f5b2 : 0xffb703;
-    const geometry = isRouter ? _sharedGeo.deviceRouter : _sharedGeo.deviceSwitch;
-    const mesh = new THREE.Mesh(geometry, createDeviceMaterial(color));
-    mesh.position.copy(position);
-    mesh.castShadow = true;
-    mesh.userData = { type: 'device', payload: device };
-    state.scene.add(mesh);
-
-    // Wire from pyATS node to device
-    const midPos = anchor.clone().add(localOffset.clone().multiplyScalar(0.5));
-    midPos.y += 0.5;
-    const wireCurve = new THREE.CatmullRomCurve3([anchor.clone(), midPos, position.clone()]);
-    const wireGeo = new THREE.TubeGeometry(wireCurve, 16, 0.03, 4, false);
-    const wireMat = createDendriteMaterial(color);
-    wireMat.uniforms.uOpacity.value = 0.2;
-    wireMat.uniforms.uProgress.value = 1.0;
-    const line = new THREE.Mesh(wireGeo, wireMat);
-    state.scene.add(line);
-
-    const label = makeLabel(device.name);
-    label.position.set(position.x, position.y + 1.4, position.z);
-    state.scene.add(label);
-
-    state.devices.push({
-      mesh, line, label, payload: device,
-      basePosition: position.clone(),
-      localOffset,
-      wireMat,
-      pyatsAnchor: pyatsEntry,
-    });
-  });
-}
 
 // ── BGP Topology Visualization ────────────────────────────────────
 // Peers are NEIGHBORS — same level as core, connected by horizontal peer links
@@ -1237,162 +813,10 @@ function deduplicatePeers(peers) {
   return [...seen.values()];
 }
 
-// 056: render this risk's member claws as spokes SOUTH of the Border, each a
-// core with its own orbiting skills, colored by class. Additive + guarded.
-// The per-member spoke itself is factored out into spawnMemberCore() so a
-// later-arriving member (e.g. a phone enrolling well after the HUD tab was
-// already open) can be added incrementally via refreshRiskMembers() without
-// re-running this whole function or touching any already-built spoke.
-function spawnMemberCore(m, i, n, C, R, col) {
-  const isEdge = m.node_type === 'edge';
-  const dead = (m.state === 'quarantined' || m.state === 'removed');
-  const cold = !m.live;
-  let pos, tint, name, speed;
-  if (isEdge) {
-    // NetClaw Mobile edge nodes get the same close, prominent orbit as
-    // peers instead of the far-south member fan -- an operator wants to
-    // spot their phone at a glance, not hunt for it among every other
-    // member. Cycles through 3 fixed slots by how many edge cores already
-    // exist (a 4th+ phone falls back to the last slot rather than
-    // colliding with anything -- good enough until this ever needs more).
-    const edgeSlots = [CORE_POSITIONS.edge1, CORE_POSITIONS.edge2, CORE_POSITIONS.edge3];
-    const edgeIndex = (state.memberCores || []).filter((c) => c.memberPayload?.node_type === 'edge').length;
-    pos = edgeSlots[Math.min(edgeIndex, edgeSlots.length - 1)].clone();
-    tint = dead ? (col.memberQuarantined || 0xff5d6c) : (cold ? 0x3a6ea5 : 0xe65733); // the mobile app's own brand orange
-    const label = String(m.member_id || 'phone').split('/').pop();
-    name = `PHONE ${label}`.trim();
-    speed = 0.0007;
-  } else {
-    const frac = n > 1 ? i / (n - 1) : 0.5;
-    const spread = (frac - 0.5) * Math.PI * 1.25;               // wide fan across the south
-    const px = C.x + Math.sin(spread) * R * 3.0;                // spread far out in X
-    const pz = C.z - (R + 40) - Math.abs(Math.cos(spread)) * R * 0.9; // push well south (-Z)
-    const py = -6 - (i % 5) * 7;                                // deeper vertical stagger
-    pos = new THREE.Vector3(px, py, pz);
-    tint = dead ? (col.memberQuarantined || 0xff5d6c) : (cold ? 0x3a6ea5 : (col.member || 0x68f5b2));
-    name = String(m.member_id || 'member').split('/').pop().toUpperCase();
-    speed = 0.0004;
-  }
-  const core = buildCore(state.graph.identity, pos, name, tint);
-  core.isMember = true;
-  core.memberPayload = m;
-  core.orbit = { center: C.clone(), radius: pos.distanceTo(C),
-    angle: Math.atan2(pos.z - C.z, pos.x - C.x), y: pos.y, speed };
-  // orbiting skills only for LIVE members (keep the scene light for cold ones)
-  const names = (m.live ? (m.skills || []) : []).slice(0, 12);
-  core.skillSprites = createSkillSprites(pos, names.map((s) => ({ name: s, id: s })), tint, pos);
-  // Show member tools by default (don't hide behind a click like integrations).
-  core.skillSprites.forEach((sp) => {
-    if (sp.mesh) sp.mesh.visible = true;
-    if (sp.wire) sp.wire.visible = true;
-  });
-  state.cores.push(core);
-  state.memberCores.push(core);
-}
 
-function buildRiskMembers() {
-  try {
-    const risk = state.n2n && state.n2n.risk;
-    if (!risk || risk.role !== 'border') return;
-    const members = (state.n2n.members) || [];
-    if (!members.length) return;
-    state.memberCores = state.memberCores || [];
-    const C = CORE_CENTROID;
-    const R = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.tierRadius) || 46;
-    const col = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.colors) || {};
-    const n = members.length;
-    members.forEach((m, i) => spawnMemberCore(m, i, n, C, R, col));
-  } catch (e) {
-    console.warn('buildRiskMembers failed (non-fatal):', e);
-  }
-}
 
-// Incremental counterpart to buildRiskMembers(), called on every state.n2n
-// poll (FR-026): a member that enrolls AFTER the HUD was already loaded
-// (the exact case that made a freshly-enrolled phone invisible until a full
-// page reload) gets its spoke added on the next poll, with no reload
-// needed. Deliberately additive-only, never removing/disposing a spoke for
-// a member that disappears -- a disconnected member already renders "cold"
-// (dim blue, no orbiting skills) via the same tint logic, which is the
-// right visual for that case anyway, and skips the real complexity/risk of
-// safely disposing a live THREE.js core (shaders, sprites, orbit state)
-// out from under an in-progress render loop.
-function refreshRiskMembers() {
-  try {
-    const risk = state.n2n && state.n2n.risk;
-    if (!risk || risk.role !== 'border') return;
-    const members = (state.n2n.members) || [];
-    if (!members.length) return;
-    state.memberCores = state.memberCores || [];
-    const known = new Set(state.memberCores.map((c) => c.memberPayload && c.memberPayload.member_id));
-    const arrivals = members.filter((m) => !known.has(m.member_id));
-    if (!arrivals.length) return;
-    const C = CORE_CENTROID;
-    const R = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.tierRadius) || 46;
-    const col = (typeof RISK_LAYOUT !== 'undefined' && RISK_LAYOUT.colors) || {};
-    const n = members.length;
-    arrivals.forEach((m) => spawnMemberCore(m, members.indexOf(m), n, C, R, col));
-  } catch (e) {
-    console.warn('refreshRiskMembers failed (non-fatal):', e);
-  }
-}
 
-function buildPeerRoutes(peerCore, peer) {
-  const routes = peer.adjRibIn || [];
-  peerCore.routeDendrites = [];
-  const pos = peerCore.position;
-  const outDir = pos.clone().normalize();
-  const baseAngle = Math.atan2(outDir.x, outDir.z);
 
-  routes.forEach((route, ri) => {
-    const routeSpread = Math.PI * 0.6;
-    const routeAngle = baseAngle + ((ri / Math.max(routes.length - 1, 1)) - 0.5) * routeSpread;
-    const routeOffset = new THREE.Vector3(
-      Math.sin(routeAngle) * 5.0,
-      -1.5 - ri * 0.6,
-      Math.cos(routeAngle) * 5.0,
-    );
-    const routePos = pos.clone().add(routeOffset);
-    const routeMid = pos.clone().add(routeOffset.clone().multiplyScalar(0.5));
-    routeMid.y += 0.3;
-    const routeCurve = new THREE.CatmullRomCurve3([pos.clone(), routeMid, routePos]);
-    const routeGeo = new THREE.TubeGeometry(routeCurve, 8, 0.02, 4, false);
-    const isIPv6 = route.prefix.includes(':');
-    const routeColor = isIPv6 ? 0x00e5ff : 0x68f5b2;
-    const routeMat = createDendriteMaterial(routeColor);
-    routeMat.uniforms.uOpacity.value = 0.25;
-    routeMat.uniforms.uProgress.value = 1.0;
-    const routeWire = new THREE.Mesh(routeGeo, routeMat);
-    state.scene.add(routeWire);
-
-    const routeLabel = makeLabel(route.prefix);
-    routeLabel.position.copy(routePos);
-    routeLabel.visible = false;
-    state.scene.add(routeLabel);
-
-    peerCore.routeDendrites.push({ wire: routeWire, mat: routeMat, label: routeLabel, route, position: routePos });
-  });
-}
-
-function buildPeerLinks() {
-  const allCores = state.cores;
-  for (let i = 0; i < allCores.length; i++) {
-    for (let j = i + 1; j < allCores.length; j++) {
-      const posA = allCores[i].position;
-      const posB = allCores[j].position;
-      const ribbonGeo = createRibbonGeometry(0.08);
-      _v0.copy(posA);
-      _v1.set((posA.x + posB.x) * 0.5, Math.max(posA.y, posB.y) + 3.0, (posA.z + posB.z) * 0.5);
-      _v2.copy(posB);
-      updateRibbonGeometry(ribbonGeo, _v0, _v1, _v2);
-      const linkMat = createTubeMaterial(0xe040fb);
-      linkMat.uniforms.uOpacity.value = 0.4;
-      const link = new THREE.Mesh(ribbonGeo, linkMat);
-      state.scene.add(link);
-      state.peerLinks.push({ tube: link, mat: linkMat, from: i, to: j });
-    }
-  }
-}
 
 function renderSidebar(graph) {
   dom.categoryList.innerHTML = '';
@@ -2816,37 +2240,10 @@ function animate() {
   if (!frozen) state._frozenAt = null;
   const rotTime = frozen ? state._frozenAt : elapsed;
 
-  // Animate all core nodes (local + peers)
-  let coresMovedThisFrame = false;
-  state.cores.forEach((core, idx) => {
-    const offset = idx * 0.3;
-
-    // Orbit core around centroid when not frozen
-    if (!frozen && core.orbit) {
-      core.orbit.angle += core.orbit.speed;
-      const ox = core.orbit.center.x + core.orbit.radius * Math.cos(core.orbit.angle);
-      const oz = core.orbit.center.z + core.orbit.radius * Math.sin(core.orbit.angle);
-      core.group.position.set(ox, core.orbit.y, oz);
-      core.position.set(ox, core.orbit.y, oz);
-      coresMovedThisFrame = true;
-    }
-
-    core.shell.rotation.y = rotTime * 0.18 + offset;
-    core.shell.rotation.x = rotTime * 0.08 + offset * 0.5;
-    core.torus.rotation.z = rotTime * 0.28 + offset;
-    if (core.torus2) core.torus2.rotation.z = -rotTime * 0.22 + offset;
-    // Shader time always advances (keeps glow alive)
-    if (core.shell.material.uniforms) {
-      core.shell.material.uniforms.uTime.value = elapsed;
-    }
-    core.nucleus.material.emissiveIntensity = 0.7 + Math.sin(elapsed * 2.1 + offset) * 0.25;
-    // Animate peer route dendrites — move with core
-    if (core.routeDendrites) {
-      core.routeDendrites.forEach((rd) => {
-        if (rd.mat.uniforms?.uTime) rd.mat.uniforms.uTime.value = elapsed;
-      });
-    }
-  });
+  // Orbit core animation removed with the orbit layout (FR-027). HUD 2.0's
+  // node motion is driven by tickOrgChart() above; state.cores is no longer
+  // populated, so nothing here had anything left to move.
+  const coresMovedThisFrame = false;
 
   // Update peer-link ribbons in-place when cores move (no alloc, no dispose)
   if (coresMovedThisFrame && state.peerLinks.length > 0) {
@@ -3072,7 +2469,8 @@ function wireUI() {
       state.filters.view = button.dataset.view;
       applyFilters();
       if (state.filters.view === 'overview') {
-        focusTarget(CORE_CENTROID.clone());
+        // Re-frame the whole chart rather than the old orbit centroid.
+        frameChart(state.camera, state.controls, chartNodes());
       }
     });
   });
@@ -3335,74 +2733,15 @@ async function boot() {
     // their direct BGP session is down: the overlay (not BGP) carries chat/
     // tasks/inventory, and claw BGP sessions are inbound-only here — so a
     // fully federated claw was invisible whenever the BGP leg was down.
-    const bgpScenePeers = state.bgp?.available ? state.bgp.peers : [];
-    const overlayScenePeers = (state.n2n?.peers || [])
-      .filter((p) => p.channel_state === 'up')
-      .map((p) => {
-        const m = /^as(\d+)-(.+)$/.exec(p.identity || '') || [];
-        return { type: 'claw', as: Number(m[1]) || undefined,
-                 routerId: m[2] || p.identity, peer: p.identity,
-                 displayName: p.display_name, state: 'Overlay', overlayOnly: true };
-      })
-      .filter((p) => p.as && !bgpScenePeers.some((b) => Number(b.as) === Number(p.as)));
-    const scenePeers = [...bgpScenePeers, ...overlayScenePeers];
-    const hasPeers = scenePeers.length > 0;
-    const localPos = hasPeers ? CORE_POSITIONS.local : new THREE.Vector3(0, 0, 0);
-    // 056: a Border claw is the amber center of its risk; else default cyan.
-    const _isBorder = state.n2n?.risk?.role === 'border';
-    const _localTint = _isBorder ? RISK_LAYOUT.colors.border : 0x66ccff;
-    const localCore = buildCore(state.graph.identity, localPos, state.graph.identity.name.toUpperCase(), _localTint);
-    // Orbit data for local core — orbits around the centroid
-    const lcDist = localPos.distanceTo(CORE_CENTROID);
-    localCore.orbit = {
-      center: CORE_CENTROID.clone(),
-      radius: lcDist,
-      angle: Math.atan2(localPos.z - CORE_CENTROID.z, localPos.x - CORE_CENTROID.x),
-      y: localPos.y,
-      speed: 0.0008,
-    };
-    state.localCore = localCore;
-    state.core = localCore; // backward compat
-    state.cores.push(localCore);
-
-    // Build peer cores as equal central nodes
-    if (hasPeers) {
-      const uniquePeers = deduplicatePeers(scenePeers);
-      const peerPositions = [CORE_POSITIONS.peer1, CORE_POSITIONS.peer2, CORE_POSITIONS.peer3];
-      uniquePeers.slice(0, 3).forEach((peer, i) => {
-        const isClaw = peer.type === 'claw';
-        const label = isClaw
-          ? `NETCLAW AS${peer.as || '?'}`
-          : `ROUTER ${peer.routerId || peer.peerIp || peer.peer}`;
-        const tint = isClaw ? 0xe040fb : 0x00e5ff;
-        const peerCore = buildCore(state.graph.identity, peerPositions[i], label, tint);
-        peerCore.peerPayload = peer;
-        peerCore.isClaw = isClaw;
-        // Orbit data — orbits around the centroid
-        const pDist = peerPositions[i].distanceTo(CORE_CENTROID);
-        peerCore.orbit = {
-          center: CORE_CENTROID.clone(),
-          radius: pDist,
-          angle: Math.atan2(peerPositions[i].z - CORE_CENTROID.z, peerPositions[i].x - CORE_CENTROID.x),
-          y: peerPositions[i].y,
-          speed: 0.0006 + i * 0.0003,
-        };
-        state.peerCores.push(peerCore);
-        state.cores.push(peerCore);
-
-        // Build route dendrites from this peer
-        buildPeerRoutes(peerCore, peer);
-      });
-      // Connect all cores with peer-link tubes
-      buildPeerLinks();
-    }
+    // The orbit scene built local/peer cores from the BGP + overlay peer list
+    // here. HUD 2.0 renders peers from /api/n2n in the external band instead
+    // (FR-003), so that derivation and its cores are gone with the orbit
+    // layout (FR-027). state.bgp is still fetched and still drives the panel.
 
     setLoading(58, 'Laying out the trust org chart');
     // ── HUD 2.0 (feature 072) ────────────────────────────────────────────
-    // The orbit builders below are deliberately no longer called. They stay
-    // defined until Phase 7 deletes them, so this branch never sits in a state
-    // with neither layout working:
-    //   buildIntegrations()  buildRiskMembers()  buildDevices()
+    // Phase 7 complete: the orbit layout and the integration/device scene
+    // populations are deleted, not dormant (FR-027, FR-030c).
     // The integration and device populations leave the scene entirely
     // (FR-030): the HUD was drawing a capability catalogue and a managed
     // estate on top of a trust topology. Integrations now surface as member
@@ -3417,6 +2756,17 @@ async function boot() {
 
     state.orgLayout = mountOrgChart(state.scene, state.n2n, state.orgCatalog, makeLabel);
     frameChart(state.camera, state.controls, chartNodes());
+
+    // Keyboard + screen-reader access (FR-032). A WebGL canvas has no
+    // focusable elements, so the chart needs a real DOM tree over it.
+    mountA11y(document.getElementById('scene-root'), {
+      onSelect: (node) => {
+        if (node.kind === 'border') { setDetail('local-core'); state.selected = { kind: 'local-core' }; }
+        else if (node.kind === 'peer') { setDetail('federation-peer', node.payload); state.selected = { kind: 'federation-peer', peer: node.id }; }
+        else { setDetail('member-core', node.payload); state.selected = { kind: 'member-core', member: node.id }; }
+      },
+      onToggle: (node) => toggleNodeExpansion(node.id, makeLabel),
+    });
 
     setLoading(72, 'Placing bands');
 
@@ -3452,9 +2802,8 @@ async function boot() {
       // panel currently open, re-render it in place so edge-node liveness/
       // approvals/replication jobs don't require a manual re-click to see.
       if (state.selected?.kind === 'local-core') setDetail('local-core');
-      // A member (e.g. a phone) that enrolls after this page already loaded
-      // never got a 3D spoke, since buildRiskMembers() only ran once at
-      // boot -- add spokes for any newly-arrived members on every poll.
+      // A member (e.g. a phone) enrolling after load is appended by
+      // updateOrgChart via appendMember, without moving anything (FR-034b).
       // HUD 2.0: repaint health and append newly-enrolled members. Positions
       // are never recomputed and categories are never re-ordered — a claw that
       // fails changes how it looks, never where it is (FR-034a).

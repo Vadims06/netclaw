@@ -19,6 +19,7 @@ import { buildBands } from './bands.js';
 import { buildLinks } from './links.js';
 import { classifyHealth } from '../orgchart/health.js';
 import { toggleExpansion, collapseAll, isExpanded, expandedCount } from './expansion.js';
+import { buildA11yOverlay } from './a11y.js';
 
 export { TREATMENTS };
 
@@ -73,12 +74,26 @@ export function mountOrgChart(scene, n2n, integrationCatalog, makeLabel) {
   return layout;
 }
 
+/**
+ * Attach the keyboard / screen-reader overlay (FR-032). Kept separate from
+ * mountOrgChart so the scene can be built headlessly in tests without a DOM.
+ *
+ * @param {HTMLElement} container element covering the canvas
+ * @param {{onSelect:Function, onToggle:Function}} handlers
+ */
+export function mountA11y(container, handlers) {
+  if (!container || !chart.layout) return null;
+  chart.a11y = buildA11yOverlay(container, chart.layout.nodes, handlers);
+  return chart.a11y;
+}
+
 export function unmountOrgChart(scene) {
   if (!chart.root) return;
   scene.remove(chart.root);
   chart.nodes?.dispose?.();
   chart.bands?.dispose?.();
   chart.links?.dispose?.();
+  chart.a11y?.destroy?.();
   Object.assign(chart, { root: null, nodes: null, bands: null, links: null, layout: null, entries: [] });
 }
 
@@ -136,6 +151,8 @@ export function updateOrgChart(scene, n2n, makeLabel) {
     chart.entries.push(...built.entries);
     chart.layout.nodes.push(node);
   }
+
+  chart.a11y?.sync?.(chart.layout.nodes);
 }
 
 /**
@@ -182,7 +199,14 @@ export function activateNode(mesh, makeLabel) {
   if (!node) return null;
   // Only members and edges carry tools; peers and the Border just select.
   if (node.kind === 'member' || node.kind === 'edge') {
-    toggleExpansion(chart.root, node, mesh, makeLabel);
+    node.expanded = toggleExpansion(chart.root, node, mesh, makeLabel);
+    // Keep the accessibility tree in step with the pointer path — otherwise a
+    // screen-reader user gets a stale "collapsed" for a node someone expanded
+    // with a mouse (FR-032b).
+    const item = document.querySelector(
+      `#orgchart-a11y .a11y-node[data-node-id="${CSS.escape(node.id)}"]`,
+    );
+    item?.setAttribute('aria-expanded', String(node.expanded));
   }
   return node;
 }
