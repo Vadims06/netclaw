@@ -24,7 +24,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step()  { echo -e "${CYAN}[STEP]${NC} $1"; }
 
 NETCLAW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OPENCLAW_CONFIG="$HOME/.openclaw/config/openclaw.json"
+OPENCLAW_CONFIG="$HOME/.openclaw/openclaw.json"
 
 echo "========================================="
 echo "  NetClaw - Enable DefenseClaw + OpenShell"
