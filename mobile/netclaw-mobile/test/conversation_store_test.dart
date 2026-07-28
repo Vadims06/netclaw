@@ -36,7 +36,12 @@ void main() {
     expect(store.turns.single.answerText, 'done already');
   });
 
-  test('clear() deletes all turns, the persisted file, and every saved photo', () async {
+  test('clear() deletes finished turns, the persisted file, and their photos',
+      () async {
+    // Previously this added two *pending* turns and asserted clear() removed
+    // them both -- encoding the reported bug (in-flight requests destroyed) as
+    // the expected contract. Turns are marked terminal first so the test
+    // exercises what clearing history is actually for.
     final dir = await Directory.systemTemp.createTemp('ncfed_conv_test_');
     addTearDown(() => dir.delete(recursive: true));
 
@@ -45,6 +50,8 @@ void main() {
     await store.addPending('task-4', 'has a photo', photoBytes: [1, 2, 3]);
     final photoPath = store.turns.last.photoPath!;
     expect(await File(photoPath).exists(), isTrue);
+    await store.updateState('task-3', 'completed', answerText: 'done');
+    await store.updateState('task-4', 'completed', answerText: 'done');
 
     await store.clear();
 
@@ -57,5 +64,25 @@ void main() {
     final reloaded = ConversationStore(dir);
     await reloaded.load();
     expect(reloaded.turns, isEmpty);
+  });
+
+  test("clear() keeps an in-flight turn's photo on disk", () async {
+    // A preserved turn still renders in the UI, so deleting its photo would
+    // leave a broken '[Photo unavailable]' tile attached to a live request.
+    final dir = await Directory.systemTemp.createTemp('ncfed_conv_photo_keep_');
+    addTearDown(() => dir.delete(recursive: true));
+
+    final store = ConversationStore(dir);
+    await store.addPending('finished', 'old', photoBytes: [9, 9]);
+    final goneP = store.turns.last.photoPath!;
+    await store.updateState('finished', 'completed', answerText: 'a');
+    await store.addPending('inflight', 'current', photoBytes: [1, 2, 3]);
+    final keptP = store.turns.last.photoPath!;
+
+    await store.clear();
+
+    expect(await File(goneP).exists(), isFalse, reason: 'finished photo removed');
+    expect(await File(keptP).exists(), isTrue, reason: 'in-flight photo retained');
+    expect(store.turns.single.photoPath, keptP);
   });
 }

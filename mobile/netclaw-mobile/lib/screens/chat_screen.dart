@@ -135,6 +135,9 @@ class _ChatScreenState extends State<ChatScreen> {
         // tapped the mic and nothing whatsoever happened. Always say why.
         onFailure: (failure) {
           if (!mounted) return;
+          // Don't report a cancellation back at the operator who just asked
+          // for it.
+          if (failure.failure == VoiceFailure.cancelled) return;
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(failure.message ?? 'Voice request failed.'),
             duration: const Duration(seconds: 4),
@@ -266,10 +269,17 @@ class _ChatScreenState extends State<ChatScreen> {
                   // Visible listening state — the mic previously gave no
                   // indication it was live, so a working recording looked
                   // identical to a broken one.
-                  icon: Icon(_listening ? Icons.mic : Icons.mic_none,
+                  icon: Icon(_listening ? Icons.stop_circle : Icons.mic_none,
                       color: _listening ? Theme.of(context).colorScheme.error : null),
-                  tooltip: _listening ? 'Listening…' : 'Voice request',
-                  onPressed: _listening ? null : _recordVoice,
+                  tooltip: _listening ? 'Stop listening' : 'Voice request',
+                  // Tapping while live now CANCELS. This used to be `null`,
+                  // which disabled the button for the whole session — so a
+                  // recording that overran left the operator with no way out
+                  // at all, and abandoning the app instead is exactly what
+                  // leaked the recogniser and broke the next attempt.
+                  onPressed: _listening
+                      ? () => widget.voiceTranscription.cancel()
+                      : _recordVoice,
                 ),
                 IconButton(icon: const Icon(Icons.send), onPressed: _send),
               ],

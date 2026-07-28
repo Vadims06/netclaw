@@ -123,21 +123,47 @@ class ConversationStore {
   /// own audit trail (GAIT) and this does not and must not touch it, so
   /// clearing here is a display convenience, never an audit-evasion path.
   ///
-  /// In-progress turns go too. That's deliberate: the Border keeps working
-  /// and reconciliation no longer has a local row to reconcile against, so a
-  /// cleared in-flight answer simply never appears. Callers should warn when
-  /// anything is still running — see [hasInProgressTurns] and the
-  /// confirmation in `main.dart`.
-  Future<void> clear() async {
+  /// **In-progress turns are PRESERVED by default.** This previously deleted
+  /// them along with everything else, which destroyed work the Border was
+  /// still actively doing: the answer arrives, reconciliation finds no local
+  /// row to attach it to, and it is silently dropped forever. Reported by a
+  /// tester — "it clears all messages including the pending actual working
+  /// messages that are processing currently". Clearing *history* should not
+  /// cancel the *future*, and the operator asking to tidy a transcript is not
+  /// asking to throw away a running request.
+  ///
+  /// Pass `includeInProgress: true` for the old all-or-nothing behaviour — the
+  /// caller must have explicitly confirmed that intent.
+  ///
+  /// Note: preserving a turn is *not* the same as cancelling it. A request the
+  /// operator genuinely wants stopped should go through
+  /// `EdgeAskClient.cancel()`, which tells the Border to stop working; deleting
+  /// the local row never did that.
+  Future<void> clear({bool includeInProgress = false}) async {
     await load();
+    final kept = includeInProgress
+        ? const <ConversationTurn>[]
+        : _turns.where((t) => !_isTerminal(t.state)).toList();
+
     for (final turn in _turns) {
+      if (kept.contains(turn)) continue; // its photo is still on display
       final path = turn.photoPath;
       if (path == null) continue;
       final file = File(path);
       if (await file.exists()) await file.delete();
     }
-    _turns.clear();
-    final file = _file();
-    if (await file.exists()) await file.delete();
+
+    _turns
+      ..clear()
+      ..addAll(kept);
+
+    if (kept.isEmpty) {
+      final file = _file();
+      if (await file.exists()) await file.delete();
+    } else {
+      // Rewrite rather than delete, so the surviving in-flight turns are still
+      // there after a restart and can still be reconciled.
+      await _save();
+    }
   }
 }

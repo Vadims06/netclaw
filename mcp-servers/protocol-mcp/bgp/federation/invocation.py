@@ -53,11 +53,21 @@ def _openclaw_config() -> dict:
 
 
 def _security_mode() -> str:
-    try:
-        cfg = json.loads(Path(os.path.expanduser("~/.openclaw/openclaw.json")).read_text())
-        return (cfg.get("security") or {}).get("mode", "hobby")
-    except Exception:
-        return "hobby"
+    """Delegate to controls.security_mode() — the single source of truth.
+
+    This previously read ~/.openclaw/openclaw.json, which is the *gateway*
+    config. That file's schema has no `security.mode` key (OpenClaw rejects it
+    outright: "security: Unrecognized key"), so the lookup could never succeed
+    and this always fell through to "hobby". The visible effect was that
+    _defenseclaw_inspect() below returned True unconditionally, silently
+    disabling the per-tool block-list check on every federated tool call even
+    with DefenseClaw fully enabled.
+
+    controls._security_config_path() reads ~/.openclaw/config/openclaw.json,
+    which is where the mode actually lives (see CLAUDE.md and that docstring).
+    """
+    from .controls import security_mode
+    return security_mode()
 
 
 async def _defenseclaw_inspect(tool: str, arguments: dict) -> bool:
