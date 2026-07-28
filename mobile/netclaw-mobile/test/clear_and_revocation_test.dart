@@ -18,10 +18,19 @@ void main() {
   });
 
   group('ConversationStore.clear', () {
-    test('removes every turn and the backing file', () async {
+    // NOTE: the first two tests here previously asserted that `clear()` deleted
+    // *every* turn including pending ones, and passed — they encoded the
+    // reported bug ("it clears all messages including the pending actual
+    // working messages that are processing currently") as the expected
+    // contract. Rewritten to assert finished-only clearing; the
+    // clear-everything behaviour is now opt-in and covered separately below.
+
+    test('removes finished turns and the backing file', () async {
       final store = ConversationStore(dir);
       await store.addPending('t1', 'first');
       await store.addPending('t2', 'second');
+      await store.updateState('t1', 'completed', answerText: 'a');
+      await store.updateState('t2', 'failed');
       expect(store.turns, hasLength(2));
 
       await store.clear();
@@ -30,9 +39,76 @@ void main() {
       expect(File('${dir.path}/ncfed_conversation.json').existsSync(), isFalse);
     });
 
+    test('an in-progress turn SURVIVES a clear (regression)', () async {
+      // The reported bug. The Border keeps working on a pending/working turn,
+      // so deleting its local row means the answer arrives with nothing to
+      // reconcile into and is silently lost forever.
+      final store = ConversationStore(dir);
+      await store.addPending('done', 'finished request');
+      await store.updateState('done', 'completed', answerText: 'answer');
+      await store.addPending('running', 'still working on this');
+
+      await store.clear();
+
+      expect(store.turns, hasLength(1));
+      expect(store.turns.single.taskId, 'running');
+      expect(store.hasInProgressTurns, isTrue);
+    });
+
+    test("a 'working' turn survives too, not just 'pending'", () async {
+      final store = ConversationStore(dir);
+      await store.addPending('w1', 'ask');
+      await store.updateState('w1', 'working');
+
+      await store.clear();
+
+      expect(store.turns.single.taskId, 'w1');
+      expect(store.turns.single.state, 'working');
+    });
+
+    test('a surviving turn is still there after a restart', () async {
+      // Preserving it in memory is useless if the rewrite doesn't happen — the
+      // turn has to outlive a cold start to be reconcilable.
+      final store = ConversationStore(dir);
+      await store.addPending('t1', 'first');
+      await store.clear();
+
+      final reopened = ConversationStore(dir);
+      await reopened.load();
+      expect(reopened.turns, hasLength(1));
+      expect(reopened.turns.single.taskId, 't1');
+    });
+
+    test('includeInProgress: true clears everything, opt-in', () async {
+      final store = ConversationStore(dir);
+      await store.addPending('t1', 'first');
+      await store.addPending('t2', 'second');
+      await store.updateState('t2', 'completed', answerText: 'a');
+
+      await store.clear(includeInProgress: true);
+
+      expect(store.turns, isEmpty);
+      expect(File('${dir.path}/ncfed_conversation.json').existsSync(), isFalse);
+    });
+
+    test('a finished turn cleared alongside a survivor stays gone on restart',
+        () async {
+      final store = ConversationStore(dir);
+      await store.addPending('gone', 'old request');
+      await store.updateState('gone', 'completed', answerText: 'a');
+      await store.addPending('kept', 'in flight');
+
+      await store.clear();
+
+      final reopened = ConversationStore(dir);
+      await reopened.load();
+      expect(reopened.turns.map((t) => t.taskId), ['kept']);
+    });
+
     test('a cleared store stays empty across a simulated restart', () async {
       final store = ConversationStore(dir);
       await store.addPending('t1', 'first');
+      await store.updateState('t1', 'completed', answerText: 'a');
       await store.clear();
 
       // Fresh instance = cold start reading the same directory.

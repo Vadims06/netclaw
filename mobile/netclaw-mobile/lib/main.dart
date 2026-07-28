@@ -499,15 +499,17 @@ class _HomeShellState extends State<HomeShell> {
   Future<void> _confirmClearChat() async {
     final store = _conversationStore;
     if (store == null) return;
-    // Warn specifically when something is still running — the Border keeps
-    // working on it, but a cleared turn has nothing left to reconcile into, so
-    // that answer will never appear on this device.
+    // In-progress requests are now KEPT rather than destroyed. This dialog used
+    // to warn that a running request's answer "will no longer appear here" —
+    // i.e. it described the data loss instead of preventing it. Reported by a
+    // tester as a bug, and rightly so: clearing history should not silently
+    // discard work the Border is still doing.
     final extra = store.hasInProgressTurns
-        ? '\n\nA request is still in progress. The Border will finish it, but '
-            'the answer will no longer appear here.'
+        ? '\n\nRequests still in progress will be kept so their answers can '
+            'still arrive.'
         : '';
     if (!await _confirm('Clear chat history?',
-        'Deletes this conversation from this phone. Your Border keeps its own '
+        'Deletes finished requests from this phone. Your Border keeps its own '
         'audit record.$extra',
         'Clear')) {
       return;
