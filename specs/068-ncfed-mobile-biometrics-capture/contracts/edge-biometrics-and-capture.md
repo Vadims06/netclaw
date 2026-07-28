@@ -73,3 +73,11 @@ See data-model.md's Approval Push Payload — delivered via the EXISTING `push_t
 Border-side push code (research D5). `notify_approval()` calls this for every connected edge
 channel, in addition to its existing (never-wired) `approval_notifier` callback, which is
 untouched.
+
+---
+
+**Note (spec 072)**: `n2n/edge/approval_resolve` (§3 above) gained an optional
+`confirmation_method` field in `072-apple-watch-companion` — the Apple Watch companion app has
+no Face ID/Touch ID sensor, so a watch-resolved approval sends `confirmation_method:
+"watch_passcode"` instead of the implicit `"biometric"` this spec defines. See
+`specs/072-apple-watch-companion/contracts/watch-relay.md` §5 for the full field definition.

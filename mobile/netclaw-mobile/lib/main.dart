@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'ncfed/approval_client.dart';
@@ -19,6 +20,7 @@ import 'ncfed/notification_deep_link.dart';
 import 'ncfed/push_registration.dart';
 import 'ncfed/reconnect_supervisor.dart';
 import 'ncfed/turn_reconciler.dart';
+import 'ncfed/watch_relay.dart';
 import 'screens/approvals_screen.dart';
 import 'screens/capture_screen.dart';
 import 'screens/chat_screen.dart';
@@ -228,6 +230,22 @@ class _HomeShellState extends State<HomeShell> {
         askClient: askClient,
         capture: (type) => CaptureScreen.capture(context, type),
       ).wire(widget.client);
+      // feature 072: answers Apple Watch companion-app requests using these
+      // SAME instances -- the watch has no connection of its own (FR-011).
+      // Registered before `await capabilities.register()` below: that's a
+      // network round trip to the Border, and the watch relay must not wait
+      // on it -- a slow/hung Border registration must not leave the watch's
+      // native side waiting on a Dart handler that was never wired up.
+      final watchRelay = WatchRelay(
+          approvalClient: approvalClient,
+          askClient: askClient,
+          feedStore: feedStore,
+          conversationStore: conversationStore);
+      const MethodChannel('ca.automateyournetwork.netclaw/watch_relay')
+          .setMethodCallHandler((call) => watchRelay.handle(
+                call.method,
+                (call.arguments as Map?)?.cast<String, dynamic>() ?? {},
+              ));
       await capabilities.register();
       setState(() {
         _feedStore = feedStore;
