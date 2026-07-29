@@ -266,21 +266,23 @@ Border, not a dependency.
     'id=<device>'` exclusively and never `-sdk`.
   - A Release-configuration build of `Runner` (needed to run the phone app
     without Xcode attached at all — a Flutter debug/JIT build refuses to
-    launch without the tooling attached) hit a second, still-unresolved
-    variant of the same platform-bleed problem: even with a concrete
-    `-destination`, Xcode's implicit build of the embedded `WatchApp`
-    dependency compiled it against an iOS deployment target, breaking watchOS
-    10+-only APIs (`ContentUnavailableView`) and `WCSessionDelegate`
-    conformance identically. Worked around by temporarily detaching the
-    `WatchApp` target dependency and its "Embed Watch Content" copy-files
-    phase from `Runner` for the one-off Release build, then immediately
-    restoring both (verified via a subsequent clean Debug build) — the
-    shipped standalone Release phone build does **not** currently embed the
-    watch companion; the watch app remains a separately-installed Debug
-    build that itself needs no Xcode to launch day-to-day (it's a plain
-    native Swift binary, not subject to Flutter's JIT-tooling restriction).
-    Producing one Release archive with both apps properly embedded together
-    is deferred, unresolved follow-up work.
+    launch without the tooling attached) originally hit a second variant of
+    the same platform-bleed problem: even with a concrete `-destination`,
+    Xcode's implicit build of the embedded `WatchApp` dependency compiled it
+    against an iOS deployment target, breaking watchOS 10+-only APIs
+    (`ContentUnavailableView`) and `WCSessionDelegate` conformance
+    identically. **Root cause found and fixed (2026-07-29):** the `WatchApp`
+    target inherited `SUPPORTED_PLATFORMS = iphoneos` from the project while
+    its own `SDKROOT`/`PLATFORM_NAME` were `watchos` — that mismatch is what
+    forced the embedded (and even standalone-scheme) build into an iOS
+    context. Setting `SUPPORTED_PLATFORMS = "watchos watchsimulator"` on all
+    three `WatchApp` build configurations resolves it. `flutter build ios
+    --release` now produces one Release archive with **both** apps properly
+    embedded (`Runner.app/Watch/WatchApp.app`); installing that phone build
+    provisions the watch companion to the paired Apple Watch automatically —
+    no more detach/restore workaround, no separately-installed Debug watch
+    build. Verified end to end: combined Release build installed to the
+    physical iPhone (466) with the watch app embedded, feature `073`.
 - **Real local push notifications, unread tracking, and cross-device sync**
   (spec `073-push-notifications-sync`, 2026-07-29): the phone now posts an
   actual local notification (via `flutter_local_notifications`, not the
