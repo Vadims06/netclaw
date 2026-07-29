@@ -7,15 +7,27 @@
 
 ## Context: what exists today
 
-NetClaw Mobile can already **listen** but cannot **speak**. Verified against the tree at time of writing:
+The **phone** can already **listen** but cannot **speak**. Verified against `main` at `e02d679`:
 
 - `pubspec.yaml` declares `speech_to_text: ^7.4.0` and **no** text-to-speech or audio-playback package (`flutter_tts`, `just_audio`, `audioplayers` all absent).
-- An exhaustive sweep of `lib/`, `test/`, `android/`, `ios/` for `flutter_tts|FlutterTts|TextToSpeech|speak(|AudioPlayer` returns **zero** hits.
-- `lib/ncfed/voice_transcription.dart` (feature 067, extended by in-flight work on `main`) is input-only: microphone → text → `edge_ask_client`.
+- No Dart-side synthesis exists anywhere in `lib/`. The only TTS in the repo is `ios/WatchApp Watch App/SpeechPlayback.swift`, which is watchOS-only and not reachable from Flutter — see the subsection below.
+- `lib/ncfed/voice_transcription.dart` (feature 067, hardened by PR #195) is input-only: microphone → text → `edge_ask_client`.
 
-So the voice loop is currently half-open: the operator can speak a request, but the answer is text-only and must be read on screen.
+So the voice loop is half-open **on the phone**: the operator can speak a request, but the answer is text-only and must be read on screen.
+
+> **Correction.** An earlier draft of this section asserted that a sweep for TTS returned zero hits across `lib/`, `test/`, `android/` and `ios/`. That was true of the working tree it was run against, but that tree was 8 commits behind `origin/main` and the search pattern did not include `AVSpeechSynthesizer`. Watch-side synthesis did in fact already exist. The phone-side conclusion is unaffected.
 
 There is also a pre-existing dead end this feature must consciously decide about: `MessageContentType.voice` already exists in `lib/ncfed/message_feed.dart:6`, and `lib/screens/feed_screen.dart:131-135` renders such a message as an inert `Chip(label: Text('Voice message'))`. The Border can therefore push base64 audio that the app can display but **physically cannot play**. See "Out of Scope" — this is adjacent but not the same capability.
+
+### Relationship to `073-push-notifications-sync` (read this first)
+
+**Two specs share the number 073.** `specs/073-push-notifications-sync` was merged into `main` (PR #191, commit `5e9ecc1`) while this spec was being drafted. The collision is cosmetic — the specs cover different surfaces — but the number should be treated as ambiguous in conversation, and this spec's FR numbers are **not** aligned with that one's (both define an `FR-017`, meaning different things).
+
+**That feature already shipped voice playback — on the watch.** `mobile/netclaw-mobile/ios/WatchApp Watch App/SpeechPlayback.swift` wraps `AVSpeechSynthesizer` for the watch's Feed/History/Ask views (its US4, FR-017–FR-019). So "NetClaw can speak" is now partly true, and the earlier claim in this spec that watch playback was an unimplemented follow-on was wrong.
+
+What that does **not** change: the **phone** still has no synthesis capability. The only dependency `5e9ecc1` added was `flutter_local_notifications`; there is still no Dart-side TTS package, and `SpeechPlayback.swift` is watchOS-only and unreachable from Flutter. Every claim in the section above holds for the phone, which is this spec's entire scope.
+
+What it does change: the watch implementation is now **prior art with a deliberate design position**, and this spec must either match it or justify differing. See FR-012b and Out of Scope.
 
 ### Two speakable surfaces
 
@@ -75,6 +87,7 @@ For genuinely hands-free operation the operator should not have to tap anything:
 4. **Given** auto-speak is enabled, **When** the operator opens a historical turn from a previous session, **Then** old answers are not re-spoken on load.
 5. **Given** auto-speak is enabled and the device is in silent/vibrate mode, **When** an answer arrives, **Then** it is **not** spoken, and the operator can still see that the answer arrived and was not read aloud (FR-012a, FR-014).
 6. **Given** auto-speak is enabled and an answer is being spoken, **When** the app is backgrounded or the screen locks, **Then** playback stops (FR-007).
+7. **Given** auto-speak is enabled on the phone and a paired Apple Watch is present, **When** an answer arrives and is auto-spoken on the phone, **Then** the watch speaks nothing — preserving `073-push-notifications-sync`'s FR-018 (FR-012b).
 
 ---
 
@@ -125,6 +138,14 @@ The Border pushes messages the operator did not ask for — alerts, notification
 - **FR-011a**: The app MUST NOT provide its own speech-rate or voice-selection controls, and MUST NOT override the platform's configured speech rate. Both platforms already expose a system-level TTS rate that the synthesiser honours when not overridden; the app inherits whatever the operator has already chosen there.
 - **FR-012**: When multiple items are queued for playback, the app MUST speak them sequentially without overlap or loss.
 - **FR-012a**: Playback audibility MUST depend on how it was triggered. An **operator-initiated** playback (US1/US3 tap) MUST be audible even when the device is in silent/vibrate mode. An **auto-spoken** answer (US2) MUST stay silent when the device is in silent/vibrate mode, surfacing only the FR-014 visual indicator. Rationale: a deliberate request for sound that produces silence looks broken, while unrequested speech from a phone the operator deliberately silenced is a trust problem.
+- **FR-012b**: The phone's auto-speak (US2) MUST NOT cause the **watch** to speak. `073-push-notifications-sync`'s FR-018 requires that watch read-aloud "never trigger automatically", and the two devices share a conversation store via `WatchRelay` — so an auto-speak trigger that reached the watch through that shared path would violate that invariant from the outside. Auto-speak is a phone-local behaviour and MUST stay one.
+
+  **Why the phone may auto-speak at all when the watch may not.** Both specs are protecting the same thing — the watch spec's stated reason for on-demand-only is "to avoid surprising or embarrassing the operator in a quiet room" — but they reach it differently, and the difference is justified by the device rather than being an oversight:
+
+  - The **watch** is worn on the body and cannot be set down or silenced independently, so a blanket prohibition is the only reliable guarantee. It has no opt-in.
+  - The **phone** reaches the same guarantee through two mechanisms the watch lacks: auto-speak is **off by default and opt-in** (FR-011), and even when enabled it is **suppressed entirely in silent/vibrate mode** (FR-012a). An operator who has not opted in, or who has silenced the device, gets exactly the watch's behaviour.
+
+  This divergence is therefore deliberate. If it is ever judged to be inconsistency rather than device-appropriate design, the correct resolution is to drop US2 from this spec — not to relax the watch's FR-018.
 - **FR-013**: The app MUST yield the audio session to higher-priority audio (calls, alarms, navigation). On regaining audio focus it MUST **stay stopped** rather than resume or restart, leaving the operator to re-trigger playback; automatic resumption after an interruption is the "surprising" behaviour this requirement exists to prevent. The partially-spoken item MUST remain re-triggerable from the UI.
 - **FR-014**: Playback state MUST be visible in the UI, so the operator can tell what is speaking and that a control did something.
 
@@ -154,12 +175,13 @@ The Border pushes messages the operator did not ask for — alerts, notification
 - **SC-008**: An installation that does not enable auto-speak behaves exactly as it did before this feature.
 - **SC-009**: An answer containing a routing table is spoken in bounded time proportional to its prose, not its table length — a table-heavy answer never produces minutes of unusable audio.
 - **SC-010**: With auto-speak enabled and the phone silenced, no audio is produced across repeated answer arrivals, and the operator can still tell answers arrived.
+- **SC-011**: The watch's existing on-demand read-aloud behaviour is unchanged by this feature — it still speaks only on an explicit tap, and never as a side effect of phone auto-speak.
 
 ## Out of Scope
 
 - **Playback of `MessageContentType.voice` audio.** Confirmed out of scope in clarification. Playing Border-supplied base64 audio is *media playback*, not local synthesis — a different dependency and its own unanswered questions (codec, streaming vs download, caching, retention, which would collide with FR-017). Decisive factor: **the `voice` content type has no producer.** The daemon validates it at `bgp-daemon-v2.py:725`, but the only occurrence in the tree is a test fixture at `test_edge_push.py:156` (`"ZmFrZSB2b2ljZSBieXRlcw=="` — "fake voice bytes"), and the push-notification fallback handles `text` only (`push_notify.py:79`). The inert `Chip` therefore stays as-is; implementing a player for content nothing sends would be speculative. Worth its own spec if a producer ever appears.
 - **Background / locked-screen playback.** Settled in clarification: playback is foreground-only here (FR-007). Continuing through backgrounding or screen lock would deliver US2's "answer arrives while the phone is in a pocket" case, but costs an iOS `UIBackgroundModes: audio` entitlement and an Android foreground service with a persistent notification and declared service type — app-review and battery consequences that should be taken on deliberately, once the field workflow has been validated, not speculatively. **This is the most likely follow-on to this feature.**
-- **Voice playback on the Apple Watch.** Feature 072's `WatchRelay` already exposes `watch/feed` and `watch/history`, so the watch has the text and this is a natural follow-on, but the watch is a separate target with its own audio session and constraints.
+- **Voice playback on the Apple Watch — already implemented, not a follow-on.** Delivered by `073-push-notifications-sync` (US4/FR-017–FR-019, `SpeechPlayback.swift`) and merged in `5e9ecc1`. This spec does not touch it, must not regress it, and must not reach it via the shared conversation store (FR-012b). An earlier draft of this document listed watch playback as an unimplemented natural follow-on; that was incorrect and is corrected here.
 - **Server/Border-side synthesis**, including the existing Twilio voice path (feature 043). This feature is strictly on-device.
 - **Wake-word or fully conversational hands-free operation.**
 - **Changes to speech-to-text.** The in-flight `voice_transcription.dart` work on `main` is a separate concern; this feature consumes the existing input path unchanged.
@@ -176,6 +198,7 @@ The Border pushes messages the operator did not ask for — alerts, notification
 
 - A Flutter TTS capability wrapping Android `TextToSpeech` and iOS `AVSpeechSynthesizer`. No such package is currently in `pubspec.yaml`; selecting one (and confirming its on-device guarantees per FR-016) is a Phase 0 research task.
 - Existing: `ConversationStore`/`ConversationTurn` (067), `MessageFeedStore`/`EdgeMessage` (066), `VoiceTranscription` (067, for the FR-006 interlock), `chat_screen.dart`, `feed_screen.dart`, `settings_screen.dart` (for FR-011).
+- **Must not regress**: `073-push-notifications-sync`'s watch read-aloud (`SpeechPlayback.swift`) and the `WatchRelay` path that feeds it (FR-012b, SC-011).
 
 ## Open Questions for Clarification
 
@@ -190,6 +213,11 @@ The Border pushes messages the operator did not ask for — alerts, notification
 | Settings surface | FR-011, FR-011a |
 | Silent/vibrate mode | FR-012a |
 | Audio-focus regain behaviour | FR-013 (resolved by decision, not asked) |
+| Auto-speak vs the watch's never-automatic rule | FR-012b (raised after the session, on discovering the merged watch implementation) |
+
+**One decision left for the operator, not a blocking ambiguity:** whether the phone/watch auto-speak divergence documented in FR-012b is accepted as device-appropriate design. If not, the resolution is to drop US2 rather than relax the watch's FR-018. Everything else in this spec is independent of that choice — US1 and US3 stand either way.
+
+**Recommended housekeeping (not blocking):** renumber this spec to the next free number so `073` stops being ambiguous. Deferred because it would rename the directory, branch and PR mid-review.
 
 Deferred to planning (Phase 0 research, not spec-level ambiguity):
 
