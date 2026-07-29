@@ -18,10 +18,21 @@ class ChatScreen extends StatefulWidget {
   final ConversationStore store;
   final VoiceTranscription voiceTranscription;
 
+  /// When a chat notification is tapped (073/FR-006, `NotificationDeepLink`),
+  /// the turn it referred to is scrolled into view and highlighted —
+  /// mirrors `FeedScreen.highlightPushedAt`'s pattern exactly.
+  final String? highlightTaskId;
+
+  /// Fires after an acknowledge or delete action (073/FR-012/FR-013) so
+  /// `main.dart` can recompute the combined app badge (FR-008).
+  final VoidCallback? onChanged;
+
   ChatScreen({
     super.key,
     required this.askClient,
     required this.store,
+    this.highlightTaskId,
+    this.onChanged,
     VoiceTranscription? voiceTranscription,
   }) : voiceTranscription = voiceTranscription ?? VoiceTranscription();
 
@@ -32,6 +43,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
+  final _highlightKey = GlobalKey();
   bool _loading = true;
   bool _listening = false;
   /// taskId -> latest progress detail from n2n/edge/task_progress.
@@ -42,11 +54,33 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     widget.store.load().then((_) async {
       if (mounted) setState(() => _loading = false);
-      _jumpToNewest();
+      if (widget.highlightTaskId != null) {
+        _scrollToHighlight();
+      } else {
+        _jumpToNewest();
+      }
       await _reconcileStaleTurns();
     });
     widget.askClient.updates.listen((update) async {
       await _applyUpdate(update);
+    });
+  }
+
+  @override
+  void didUpdateWidget(ChatScreen old) {
+    super.didUpdateWidget(old);
+    // A second notification tap while the chat is already open.
+    if (widget.highlightTaskId != null && widget.highlightTaskId != old.highlightTaskId) {
+      _scrollToHighlight();
+    }
+  }
+
+  /// Deferred to the next frame: the target tile only has a render object
+  /// once the list has been laid out. Mirrors `FeedScreen._scrollToHighlight`.
+  void _scrollToHighlight() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _highlightKey.currentContext;
+      if (ctx != null) Scrollable.ensureVisible(ctx, alignment: 0.3);
     });
   }
 
@@ -229,6 +263,18 @@ class _ChatScreenState extends State<ChatScreen> {
     // guard means a completed answer that races the cancel is preserved.
   }
 
+  Future<void> _acknowledge(String taskId) async {
+    await widget.store.acknowledge(taskId);
+    if (mounted) setState(() {});
+    widget.onChanged?.call();
+  }
+
+  Future<void> _delete(String taskId) async {
+    await widget.store.delete(taskId);
+    if (mounted) setState(() {});
+    widget.onChanged?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -244,12 +290,20 @@ class _ChatScreenState extends State<ChatScreen> {
               : ListView.builder(
                   controller: _scroll,
                   itemCount: turns.length,
-                  itemBuilder: (context, index) => _TurnTile(
-                    turn: turns[index],
-                    progressDetail: _progress[turns[index].taskId],
-                    onCancel: () => _cancel(turns[index].taskId),
-                    onRetry: () => _retry(turns[index]),
-                  ),
+                  itemBuilder: (context, index) {
+                    final highlighted = widget.highlightTaskId != null &&
+                        turns[index].taskId == widget.highlightTaskId;
+                    return _TurnTile(
+                      key: highlighted ? _highlightKey : null,
+                      turn: turns[index],
+                      highlighted: highlighted,
+                      progressDetail: _progress[turns[index].taskId],
+                      onCancel: () => _cancel(turns[index].taskId),
+                      onRetry: () => _retry(turns[index]),
+                      onAcknowledge: () => _acknowledge(turns[index].taskId),
+                      onDelete: () => _delete(turns[index].taskId),
+                    );
+                  },
                 ),
         ),
         SafeArea(
@@ -295,6 +349,9 @@ class _TurnTile extends StatelessWidget {
   final ConversationTurn turn;
   final VoidCallback onCancel;
   final VoidCallback onRetry;
+  final VoidCallback onAcknowledge;
+  final VoidCallback onDelete;
+  final bool highlighted;
 
   /// Live detail from the Border for an in-progress turn (e.g. "Still working
   /// on this — 120s so far"). Null when there's nothing to add beyond
@@ -302,15 +359,23 @@ class _TurnTile extends StatelessWidget {
   final String? progressDetail;
 
   const _TurnTile({
+    super.key,
     required this.turn,
     required this.onCancel,
     required this.onRetry,
+    required this.onAcknowledge,
+    required this.onDelete,
+    this.highlighted = false,
     this.progressDetail,
   });
 
   bool get _isRetryable => turn.state == 'failed' || turn.state == 'cancelled';
 
   bool get _inProgress => turn.state == 'pending' || turn.state == 'working';
+
+  /// Matches `ConversationStore.unreadCount`'s own definition (073/FR-011):
+  /// an in-progress turn has nothing to acknowledge yet.
+  bool get _isUnread => !_inProgress && !turn.acknowledged;
 
   @override
   Widget build(BuildContext context) {
@@ -336,15 +401,62 @@ class _TurnTile extends StatelessWidget {
     if (ok ?? false) onRetry();
   }
 
+  Future<void> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this question?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok ?? false) onDelete();
+  }
+
   Widget _card(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: highlighted ? scheme.secondaryContainer : null,
+      shape: highlighted
+          ? RoundedRectangleBorder(
+              side: BorderSide(color: scheme.secondary, width: 2),
+              borderRadius: BorderRadius.circular(12),
+            )
+          : null,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(turn.requestText, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                // Unread indicator (073/FR-011) -- a deliberate, explicit
+                // acknowledge clears it (FR-012); merely viewing this tab
+                // does not (spec Assumptions).
+                if (_isUnread) ...[
+                  Icon(Icons.circle, size: 8, color: scheme.primary),
+                  const SizedBox(width: 6),
+                ],
+                Expanded(
+                  child: Text(turn.requestText, style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                if (_isUnread)
+                  IconButton(
+                    icon: const Icon(Icons.check_circle_outline, size: 20),
+                    tooltip: 'Acknowledge',
+                    onPressed: onAcknowledge,
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  tooltip: 'Delete',
+                  onPressed: () => _confirmDelete(context),
+                ),
+              ],
+            ),
             if (turn.photoPath != null) ...[
               const SizedBox(height: 8),
               ClipRRect(
