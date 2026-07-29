@@ -1084,9 +1084,13 @@ app.get('/api/env/:integrationId', (req, res) => {
   if (!mapping) return res.status(404).json({ error: 'Unknown integration' });
 
   const envVars = parseEnvFile();
+  // Never return the cleartext value. The HUD renders `masked` and `isSet`
+  // only, and this endpoint enumerates every credential in .env on an
+  // unauthenticated listener that binds all interfaces. To change a key the
+  // operator types a new one; PUT /api/env never needs the old value echoed
+  // back, so there is no consumer for the plaintext.
   const fields = mapping.env.map((key) => ({
     key,
-    value: envVars[key] || '',
     masked: envVars[key] ? maskValue(envVars[key]) : '',
     isSet: key in envVars && envVars[key] !== '',
   }));
