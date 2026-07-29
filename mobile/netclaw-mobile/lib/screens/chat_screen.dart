@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../ncfed/capture_client.dart';
 import '../ncfed/conversation_store.dart';
@@ -40,7 +41,8 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen>
+    with WidgetsBindingObserver {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
   final _highlightKey = GlobalKey();
@@ -52,6 +54,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.store.load().then((_) async {
       if (mounted) setState(() => _loading = false);
       if (widget.highlightTaskId != null) {
@@ -86,9 +89,30 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    // Release the microphone if we're torn down mid-recording. The plugin is
+    // explicit that "each listen session should be ended with either stop or
+    // cancel, for example in the dispose method of a Widget" — and because the
+    // recogniser is a single platform-wide resource, a session left running
+    // here silently poisons the NEXT recording: initialize() still succeeds,
+    // listen() attaches to a busy recogniser, and no audio is captured. That is
+    // the reported "sometimes it just doesn't record", reached by navigating
+    // away while the mic was live.
+    WidgetsBinding.instance.removeObserver(this);
+    widget.voiceTranscription.cancel();
     _scroll.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Same leak by a different route: backgrounding the app. The OS may revoke
+    // microphone access without telling the recogniser, leaving a session that
+    // looks live and captures nothing. Keeping the audio stream open while
+    // hidden would also be the wrong thing to do regardless.
+    if (state != AppLifecycleState.resumed && _listening) {
+      widget.voiceTranscription.cancel();
+    }
   }
 
   /// Turns are rendered oldest-first, so offset 0 is the OLDEST message —
@@ -162,6 +186,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _recordVoice() async {
     if (_listening) return; // already recording — ignore a double tap
     setState(() => _listening = true);
+    // Announce for screen-reader users, who get none of the visual state.
+    _announce('Listening');
     try {
       final result = await widget.voiceTranscription.recordAndAsk(
         widget.askClient,
@@ -185,7 +211,17 @@ class _ChatScreenState extends State<ChatScreen> {
       _jumpToNewest(animate: true);
     } finally {
       if (mounted) setState(() => _listening = false);
+      _announce('Stopped listening');
     }
+  }
+
+  /// Speaks recording state to assistive tech. Recording start/stop is exactly
+  /// what a live region is for: a blind operator otherwise has no way to know
+  /// whether the mic is open.
+  void _announce(String message) {
+    if (!mounted) return;
+    SemanticsService.sendAnnouncement(
+        View.of(context), message, TextDirection.ltr);
   }
 
   /// Re-sends a turn's original request as a NEW turn, leaving the failed one
@@ -319,20 +355,27 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 IconButton(icon: const Icon(Icons.camera_alt), onPressed: _capturePhoto),
+                // While recording, tapping the mic must SUBMIT what was said —
+                // it reads as "stop" and stopping a recording means keeping it.
+                // This previously called cancel(), which the plugin documents as
+                // guaranteeing no final result, so an operator who finished
+                // speaking and tapped stop silently lost their entire request.
+                // Discarding is now a separate, deliberately distinct control.
+                if (_listening)
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Discard recording',
+                    onPressed: () => widget.voiceTranscription.cancel(),
+                  ),
                 IconButton(
                   // Visible listening state — the mic previously gave no
                   // indication it was live, so a working recording looked
                   // identical to a broken one.
                   icon: Icon(_listening ? Icons.stop_circle : Icons.mic_none,
                       color: _listening ? Theme.of(context).colorScheme.error : null),
-                  tooltip: _listening ? 'Stop listening' : 'Voice request',
-                  // Tapping while live now CANCELS. This used to be `null`,
-                  // which disabled the button for the whole session — so a
-                  // recording that overran left the operator with no way out
-                  // at all, and abandoning the app instead is exactly what
-                  // leaked the recogniser and broke the next attempt.
+                  tooltip: _listening ? 'Done — send what I said' : 'Voice request',
                   onPressed: _listening
-                      ? () => widget.voiceTranscription.cancel()
+                      ? () => widget.voiceTranscription.finishNow()
                       : _recordVoice,
                 ),
                 IconButton(icon: const Icon(Icons.send), onPressed: _send),
