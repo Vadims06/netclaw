@@ -281,6 +281,50 @@ Border, not a dependency.
     native Swift binary, not subject to Flutter's JIT-tooling restriction).
     Producing one Release archive with both apps properly embedded together
     is deferred, unresolved follow-up work.
+- **Real local push notifications, unread tracking, and cross-device sync**
+  (spec `073-push-notifications-sync`, 2026-07-29): the phone now posts an
+  actual local notification (via `flutter_local_notifications`, not the
+  credential-blocked remote FCM/APNs path below) for a new Feed message, a
+  completed chat answer, or a new approval — while the app process is alive,
+  foreground or backgrounded. Approval notifications carry inline
+  Approve/Deny actions gated by `DarwinNotificationActionOption
+  .authenticationRequired` AND the exact same fresh, never-cached biometric
+  confirmation the in-app buttons use (extracted into
+  `lib/ncfed/approval_confirmation.dart`, now the one shared entry point for
+  both). The watch inherits every notification and the combined app badge
+  purely via standard watchOS mirroring — no new watch-side
+  background-delivery code was added (confirmed by code review, FR-010).
+  `MessageFeedStore`/`ConversationStore` gained per-item `acknowledged` state
+  (with a load-bearing migration rule: a message/turn written before this
+  feature shipped defaults to *already acknowledged* on load, not unread —
+  getting that backwards would have made every pre-existing item appear new
+  the moment an operator upgraded) plus `acknowledge()`/`delete()`, exposed
+  on both phone screens and the watch's Feed/History tabs (swipe actions),
+  and four new watch-relay methods. A real, pre-existing defect is also fixed
+  here: `watch_relay.dart`'s `_submitAsk`/`_askStatus` now actually record
+  into the shared `ConversationStore` (with `origin: "watch"`) — previously
+  a question asked from the watch never appeared in the phone's Chat tab or
+  the watch's own History tab at all. The watch's Feed/History/Ask views
+  gained an on-demand "read aloud" control (`SpeechPlayback.swift`,
+  `AVSpeechSynthesizer`) that only ever speaks on an explicit tap.
+  - **Verified**: all Dart-side logic (stores, relay methods, notification
+    payload/dedup/badge helpers, the generalized `NotificationDeepLink`
+    dispatcher, the Border's `already_resolved` addition) via the automated
+    suite — `flutter analyze` clean, full `flutter test` suite passing with
+    zero regressions, `python3 -m pytest tests/n2n` passing. All new watchOS
+    Swift code (`FeedView.swift`/`HistoryView.swift`/`AskView.swift`/
+    `WatchDataStore.swift`/`SpeechPlayback.swift`) compiles cleanly against
+    the real, physical Apple Watch from spec 072 (`xcodebuild ... -destination
+    'id=<device>' build` succeeded).
+  - **Not yet verified**: the actual on-device behavior of every capability
+    above (notification banners actually appearing, the watch's own
+    home-screen badge mirroring per FR-009, swipe-to-acknowledge/delete on
+    real hardware, the notification-tap authenticated-action flow, read-aloud
+    audibly speaking) — this needs the operator physically present with both
+    devices unlocked and nearby, which wasn't available for this pass. Do
+    not assume this works from a clean compile alone; a real-hardware pass
+    matching spec 072's own verification standard is the next step before
+    this can be marked fully done.
 - Push-notification delivery (FCM/APNs, feature 066 US3) needs real Firebase/Apple
   Developer credentials configured on the Border (`.env.example`'s
   `FCM_SERVICE_ACCOUNT_JSON`/`APNS_*` vars) and a real `Firebase.initializeApp()`
