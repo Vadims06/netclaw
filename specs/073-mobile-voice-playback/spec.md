@@ -2,7 +2,7 @@
 
 **Feature Branch**: `073-mobile-voice-playback`
 **Created**: 2026-07-29
-**Status**: Draft
+**Status**: Clarified (session 2026-07-29) — ready for `/speckit.plan`
 **Input**: User description: "working VOICE PLAYBACK to messages on android — where on the device it uses local TTS and plays back the message"
 
 ## Context: what exists today
@@ -24,6 +24,16 @@ There is also a pre-existing dead end this feature must consciously decide about
 | Agent answer to a request | `ConversationTurn.answerText` (`lib/ncfed/conversation_store.dart:9`) | `chat_screen.dart` | 067 |
 | Border-pushed message | `EdgeMessage.content` where `contentType == text` (`message_feed.dart:11-22`) | `feed_screen.dart` | 066 |
 
+## Clarifications
+
+### Session 2026-07-29
+
+- Q: When speaking an answer, how should the app handle network-ops text and long machine output (routing tables, CLI dumps, dotted quads, `GigabitEthernet0/0/1`)? → A: Normalise prose phone-side for intelligibility, and skip fenced-code/tabular blocks entirely — announcing them rather than reading them. Keeps the feature mobile-only; no Border protocol work.
+- Q: Must playback keep going when the app is backgrounded or the screen locks (the US2 "phone in pocket" case)? → A: No — foreground only for this iteration. Playback stops when the app leaves the foreground. Background playback is deferred to a follow-on rather than taking on an iOS background-audio entitlement and an Android foreground service now.
+- Q: Should this feature also implement playback of Border-pushed `voice` audio (the inert Chip at `feed_screen.dart:131-135`)? → A: No — kept separate. Confirmed during clarification that the `voice` content type has **no producer anywhere in the codebase**: the daemon validates it (`bgp-daemon-v2.py:725`) but the only occurrence is a test fixture (`test_edge_push.py:156`), and the push-notification path handles `text` only (`push_notify.py:79`). The inert Chip stays; it deserves its own spec if a producer ever appears.
+- Q: What should the settings surface include (FR-011)? → A: A single auto-speak toggle, defaulting to off. No in-app rate or voice picker — both platforms already expose a system-level TTS speech rate that the synthesiser honours when not overridden, so the app inherits the operator's existing OS preference.
+- Q: Should voice playback be audible when the phone is on silent/vibrate? → A: Split by trigger — an explicit tap plays audibly even when silenced (the operator just asked for sound), while auto-speak stays silent on a silenced phone (they silenced it to avoid unrequested noise). Matches platform convention for deliberate media vs notification audio.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Hear an answer without looking at the phone (Priority: P1)
@@ -41,16 +51,21 @@ An operator with their hands and eyes occupied — up a ladder in a data centre,
 3. **Given** a turn in `pending`/`working` state with no answer yet, **When** the operator looks at that turn, **Then** no speak control is offered (there is nothing to speak).
 4. **Given** a turn whose state is `failed` or `cancelled`, **When** the operator looks at that turn, **Then** no speak control is offered.
 5. **Given** the device has no usable TTS voice installed, **When** the operator activates the speak control, **Then** they are told why nothing was spoken and what to install — never a silent no-op.
+6. **Given** the device is in silent/vibrate mode, **When** the operator activates the speak control, **Then** the answer is still audible (FR-012a).
+7. **Given** an answer containing a fenced code block or table, **When** it is spoken, **Then** the surrounding prose is spoken and the block is announced with its size and location rather than read aloud (FR-009).
+8. **Given** an answer is being spoken, **When** an incoming call takes audio focus and then ends, **Then** playback does not resume by itself and the item remains re-triggerable (FR-013).
 
 ---
 
 ### User Story 2 - Answers spoken automatically as they arrive (Priority: P2)
 
-For genuinely hands-free operation the operator should not have to tap anything: having asked by voice, the answer should simply be read out when it lands. Because an agent turn can take a while, the operator may have put the phone in a pocket by then.
+For genuinely hands-free operation the operator should not have to tap anything: having asked by voice, the answer should simply be read out when it lands. An agent turn can take a while, so the operator will typically have set the phone down — screen still on, app still open — and gone back to what they were doing.
+
+**Scope boundary**: per the 2026-07-29 clarification this applies while the app is in the **foreground**. If the operator pockets the phone and the screen locks, playback stops (FR-007). The "answer arrives while the phone is in a pocket" case is deliberately deferred — see Out of Scope.
 
 **Why this priority**: This is what makes the feature usable in the field rather than merely present. It is separated from US1 because auto-speaking is a behaviour change with real annoyance potential (speaking aloud in a meeting), so it must be operator-controlled and is therefore independently shippable behind a setting.
 
-**Independent Test**: Enable the auto-speak setting, submit a request, put the phone down, and confirm the answer is spoken on arrival with no interaction. Disable the setting and confirm silence.
+**Independent Test**: Enable the auto-speak setting, submit a request, set the phone down with the screen on, and confirm the answer is spoken on arrival with no interaction. Disable the setting and confirm silence.
 
 **Acceptance Scenarios**:
 
@@ -58,6 +73,8 @@ For genuinely hands-free operation the operator should not have to tap anything:
 2. **Given** auto-speak is disabled (the default), **When** an answer arrives, **Then** nothing is spoken and the US1 manual control remains available.
 3. **Given** auto-speak is enabled and an answer is already being spoken, **When** a second answer arrives, **Then** the answers are spoken one after another without overlapping or being dropped.
 4. **Given** auto-speak is enabled, **When** the operator opens a historical turn from a previous session, **Then** old answers are not re-spoken on load.
+5. **Given** auto-speak is enabled and the device is in silent/vibrate mode, **When** an answer arrives, **Then** it is **not** spoken, and the operator can still see that the answer arrived and was not read aloud (FR-012a, FR-014).
+6. **Given** auto-speak is enabled and an answer is being spoken, **When** the app is backgrounded or the screen locks, **Then** playback stops (FR-007).
 
 ---
 
@@ -80,9 +97,10 @@ The Border pushes messages the operator did not ask for — alerts, notification
 
 - **Microphone interlock (critical).** What happens if playback starts while the recogniser is listening? Spoken output would be captured as input, transcribing NetClaw's own answer back into the next request. `chat_screen.dart` already tracks `_listening` and `voice_transcription.dart` exposes `cancel()`/`finishNow()`, so the state needed for an interlock exists — the spec requires one (FR-006).
 - **Domain text is hostile to naive TTS.** Answers routinely contain IP addresses, prefix lengths, MAC addresses, interface names (`GigabitEthernet0/0/1`), AS numbers, and pasted CLI/table output. A synthesiser reading `10.0.0.1/24` as "ten point zero point zero point one slash twenty-four" is tolerable; one reading a 40-line routing table verbatim is useless and cannot be interrupted fast enough to matter. See FR-008/FR-009.
-- **Interruptions.** Incoming call, another app taking audio focus, alarm, navigation prompt.
-- **Lifecycle.** App backgrounded, screen locked, or the screen disposed mid-utterance. `chat_screen.dart:58-67` already releases the mic on dispose; playback needs the equivalent.
-- **Audio routing.** Bluetooth headset, wired headphones, car audio, speakerphone, silent/vibrate mode. Does silent mode suppress playback the operator explicitly requested?
+- **Interruptions.** Incoming call, another app taking audio focus, alarm, navigation prompt — resolved by FR-013: yield, then stay stopped rather than resume.
+- **Lifecycle.** App backgrounded, screen locked, or the screen disposed mid-utterance — resolved by FR-007: playback stops. `chat_screen.dart:58-67` already releases the mic on dispose; playback needs the equivalent.
+- **Audio routing.** Bluetooth headset, wired headphones, car audio, speakerphone. Silent/vibrate is resolved by FR-012a (tap plays, auto-speak stays quiet); routing itself is left to the platform's current output selection.
+- **Auto-speak while silenced.** The operator must be able to tell an answer arrived and was *not* spoken, rather than assuming the feature is broken (FR-012a + FR-014).
 - **Very long answers.** Is there a ceiling, a summary, or is the whole thing read?
 - **Empty/whitespace-only answer text.**
 - **Rapid repeated activation** of the speak control.
@@ -98,13 +116,16 @@ The Border pushes messages the operator did not ask for — alerts, notification
 - **FR-004**: Operators MUST be able to stop in-progress playback at any time.
 - **FR-005**: The app MUST NOT offer a playback control where there is no speakable text (turns without an answer; non-text Feed content).
 - **FR-006**: The app MUST NOT play synthesised audio while the microphone is open for speech recognition, so that output is never captured as input.
-- **FR-007**: The app MUST stop playback when the owning screen is disposed and when the app leaves the foreground [NEEDS CLARIFICATION: should playback continue in the background — arguably desirable for the "phone in pocket" case in US2 — or stop? Background audio has real platform cost: an iOS background audio mode entitlement and an Android foreground service, both of which affect app review and battery].
-- **FR-008**: The app MUST make network-operations text intelligible when spoken, rather than passing raw text to the synthesiser unmodified [NEEDS CLARIFICATION: how far should normalisation go? Options range from none, to punctuation/pacing hints for dotted-quad and interface names, to skipping fenced code and tabular blocks entirely. This materially changes scope and needs a decision before planning].
-- **FR-009**: The app MUST handle answers whose bulk is machine output rather than prose [NEEDS CLARIFICATION: read in full, truncate at a ceiling, or speak a spoken-form summary? A spoken summary would require Border-side support — the phone has only the final answer text — which would widen this feature beyond the mobile client].
+- **FR-007**: The app MUST stop playback when the owning screen is disposed and when the app leaves the foreground (including screen lock). Playback is a foreground-only capability in this iteration; the app MUST NOT declare an iOS background-audio mode or run an Android foreground service for playback. This mirrors the existing microphone discipline, where `chat_screen.dart:58-67` releases the mic on dispose.
+- **FR-008**: The app MUST normalise answer text on the phone before synthesis so that network-operations identifiers are intelligible when heard — at minimum dotted-quad addresses, prefix lengths, and interface names must be spoken with pacing and grouping that a listener can transcribe back correctly without seeing the screen. Raw text MUST NOT be passed to the synthesiser unmodified.
+- **FR-009**: The app MUST NOT read fenced-code or tabular blocks aloud. It MUST instead announce each such block's presence and size and state that it is available on screen (e.g. "routing table omitted, 40 lines, shown on screen"), then continue with the surrounding prose. Rationale: reading a 40-line table aloud is unusable and cannot be interrupted fast enough to matter, so the feature declines to do badly what it cannot do well.
+- **FR-009a**: All normalisation and block-skipping MUST happen on the phone. This feature MUST NOT require any change to the Border's answer text or wire format. A Border-generated spoken summary was considered and deliberately rejected for this iteration as scope-widening; it remains a possible follow-on.
 - **FR-010**: The app MUST report to the operator when playback cannot proceed (no voice/engine available, permission or platform failure) rather than failing silently. This follows the precedent set for the microphone, where a silent failure was explicitly called out as the worst outcome (`voice_transcription.dart`: *"tapped the mic and nothing whatsoever happened. Always say why."*).
-- **FR-011**: Auto-speak (US2) MUST be operator-controllable and MUST default to **off**, so no existing installation starts speaking aloud after an update.
+- **FR-011**: Auto-speak (US2) MUST be operator-controllable via a single persisted toggle in Settings and MUST default to **off**, so no existing installation starts speaking aloud after an update.
+- **FR-011a**: The app MUST NOT provide its own speech-rate or voice-selection controls, and MUST NOT override the platform's configured speech rate. Both platforms already expose a system-level TTS rate that the synthesiser honours when not overridden; the app inherits whatever the operator has already chosen there.
 - **FR-012**: When multiple items are queued for playback, the app MUST speak them sequentially without overlap or loss.
-- **FR-013**: The app MUST yield the audio session to higher-priority audio (calls, alarms) and MUST NOT resume silently in a way that surprises the operator [NEEDS CLARIFICATION: on regaining focus — resume, restart the utterance, or stay stopped?].
+- **FR-012a**: Playback audibility MUST depend on how it was triggered. An **operator-initiated** playback (US1/US3 tap) MUST be audible even when the device is in silent/vibrate mode. An **auto-spoken** answer (US2) MUST stay silent when the device is in silent/vibrate mode, surfacing only the FR-014 visual indicator. Rationale: a deliberate request for sound that produces silence looks broken, while unrequested speech from a phone the operator deliberately silenced is a trust problem.
+- **FR-013**: The app MUST yield the audio session to higher-priority audio (calls, alarms, navigation). On regaining audio focus it MUST **stay stopped** rather than resume or restart, leaving the operator to re-trigger playback; automatic resumption after an interruption is the "surprising" behaviour this requirement exists to prevent. The partially-spoken item MUST remain re-triggerable from the UI.
 - **FR-014**: Playback state MUST be visible in the UI, so the operator can tell what is speaking and that a control did something.
 
 ### Privacy Requirements
@@ -117,7 +138,7 @@ The Border pushes messages the operator did not ask for — alerts, notification
 
 - **Speakable item**: a unit of text offered for playback, derived from either a `ConversationTurn.answerText` or a text `EdgeMessage.content`. Carries the text, a stable identity (so the UI can show *which* item is speaking), and its origin surface.
 - **Playback session**: the app's single logical speaking channel — at most one utterance audible at a time, with a queue behind it and a well-defined interaction with the microphone.
-- **Voice playback preference**: operator-set, persisted, per-installation; at minimum the US2 auto-speak toggle. [NEEDS CLARIFICATION: also rate/pitch/voice selection, or is a single toggle sufficient for v1?]
+- **Voice playback preference**: a single operator-set, persisted, per-installation boolean — the US2 auto-speak toggle, default off. Rate, pitch and voice are deliberately **not** app-level state; they are inherited from the platform (FR-011a).
 
 ## Success Criteria *(mandatory)*
 
@@ -131,10 +152,13 @@ The Border pushes messages the operator did not ask for — alerts, notification
 - **SC-006**: Answers containing IP addresses and interface names are intelligible to an operator hearing them for the first time, without needing the screen to disambiguate.
 - **SC-007**: Behaviour is equivalent on Android and iOS for every acceptance scenario above.
 - **SC-008**: An installation that does not enable auto-speak behaves exactly as it did before this feature.
+- **SC-009**: An answer containing a routing table is spoken in bounded time proportional to its prose, not its table length — a table-heavy answer never produces minutes of unusable audio.
+- **SC-010**: With auto-speak enabled and the phone silenced, no audio is produced across repeated answer arrivals, and the operator can still tell answers arrived.
 
 ## Out of Scope
 
-- **Playback of `MessageContentType.voice` audio.** The dead `Chip` at `feed_screen.dart:131-135` is a real gap, but playing Border-supplied base64 audio is *media playback*, not local synthesis — a different dependency and a different set of questions. Recorded here so it is not lost; it deserves its own spec. [NEEDS CLARIFICATION: confirm the operator agrees this stays separate — it is arguably the more obvious reading of "voice playback of messages", and the two could reasonably ship together.]
+- **Playback of `MessageContentType.voice` audio.** Confirmed out of scope in clarification. Playing Border-supplied base64 audio is *media playback*, not local synthesis — a different dependency and its own unanswered questions (codec, streaming vs download, caching, retention, which would collide with FR-017). Decisive factor: **the `voice` content type has no producer.** The daemon validates it at `bgp-daemon-v2.py:725`, but the only occurrence in the tree is a test fixture at `test_edge_push.py:156` (`"ZmFrZSB2b2ljZSBieXRlcw=="` — "fake voice bytes"), and the push-notification fallback handles `text` only (`push_notify.py:79`). The inert `Chip` therefore stays as-is; implementing a player for content nothing sends would be speculative. Worth its own spec if a producer ever appears.
+- **Background / locked-screen playback.** Settled in clarification: playback is foreground-only here (FR-007). Continuing through backgrounding or screen lock would deliver US2's "answer arrives while the phone is in a pocket" case, but costs an iOS `UIBackgroundModes: audio` entitlement and an Android foreground service with a persistent notification and declared service type — app-review and battery consequences that should be taken on deliberately, once the field workflow has been validated, not speculatively. **This is the most likely follow-on to this feature.**
 - **Voice playback on the Apple Watch.** Feature 072's `WatchRelay` already exposes `watch/feed` and `watch/history`, so the watch has the text and this is a natural follow-on, but the watch is a separate target with its own audio session and constraints.
 - **Server/Border-side synthesis**, including the existing Twilio voice path (feature 043). This feature is strictly on-device.
 - **Wake-word or fully conversational hands-free operation.**
@@ -144,7 +168,7 @@ The Border pushes messages the operator did not ask for — alerts, notification
 
 - Operators run OS versions with a usable built-in TTS engine and at least one installed local voice. Absence is handled per FR-010 rather than by bundling a voice.
 - English is the only language that must be supported for v1.
-- The existing `ConversationStore` and `MessageFeedStore` are the sources of speakable text; no new Border-side protocol work is required — **unless FR-009 resolves toward Border-generated spoken summaries**, which would change that and should be settled during clarification.
+- The existing `ConversationStore` and `MessageFeedStore` are the sources of speakable text; **no new Border-side protocol work is required** (settled in clarification — see FR-009a).
 - The Border's answer text is unchanged by this feature; any speech-oriented normalisation happens on the phone.
 - No new push, enrollment, or federation behaviour is involved.
 
@@ -155,8 +179,22 @@ The Border pushes messages the operator did not ask for — alerts, notification
 
 ## Open Questions for Clarification
 
-1. **Background playback** (FR-007) — is the "phone in pocket" case in US2 required? It is the difference between an in-app convenience and a platform-entitlement change.
-2. **Normalisation depth** (FR-008) and **long machine output** (FR-009) — the largest scope lever in this spec.
-3. **Scope of `voice` message playback** — genuinely separate feature, or expected in the same delivery?
-4. **Settings surface** (FR-011) — bare auto-speak toggle, or rate/voice controls too?
-5. **Silent/vibrate mode** — does an explicitly requested playback override it?
+**None blocking.** All five questions raised in the initial draft were resolved in the 2026-07-29 clarification session:
+
+| Question | Resolved by |
+|---|---|
+| Normalisation depth | FR-008 |
+| Long machine output | FR-009, FR-009a |
+| Background / locked-screen playback | FR-007, Out of Scope |
+| Scope of `voice` audio playback | Out of Scope (no producer exists) |
+| Settings surface | FR-011, FR-011a |
+| Silent/vibrate mode | FR-012a |
+| Audio-focus regain behaviour | FR-013 (resolved by decision, not asked) |
+
+Deferred to planning (Phase 0 research, not spec-level ambiguity):
+
+- **Which TTS package**, and what on-device guarantee each platform actually provides (FR-016). The STT path's `EXTRA_PREFER_OFFLINE` enforcement must not be assumed to have a synthesis equivalent — this needs verifying against current platform behaviour before FR-001/FR-015 can be called satisfied.
+- **Exact normalisation rules** for identifier classes beyond dotted-quad, prefix length and interface name (FR-008) — the requirement fixes the intent and the acceptance bar; the specific transformations are an implementation detail with test coverage.
+- **Precise latency target** for SC-002.
+
+Ready for `/speckit.plan`.
