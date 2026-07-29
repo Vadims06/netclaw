@@ -1,6 +1,6 @@
 # Feature Specification: On-Device Voice Playback of Messages (Android + iOS)
 
-**Feature Branch**: `073-mobile-voice-playback`
+**Feature Branch**: `074-mobile-voice-playback`
 **Created**: 2026-07-29
 **Status**: Clarified (session 2026-07-29) — ready for `/speckit.plan`
 **Input**: User description: "working VOICE PLAYBACK to messages on android — where on the device it uses local TTS and plays back the message"
@@ -21,7 +21,9 @@ There is also a pre-existing dead end this feature must consciously decide about
 
 ### Relationship to `073-push-notifications-sync` (read this first)
 
-**Two specs share the number 073.** `specs/073-push-notifications-sync` was merged into `main` (PR #191, commit `5e9ecc1`) while this spec was being drafted. The collision is cosmetic — the specs cover different surfaces — but the number should be treated as ambiguous in conversation, and this spec's FR numbers are **not** aligned with that one's (both define an `FR-017`, meaning different things).
+**This spec was originally numbered 073 and has been renumbered to 074.** `specs/073-push-notifications-sync` was merged into `main` (PR #191, commit `5e9ecc1`) while this spec was being drafted, so two `073-*` spec directories briefly coexisted. That was not cosmetic: `.specify/scripts/bash/common.sh` resolves the feature directory by matching a branch's numeric prefix against `specs/<prefix>-*` and **hard-errors on multiple matches**, so every speckit command on a `073-*` branch failed with `ERROR: Multiple spec directories found with prefix '073'`. Renumbering to 074 fixes that.
+
+Note that FR numbers are still **not** aligned between the two specs — both define an `FR-017`, meaning different things (here: never persist synthesised audio; there: the watch's read-aloud control). Always qualify which spec an FR belongs to.
 
 **That feature already shipped voice playback — on the watch.** `mobile/netclaw-mobile/ios/WatchApp Watch App/SpeechPlayback.swift` wraps `AVSpeechSynthesizer` for the watch's Feed/History/Ask views (its US4, FR-017–FR-019). So "NetClaw can speak" is now partly true, and the earlier claim in this spec that watch playback was an unimplemented follow-on was wrong.
 
@@ -215,9 +217,9 @@ The Border pushes messages the operator did not ask for — alerts, notification
 | Audio-focus regain behaviour | FR-013 (resolved by decision, not asked) |
 | Auto-speak vs the watch's never-automatic rule | FR-012b (raised after the session, on discovering the merged watch implementation) |
 
-**One decision left for the operator, not a blocking ambiguity:** whether the phone/watch auto-speak divergence documented in FR-012b is accepted as device-appropriate design. If not, the resolution is to drop US2 rather than relax the watch's FR-018. Everything else in this spec is independent of that choice — US1 and US3 stand either way.
+**Accepted 2026-07-29:** the phone/watch auto-speak divergence documented in FR-012b is confirmed as device-appropriate design, not an inconsistency. US2 stands. The watch's `073-push-notifications-sync` FR-018 prohibition remains untouched, and FR-012b's guard against phone auto-speak reaching the watch is binding.
 
-**Recommended housekeeping (not blocking):** renumber this spec to the next free number so `073` stops being ambiguous. Deferred because it would rename the directory, branch and PR mid-review.
+**Renumbered 2026-07-29:** this spec moved from `073` to `074` (directory and branch), resolving the prefix collision that was breaking every speckit command.
 
 Deferred to planning (Phase 0 research, not spec-level ambiguity):
 
