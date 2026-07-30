@@ -53,7 +53,7 @@ and the IETF datatracker.
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R1** | Generic multivendor CLI driver (Nornir/Netmiko/NAPALM) | — | `NOT STARTED` |
+| **R1** | Generic multivendor CLI driver (Nornir/Netmiko/NAPALM) | [076](../specs/076-multivendor-cli-driver/spec.md) | `IN FLIGHT` |
 | **R2** | Cisco Support APIs (PSIRT / EoX / Bug / Case) | — | `NOT STARTED` |
 | **R3** | Fortinet (FortiOS / FortiManager / FortiAnalyzer) | — | `NOT STARTED` |
 | **R4** | Palo Alto PAN-OS / Panorama NGFW | — | `NOT STARTED` |
