@@ -36,6 +36,13 @@ fi
 echo "lab: SR Linux=$SRL_UP  FRR=$FRR_UP"
 echo
 
+# The two credentials below are LAB FIXTURES for disposable containers, not
+# secrets, and are deliberately committed so this test runs standalone:
+#   NokiaSrl1!  — SR Linux container image's publicly documented default
+#   netops123   — set by labs/multivendor-r1/frr-ssh/Dockerfile in this repo
+# Real device credentials NEVER go here. They belong in a gitignored .env and are
+# read via credential_ref (see credentials.py); the server rejects inventory
+# records containing credential-shaped fields at all.
 export MULTIVENDOR_INVENTORY_SOURCE=operator
 export MULTIVENDOR_INVENTORY_PATH="$REPO_ROOT/labs/multivendor-r1/inventory.yaml"
 export MULTIVENDOR_SRLINUX_USERNAME=admin
@@ -67,7 +74,7 @@ print("=== inventory resolves and attributes ownership ===")
 r = server.list_devices()
 check("source is reported", r["source_used"] == "operator", r["source_used"])
 owners = {d["name"]: d["owning_server"] for d in r["devices"]}
-check("cisco device owned by pyats", owners.get("core-cml-01") == "pyats", str(owners))
+check("cisco device owned by pyats", owners.get("cml-r1") == "pyats", str(owners))
 check("srl1 owned by this server", owners.get("srl1") == "multivendor-cli", str(owners))
 
 if srl:
@@ -103,8 +110,61 @@ if frr:
     x = server.run_command("frr-lab-01", "rm -rf /")
     check("'rm -rf /' DENIED", x["status"] == "denied")
 
+print("\n=== Phase 5: NAPALM normalized facts (FR-006/007/008) ===")
+x = server.get_facts("cml-r1", ["get_facts", "get_interfaces"])
+check("normalized read on Cisco PERMITTED (FR-008 exception)", x["status"] == "ok",
+      f"{x['status']}: {str(x.get('error'))[:60]}")
+check("  ...via the napalm ios driver", x.get("napalm_driver") == "ios", str(x.get("napalm_driver")))
+gf = next((f for f in x.get("facts", []) if f["getter"] == "get_facts"), {})
+check("  ...returning real data with provenance=napalm",
+      gf.get("available") and gf.get("provenance") == "napalm" and gf.get("data", {}).get("hostname"))
+if srl:
+    y = server.get_facts("srl1", ["get_facts", "get_bgp_neighbors"])
+    check("SR Linux gap REPORTED not omitted (FR-007)",
+          len(y.get("facts", [])) == 2 and all(not f["available"] for f in y["facts"]),
+          str(len(y.get("facts", []))))
+    check("  ...every gap carries a reason", all(f["gap_reason"] for f in y["facts"]))
+    check("  ...and provenance is never faked as napalm",
+          all(f["provenance"] is None for f in y["facts"]))
+    keys_cisco = set(gf.keys()); keys_srl = set(y["facts"][0].keys())
+    check("cross-vendor rows share ONE shape (FR-006)", keys_cisco == keys_srl,
+          f"{keys_cisco ^ keys_srl}")
+
+print("\n=== Phase 6: fleet fan-out (FR-013/014/015) ===")
+fl = server.run_fleet("cml", getters=["get_facts"])
+check("every targeted device appears in results (FR-014)",
+      fl["requested"] == fl["returned"], f"{fl['requested']} vs {fl['returned']}")
+check("  ...an unreachable device is isolated, not fatal",
+      fl["summary"].get("ok", 0) >= 1 and fl["summary"].get("unreachable", 0) >= 1,
+      str(fl["summary"]))
+
+print("\n=== Phase 8: change gates (FR-024/025/025a/025c, Principle III) ===")
+import tools.change as chg
+os.environ["MULTIVENDOR_WRITE_ENABLED"] = "true"
+r = chg.apply_config("cml-r1", "hostname NEW", approved_by="tester")
+check("write to Cisco REFUSED by routing", r["status"] == "refused", r["status"])
+r = chg.apply_config("prod-srl-01", "set / system information location x", approved_by="tester")
+check("production + human approval but NO CR -> blocked (Principle III)",
+      r["status"] == "cr_not_approved", r["status"])
+check("  ...classified production", r.get("classification") == "production", str(r.get("classification")))
+r = chg.apply_config("prod-srl-01", "set / system information location x",
+                     change_request="CHG9999999", approved_by="tester")
+check("bogus CR rejected by a real ServiceNow lookup",
+      r["status"] == "cr_not_approved" and "not found" in (r.get("cr_reason") or ""),
+      str(r.get("cr_reason"))[:60])
+if srl:
+    r = chg.apply_config("srl1", "set / system information location lab")
+    check("lab device is CR-exempt but still needs human approval",
+          r["status"] == "awaiting_approval" and r.get("classification") == "lab", r["status"])
+    r = chg.apply_config("srl1", "set / system information location lab", approved_by="tester")
+    check("lab + approval -> gates pass and baseline captured",
+          r["status"] == "awaiting_approval" and r.get("baseline_ref"), str(r.get("error"))[:60])
+r = chg.apply_config("srl1", "reload", approved_by="tester")
+check("destructive config DENIED even with approval", r["status"] == "denied", r["status"])
+del os.environ["MULTIVENDOR_WRITE_ENABLED"]
+
 print("\n=== routing: writes single-pathed (FR-010) ===")
-x = server.run_command("core-cml-01", "show version")
+x = server.run_command("cml-r1", "show version")
 check("raw read on cisco_xe REFUSED", x["status"] == "refused", x["status"])
 check("  ...naming pyats", x.get("owning_server") == "pyats", str(x.get("owning_server")))
 

@@ -133,17 +133,17 @@ alone is a shippable increment.
 **Independent test**: Request the same normalized fact across three vendors' devices and confirm one
 shape, presentable as a single table with no per-vendor special-casing.
 
-- [ ] T038 [US2] Implement `tools/facts.py` wrapping NAPALM getters and returning the `NormalizedFact` shape from data-model.md (FR-006).
-- [ ] T039 [US2] Enumerate supported getters **per platform at runtime**, since NAPALM driver support is uneven — a driver may implement `get_facts` but not `get_bgp_neighbors` (research R5).
-- [ ] T040 [US2] Report an unavailable getter explicitly with a `gap_reason`, never omitting it silently from results (FR-007).
-- [ ] T041 [US2] Set `provenance` to `napalm` or `ttp_template`, and **never present a TTP-parsed result as equivalent to a NAPALM one** — emulating a missing getter by scraping CLI output is the exact failure FR-007 exists to prevent (research R9).
-- [ ] T042 [US2] Implement the `get_facts` tool per contracts/mcp-tools.md, permitted read-only on Cisco and Junos devices because cross-vendor normalized comparison is the one case where this server is correct for them (FR-008).
+- [X] T038 [US2] Implement `tools/facts.py` wrapping NAPALM getters and returning the `NormalizedFact` shape from data-model.md (FR-006).
+- [X] T039 [US2] Enumerate supported getters **per platform at runtime**, since NAPALM driver support is uneven — a driver may implement `get_facts` but not `get_bgp_neighbors` (research R5).
+- [X] T040 [US2] Report an unavailable getter explicitly with a `gap_reason`, never omitting it silently from results (FR-007).
+- [X] T041 [US2] Set `provenance` to `napalm` or `ttp_template`, and **never present a TTP-parsed result as equivalent to a NAPALM one** — emulating a missing getter by scraping CLI output is the exact failure FR-007 exists to prevent (research R9).
+- [X] T042 [US2] Implement the `get_facts` tool per contracts/mcp-tools.md, permitted read-only on Cisco and Junos devices because cross-vendor normalized comparison is the one case where this server is correct for them (FR-008).
 - [X] T043 [US2] Implement the platform-first routing rule in `routing.py`: dedicated servers own their platforms; this server covers the rest plus cross-vendor normalized reads (FR-009).
 - [X] T044 [US2] Refuse configuration changes on platforms owned by another server, naming that server in `owning_server`, so every platform has exactly one write path (FR-010).
 - [X] T045 [US2] Return a refusal as a **successful call with a refusal result**, not a protocol error, so the agent can read why and route elsewhere (contracts/mcp-tools.md).
 - [X] T046 [US2] Stamp `server: "multivendor-cli"` on every result so answers are attributable when more than one server could have answered (FR-011).
 - [X] T047 [P] [US2] Add routing contract tests: a Cisco write is refused and names `pyats`; a Cisco normalized read succeeds; both behaviours hold for Junos and `junos-mcp`.
-- [ ] T048 [US2] Verify SC-003: one normalized fact across three or more vendors returns one shape, and SC-010: a Cisco/Junos write through this server is refused with the correct server named.
+- [X] T048 [US2] Verify SC-003: one normalized fact across three or more vendors returns one shape, and SC-010: a Cisco/Junos write through this server is refused with the correct server named.
 
 **Checkpoint US2**: cross-vendor questions answerable in one shape, with the boundary against pyATS and
 `junos-mcp` enforced in code rather than documented in prose.
@@ -157,13 +157,13 @@ shape, presentable as a single table with no per-vendor special-casing.
 **Independent test**: Query a mixed group including at least one deliberately unreachable device;
 confirm every reachable device returns and the failure is isolated.
 
-- [ ] T049 [US3] Implement `tools/fleet.py` executing one query across a device group and returning per-device results (FR-013).
-- [ ] T050 [US3] Isolate per-device failures so one device cannot abort the operation for others (FR-014).
-- [ ] T051 [US3] Guarantee `len(results) == requested` — every targeted device appears, including failures, because a silently absent device reads as success (FR-014).
-- [ ] T052 [US3] Contact devices concurrently with a bound, defaulting to **10 workers** and operator-overridable. Nornir's own default is 20, but devices commonly cap concurrent management sessions at 5–15 (research R11, FR-015).
-- [ ] T053 [US3] Enforce a per-device timeout defaulting to **30 seconds**, operator-overridable, so one hung device cannot stall the operation indefinitely (research R11, FR-016).
-- [ ] T054 [US3] Implement the `run_fleet` tool per contracts/mcp-tools.md, including the status `summary` block, accepting exactly one of `command` or `getters`.
-- [ ] T055 [US3] Verify SC-004 (mixed group with an unreachable device returns all reachable results and isolates the failure) and SC-005 (N devices materially faster than N sequential queries).
+- [X] T049 [US3] Implement `tools/fleet.py` executing one query across a device group and returning per-device results (FR-013).
+- [X] T050 [US3] Isolate per-device failures so one device cannot abort the operation for others (FR-014).
+- [X] T051 [US3] Guarantee `len(results) == requested` — every targeted device appears, including failures, because a silently absent device reads as success (FR-014).
+- [X] T052 [US3] Contact devices concurrently with a bound, defaulting to **10 workers** and operator-overridable. Nornir's own default is 20, but devices commonly cap concurrent management sessions at 5–15 (research R11, FR-015).
+- [X] T053 [US3] Enforce a per-device timeout defaulting to **30 seconds**, operator-overridable, so one hung device cannot stall the operation indefinitely (research R11, FR-016).
+- [X] T054 [US3] Implement the `run_fleet` tool per contracts/mcp-tools.md, including the status `summary` block, accepting exactly one of `command` or `getters`.
+- [X] T055 [US3] Verify SC-004 (mixed group with an unreachable device returns all reachable results and isolates the failure) and SC-005 (N devices materially faster than N sequential queries).
 
 **Checkpoint US3**: fleet-scale questions work, which is the common real-world case.
 
@@ -181,7 +181,7 @@ confirm every reachable device returns and the failure is isolated.
 - [X] T060 [P] Write `mcp-servers/multivendor-cli-mcp/README.md` documenting every tool, environment variable, transport, and install step (Principle XII).
 - [X] T061 [P] Create `workspace/skills/multivendor-device-query/SKILL.md` for normalized facts, and **state the routing rule explicitly** so operator and agent select consistently (FR-012, FR-031).
 - [X] T062 [P] Create `workspace/skills/multivendor-raw-cli/SKILL.md` for safe raw command execution, documenting the filter policy while making clear enforcement is server-side (FR-029, FR-031).
-- [ ] T063 [P] Create `workspace/skills/multivendor-fleet-ops/SKILL.md` for fleet fan-out (FR-031).
+- [X] T063 [P] Create `workspace/skills/multivendor-fleet-ops/SKILL.md` for fleet fan-out (FR-031).
 - [ ] T064 [P] Note in the skills that netmiko also drives Fortinet, PAN-OS and Check Point, but that **CLI reach is not equivalent to their dedicated API servers** — this must not cause R3/R4 to be skipped (research R3).
 - [ ] T065 [P] Update `README.md`, `SOUL.md`, `TOOLS.md` and `ui/netclaw-visual/` per Principle XI, **including the skill and MCP counts** — the step most often forgotten, and wrong in nine places before spec 075.
 - [ ] T066 Publish `docs/ADDING-AN-MCP.md`-compliant onboarding by copying `quickstart.md` guidance into the server README, covering all three inventory sources.
@@ -199,21 +199,21 @@ confirm every reachable device returns and the failure is isolated.
 **Independent test**: Attempt a change and confirm it cannot proceed without approval, that a baseline
 was captured first, and that it reverts on verification failure.
 
-- [ ] T068 [US5] Implement `tools/change.py` with the `ChangeTransaction` state machine from data-model.md, where each transition is a gate rather than a step.
-- [ ] T069 [US5] Capture a baseline **before** any modification, written inside a path-sandboxed root with traversal prevented, ported from candidate A's design (FR-024, Principle II).
-- [ ] T070 [US5] Require explicit human approval via NetClaw's existing approval path; no transition past `awaiting_approval` without it (FR-025, Principle I).
-- [ ] T070a [US5] Classify each device as **lab or production** from inventory metadata, treating an unclassified device as **production**. Never infer or assume lab status (FR-025c). **Added per analyze finding D1.**
-- [ ] T070b [US5] Require an approved ServiceNow Change Request before any change to a production device, via the existing `servicenow-mcp` integration and `servicenow-change-workflow` skill. This is a **second gate**, distinct from FR-025's human approval — a person saying yes is not change-management authorisation (FR-025a, Constitution Principle III).
-- [ ] T070c [US5] Halt immediately and roll back to the captured baseline if a Change Request is rejected or withdrawn mid-execution (FR-025b, Principle III).
-- [ ] T070d [US5] Permit lab-device changes without a Change Request while still recording them in the audit trail (FR-025c, Principle III).
+- [X] T068 [US5] Implement `tools/change.py` with the `ChangeTransaction` state machine from data-model.md, where each transition is a gate rather than a step.
+- [X] T069 [US5] Capture a baseline **before** any modification, written inside a path-sandboxed root with traversal prevented, ported from candidate A's design (FR-024, Principle II).
+- [X] T070 [US5] Require explicit human approval via NetClaw's existing approval path; no transition past `awaiting_approval` without it (FR-025, Principle I).
+- [X] T070a [US5] Classify each device as **lab or production** from inventory metadata, treating an unclassified device as **production**. Never infer or assume lab status (FR-025c). **Added per analyze finding D1.**
+- [X] T070b [US5] Require an approved ServiceNow Change Request before any change to a production device, via the existing `servicenow-mcp` integration and `servicenow-change-workflow` skill. This is a **second gate**, distinct from FR-025's human approval — a person saying yes is not change-management authorisation (FR-025a, Constitution Principle III).
+- [X] T070c [US5] Halt immediately and roll back to the captured baseline if a Change Request is rejected or withdrawn mid-execution (FR-025b, Principle III).
+- [X] T070d [US5] Permit lab-device changes without a Change Request while still recording them in the audit trail (FR-025c, Principle III).
 - [ ] T071 [US5] Verify post-change state by structured comparison of actual against expected using `jdiff`, **never** from command exit status (FR-026, Principle VIII, research R9).
 - [ ] T072 [US5] Attempt rollback to the captured baseline on verification failure, and **halt and alert** if rollback itself fails (FR-027, Principle VIII).
-- [ ] T073 [US5] Terminate at `refused` for Cisco and Junos devices, naming the owning server (FR-010).
-- [ ] T074 [US5] Expose `apply_config` only when `MULTIVENDOR_WRITE_ENABLED` is set — absent from `tools/list` otherwise (FR-022).
-- [ ] T075 [US5] GAIT-log every device interaction and every state transition (FR-028, Principle IV).
-- [ ] T076 [US5] Verify SC-009: no change applies without both a captured baseline and explicit approval, tested by attempting to bypass each.
-- [ ] T076a [US5] Verify SC-009a: a production-device change is refused without an approved Change Request, and a lab-classified device may change without one while still being audit-logged.
-- [ ] T076b [US5] Verify SC-009b: a device with no lab/production metadata is treated as production and requires a Change Request.
+- [X] T073 [US5] Terminate at `refused` for Cisco and Junos devices, naming the owning server (FR-010).
+- [X] T074 [US5] Expose `apply_config` only when `MULTIVENDOR_WRITE_ENABLED` is set — absent from `tools/list` otherwise (FR-022).
+- [X] T075 [US5] GAIT-log every device interaction and every state transition (FR-028, Principle IV).
+- [X] T076 [US5] Verify SC-009: no change applies without both a captured baseline and explicit approval, tested by attempting to bypass each.
+- [X] T076a [US5] Verify SC-009a: a production-device change is refused without an approved Change Request, and a lab-classified device may change without one while still being audit-logged.
+- [X] T076b [US5] Verify SC-009b: a device with no lab/production metadata is treated as production and requires a Change Request.
 
 ---
 
