@@ -122,6 +122,51 @@ assert_exit 2 "a missing check script yields exit 2" \
     python3 "$FAKE/scripts/reconcile-mcp.py" --surface portability
 
 echo
+echo "=== Dependency-pin surface (spec 077 / R0a) ==="
+# These three classes broke FRESH installs only, which is why nothing caught them.
+assert_exit 0 "check-dependency-pins.py passes on a clean tree" \
+    python3 "$REPO_ROOT/scripts/check-dependency-pins.py"
+
+# An unbounded pin on a package whose SUBMODULE is imported must fail.
+DEPFIX="$TMP/depsrv/mcp-servers/probe-mcp"
+mkdir -p "$DEPFIX"
+printf 'mcp>=1.0.0\n' >"$DEPFIX/requirements.txt"
+printf 'from mcp.server.fastmcp import FastMCP\n' >"$DEPFIX/server.py"
+mkdir -p "$TMP/depsrv/scripts/lib"
+cp "$REPO_ROOT/scripts/check-dependency-pins.py" "$TMP/depsrv/scripts/"
+: >"$TMP/depsrv/scripts/lib/install-steps.sh"
+assert_exit 1 "unbounded pin + submodule import fails" \
+    python3 "$TMP/depsrv/scripts/check-dependency-pins.py"
+assert_mentions "probe-mcp" "the failure names the offending server" \
+    python3 "$TMP/depsrv/scripts/check-dependency-pins.py"
+assert_mentions "SUBMODULE" "the failure explains why it matters" \
+    python3 "$TMP/depsrv/scripts/check-dependency-pins.py"
+
+# Bounding it must clear the finding.
+printf 'mcp>=1.0.0,<2\n' >"$DEPFIX/requirements.txt"
+assert_exit 0 "bounding the pin clears it" \
+    python3 "$TMP/depsrv/scripts/check-dependency-pins.py"
+
+# A bare pip invocation in install steps must fail, naming the line.
+printf 'pip3 install something\n' >"$TMP/depsrv/scripts/lib/install-steps.sh"
+assert_exit 1 "bare pip3 install fails" \
+    python3 "$TMP/depsrv/scripts/check-dependency-pins.py"
+assert_mentions "netclaw_pip_install" "the failure names the remedy" \
+    python3 "$TMP/depsrv/scripts/check-dependency-pins.py"
+
+# A comment or log message mentioning pip must NOT fail — false positives here
+# would train maintainers to ignore the check.
+printf '# pip3 install is what we used to do\nlog_info "pip install failed"\n' \
+    >"$TMP/depsrv/scripts/lib/install-steps.sh"
+assert_exit 0 "pip in a comment or log string is not a finding" \
+    python3 "$TMP/depsrv/scripts/check-dependency-pins.py"
+
+# --warn-only must report but not fail.
+printf 'pip3 install something\n' >"$TMP/depsrv/scripts/lib/install-steps.sh"
+assert_exit 0 "--warn-only exits 0 despite findings" \
+    python3 "$TMP/depsrv/scripts/check-dependency-pins.py" --warn-only
+
+echo
 echo "=== Summary ==="
 printf '  passed: %d\n  failed: %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

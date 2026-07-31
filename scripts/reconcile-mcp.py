@@ -44,6 +44,10 @@ SURFACES = {
     "catalog": ("verify-catalog-coverage.py", "installer coverage and vendored state"),
     "docs": ("verify-inventory-counts.py", "documented counts"),
     "portability": ("check-mcp-portability.py", "registration portability"),
+    # Added by spec 077 (R0a): dependency breakage that only affects FRESH
+    # installs — unbounded pins on packages whose submodules are imported, bare
+    # pip invocations, and ensurepip-dependent venv creation.
+    "dependencies": ("check-dependency-pins.py", "dependency pins and install paths"),
 }
 
 EXIT_OK = 0
@@ -63,7 +67,7 @@ def run_surface(name, warn_only):
         # Only pass the flag to scripts that accept it; the two older verifiers
         # predate it. Probing --help would be slower and no more reliable than
         # simply not forwarding it, since this wrapper enforces warn-only itself.
-        if script == "check-mcp-portability.py":
+        if script in ("check-mcp-portability.py", "check-dependency-pins.py"):
             cmd.append("--warn-only")
 
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -85,7 +89,8 @@ def extract_findings(output):
             continue
         if stripped.startswith("- ") or stripped.startswith("* "):
             findings.append(stripped[2:])
-        elif stripped.startswith(("portability:", "unlocatable:", "flagged:", "note:", "ERROR:")):
+        elif stripped.startswith(("portability:", "unlocatable:", "flagged:", "note:",
+                                  "ERROR:", "pins:", "bare-pip:", "venv:")):
             findings.append(stripped)
         elif line.startswith("  ") and (
             "claims" in stripped or "no matching" in stripped or "no recorded state" in stripped

@@ -60,29 +60,55 @@ pip3    -> ~/.local/bin/pip3       3.13     cryptography 45.0.2
 
 | Invocation style | Count |
 |---|---|
-| bare `pip3 install` | **143** |
-| bare `pip install` | **45** |
-| interpreter/venv-scoped | **1** |
-| **total lines** | **188** |
+| **executable** bare invocations | **130** |
+| inside comments | 17 |
+| inside `log_`/`echo` strings | 39 |
+| already interpreter-scoped | 1 |
+| **total lines matching** | **187** |
 
-*(An earlier pass reported 46 bare `pip` and 2 scoped — it double-counted lines matching both patterns.
-Recounted precisely: **188 bare invocations, 1 scoped**. Corrected here rather than left to diverge
-between sections.)*
+*(Corrected twice. A first pass said 188 bare; that counted comments and log messages as invocations.
+The real figure is **130 executable** bare calls — all now routed through the helper.)*
 
 Any bare invocation on a split-toolchain host installs where the server cannot see it. This is the same
 defect class as the hardcoded interpreter paths R0 fixed — a path that resolves on the author's machine
 and nowhere else.
 
-### Hazard 3 — `python3 -m venv` fails without `ensurepip`
+### Hazard 3 — `python3 -m venv` without `ensurepip`: ZERO real instances
 
-Python 3.14 here has no `ensurepip`, because `python3.14-venv` is not installed and installing it needs
-root. `python3 -m venv` therefore fails outright. Audited: **two** places create venvs this way —
+Python 3.14 here has no `ensurepip` (`python3.14-venv` is absent and needs root), so `python3 -m venv`
+fails outright. **But the audit that found "two places" was wrong** — it matched *comments describing the
+problem*, not invocations. Verified:
 
-- `scripts/gait-venv-setup.sh` — **GAIT is the audit trail Constitution Principle IV makes
-  non-negotiable.** Its venv failing to build is not cosmetic.
-- `scripts/lib/install-steps.sh`
+| Site | Reality |
+|---|---|
+| `scripts/gait-venv-setup.sh:46` | Uses `uv venv`, and explicitly documents why `python3 -m venv` cannot work here. **Already correct.** |
+| `scripts/lib/install-steps.sh:3766` | Uses `virtualenv -p /usr/bin/python3`. **Already correct** (spec 076). |
 
-Spec 076 works around it with `virtualenv`, which bundles pip and needs no root.
+So this hazard has **no instances to repair**. A reusable `netclaw_venv_create()` is still provided so
+future venv creation cannot reintroduce it, and the gate still flags `python3 -m venv` — but nothing was
+broken.
+
+### Hazard 1b — an unbounded install hiding OUTSIDE requirements.txt
+
+Found while verifying Hazard 3, and missed entirely by an audit that only read `requirements.txt` files:
+
+```
+scripts/gait-venv-setup.sh:49   uv pip install gait-ai mcp fastmcp
+```
+
+Fully unbounded, installing both `mcp` and `fastmcp` with no constraint, and `gait_mcp` imports
+`mcp.server.fastmcp`. **GAIT is the audit trail Constitution Principle IV makes non-negotiable**, so this
+is the highest-consequence instance of Hazard 1 — and it was invisible to the requirements-file audit.
+
+Total Hazard 1 instances: **22**, not 8.
+
+**Third and final figure correction.** My audit only looked for servers with an unbounded `mcp>=` pin
+*that imported `mcp.server.fastmcp`*. The implemented static scan — which checks *every* declared pin
+against *every* submodule import — found **25 pin failures across 20 servers**, of which 15 are
+`mcp`/`fastmcp`. The audit was looking for a pattern it already knew; the scan looked for the *class*.
+
+That is the argument for the scan in one sentence: a human audit finds what it expects, a static scan
+finds what is there.
 
 ---
 
@@ -299,8 +325,12 @@ status in a time short enough to run before pushing.
   submodule of `mcp`. The technique's limitation — a submodule scan cannot see breakage from *top-level*
   API drift — MUST still be documented, but it has no instance in this repository and MUST NOT be
   presented as an uncovered gap.
-- **FR-006c**: The gate MUST also flag a declared dependency that **nothing imports** (as `n2n-mcp`'s
-  `fastmcp` pin was), because an unused pin is what caused this feature's own misdiagnosis.
+- **FR-006c**: ~~The gate MUST also flag a declared dependency that nothing imports.~~ **DROPPED as
+  unimplementable reliably.** A distribution name is not a module name — `python-dotenv` imports as
+  `dotenv`, `pyyaml` as `yaml` — and resolving that mapping needs `importlib.metadata` against *installed*
+  packages, which a static check cannot assume. The first implementation produced **187 findings, nearly
+  all false**, which would have trained maintainers to ignore the check entirely. A noisy check is worse
+  than no check. The two dead pins that motivated it (`n2n-mcp`, `protocol-mcp`) were removed by hand.
 - **FR-007**: The gate MUST fail on a new bare `pip`/`pip3` invocation in an install step.
 - **FR-008**: The gate MUST flag `python3 -m venv` usage with the `ensurepip` caveat.
 - **FR-009**: Every failure MUST name the file, the server, and the specific package or line.
@@ -342,9 +372,9 @@ status in a time short enough to run before pushing.
   versions.
 - **SC-002a**: After `n2n-mcp`'s repair, the federation still functions — verified by exercising it, not
   by import alone.
-- **SC-002b**: `n2n-mcp`'s unused `fastmcp` pin is removed, and no server retains a declared dependency
-  that nothing imports.
-- **SC-003**: Bare pip invocations in install steps drop from 188 to zero, all routed through the shared
+- **SC-002b**: `n2n-mcp`'s and `protocol-mcp`'s unused `fastmcp` pins are removed. The general
+  "no unused declarations" goal is dropped with FR-006c.
+- **SC-003**: Bare *executable* pip invocations in install steps drop from **130** to zero, all routed through the shared
   helper, or each remaining one is recorded as an intentional exception with a reason.
 - **SC-003a**: The helper is the single installation path — verified by confirming no install step calls
   `pip`/`pip3` directly.
