@@ -485,9 +485,25 @@ without approval, that a baseline was captured first, and that it can be reverte
   concurrency. Candidate selection, and whether to adopt one, both, or fork, is a Phase 0 research
   decision, not a spec decision.
 - **Read-only first is not negotiable.** US5 is P3 specifically so the safe increment ships first.
-- **Lab platforms are available for testing.** NetClaw already integrates containerlab, GNS3 and
+- **Lab platforms are available for testing.** ~~NetClaw already integrates containerlab, GNS3 and
   EVE-NG, which between them host SR Linux, VyOS, SONiC and MikroTik — so SC-001 is testable without
-  buying hardware.
+  buying hardware.~~
+
+  **BLOCKED, confirmed 2026-07-31.** The available lab is **CML with four Cisco devices and nothing
+  else**. Those are IOS/IOS-XE — precisely the platforms FR-009 routes *away* from this server. So the
+  feature's headline criterion, SC-001 ("live state from ≥5 platform families NetClaw cannot reach
+  today"), **cannot be verified in this environment at all**, because the environment contains zero
+  such platforms.
+
+  What the CML devices *can* verify, and it is not trivial:
+  - **FR-010 / SC-010** — a configuration write to a Cisco device is refused and names `pyats`. This is
+    the safety-critical routing behaviour and the most consequential thing to get right.
+  - **FR-008** — read-only NAPALM getters against Cisco, the cross-vendor normalized-read exception.
+  - **FR-017 / FR-018** — inventory and credential resolution against real reachable devices.
+
+  Unblocking SC-001 needs containerlab hosting SR Linux, SONiC and VyOS (all container images, no
+  licences required — research R4). Until then Phase 4's acceptance is provably incomplete, and saying
+  otherwise would be a false claim of verification.
 - **None of the underlying libraries is currently installed** (`napalm`, `netmiko`, `nornir`,
   `scrapli` all absent), so dependency isolation per Principle XV needs real attention — these pull a
   substantial transitive tree.

@@ -41,6 +41,43 @@ and the IETF datatracker.
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R0** | MCP config reconciliation — repo vs live vs vendored | [075](../specs/075-mcp-config-reconciliation/spec.md) | `DONE` |
+| **R0a** | **Dependency-pin hazards — do this NEXT** | — | `NOT STARTED` |
+
+> ### R0a — two latent breakages that make fresh installs fail
+>
+> Found while implementing R1 (spec 076 research R7 and R14). Neither affects an existing working
+> install, which is exactly why both went unnoticed — they break *new* installs only.
+>
+> **1. `mcp 2.0.0` removed `mcp.server.fastmcp`.** Verified: the 2.0.0 wheel contains **zero**
+> `mcp/server/fastmcp/` files, and does not declare `fastmcp` as a dependency, so there is no
+> re-export. Seven servers pin `mcp` with no upper bound *and* import that module, so all seven
+> resolve 2.x and fail on import on a fresh install today:
+>
+> | Server | Current pin |
+> |---|---|
+> | `claroty-mcp` | `mcp>=1.0.0` |
+> | `protocol-mcp` | `mcp>=1.0.0` |
+> | `suzieq-mcp` | `mcp>=1.0.0` |
+> | **`n2n-mcp`** | `mcp>=1.0.0` — **one of the 7 live servers, backs the federation** |
+> | `thousandeyes-mcp-community` | `mcp>=1.13` |
+> | `nautobot-mcp-v2` | `mcp>=1.0.0` |
+> | `uml-mcp` | `mcp>=1.2.0` |
+>
+> Fix: pin `mcp>=…,<2` in each, or migrate to the standalone `fastmcp` distribution. Spec 076 already
+> pins `<2` for its own server, so the pattern is established.
+>
+> **2. `pip3` and `python3` can be different interpreters.** On the development host, `pip3` targets a
+> stranded Python 3.13 `site-packages` while `python3` is 3.14.4 — carrying two different
+> `cryptography` versions. `scripts/lib/install-steps.sh` contains **186 `pip install` invocations**;
+> any bare `pip3` lands where the servers cannot import from. Same defect class as the hardcoded
+> interpreter paths R0 fixed.
+>
+> Also worth folding in: **Python 3.14 has no `ensurepip`** on this host (`python3.14-venv` is not
+> installed), so `python3 -m venv` fails outright. Spec 076 works around it with `virtualenv`.
+>
+> **Why next**: R2–R24 each add a server, and every one inherits both hazards. Fixing them once is
+> cheaper than seven times, and a broken fresh install undermines R0's whole "available to people when
+> they install their own risk" goal.
 
 > **R0 complete 2026-07-30, with two premises corrected.** Most "unregistered" servers were
 > deliberate on-demand installs already tracked in a 60-entry `EXTERNAL_INTEGRATIONS` list. Both
@@ -53,7 +90,7 @@ and the IETF datatracker.
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R1** | Generic multivendor CLI driver (Nornir/Netmiko/NAPALM) | [076](../specs/076-multivendor-cli-driver/spec.md) | `IN FLIGHT` |
+| **R1** | Generic multivendor CLI driver (Nornir/Netmiko/NAPALM) | [076](../specs/076-multivendor-cli-driver/spec.md) | `IN FLIGHT` — Phases 1–2 of 9 done. **SC-001 BLOCKED**: the only lab is CML with 4 Cisco devices, i.e. exactly the platforms this server routes away. Needs containerlab (SR Linux / SONiC / VyOS — free container images) |
 | **R2** | Cisco Support APIs (PSIRT / EoX / Bug / Case) | — | `NOT STARTED` |
 | **R3** | Fortinet (FortiOS / FortiManager / FortiAnalyzer) | — | `NOT STARTED` |
 | **R4** | Palo Alto PAN-OS / Panorama NGFW | — | `NOT STARTED` |
