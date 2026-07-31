@@ -1020,6 +1020,13 @@
         "-u",
         "scripts/gait-stdio.py"
       ]
+    },
+    "multivendor-cli-mcp": {
+      "command": "mcp-servers/multivendor-cli-mcp/.venv/bin/python",
+      "args": [
+        "-u",
+        "mcp-servers/multivendor-cli-mcp/server.py"
+      ]
     }
   }
 }

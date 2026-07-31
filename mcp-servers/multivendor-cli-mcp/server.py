@@ -44,6 +44,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mcp.server.fastmcp import FastMCP  # noqa: E402
 
+import routing  # noqa: E402
+from credentials import CredentialError, resolve as resolve_credential  # noqa: E402
+from inventory import sources as inv  # noqa: E402
 from policy.filter import Mode, evaluate  # noqa: E402
 from policy.platform_deny import (  # noqa: E402
     PLATFORM_DENY,
@@ -124,6 +127,77 @@ def check_command_policy(command: str, platform: str | None = None) -> dict:
             else "platform has no explicit destructive-syntax model; "
                  "universal denylist still applies"
         ),
+    }
+
+
+@mcp.tool()
+def list_devices(group: str | None = None, platform: str | None = None) -> dict:
+    """List devices from the configured inventory, with source attribution.
+
+    Reports which of the three inventory sources answered, and why it was not the
+    preferred one when it was not (FR-017c) — so a stale cache is never mistaken
+    for live data. Never returns credential values.
+    """
+    try:
+        res = inv.resolve()
+    except inv.InventoryError as exc:
+        return {"server": SERVER_NAME, "status": "error", "error": str(exc)}
+
+    devices = res.devices
+    if group:
+        devices = [d for d in devices if group in d.groups]
+    if platform:
+        devices = [d for d in devices if d.platform == platform]
+
+    return {
+        "server": SERVER_NAME,
+        "source_used": res.source.value,
+        "fallback_reason": res.fallback_reason,
+        "count": len(devices),
+        "devices": [d.public() for d in devices],
+    }
+
+
+@mcp.tool()
+def check_device_readiness(device: str) -> dict:
+    """Check whether a device could be acted on, WITHOUT contacting it.
+
+    Resolves the device from inventory, resolves its credential reference, and
+    applies the routing rule — reporting which server owns the platform and
+    whether this one may read or write it. Deliberately contacts nothing: it
+    answers "is this wired up correctly" before any session is opened.
+    """
+    try:
+        res = inv.resolve()
+        dev = inv.find(res.devices, device)
+    except inv.InventoryError as exc:
+        return {"server": SERVER_NAME, "device": device, "status": "not_found",
+                "error": str(exc)}
+
+    cred_posture, cred_error = None, None
+    try:
+        cred_posture = resolve_credential(dev.credential_ref).posture()
+    except CredentialError as exc:
+        cred_error = str(exc)
+
+    read = routing.route(dev.platform, routing.Operation.NORMALIZED_READ)
+    raw = routing.route(dev.platform, routing.Operation.RAW_READ)
+    write = routing.route(dev.platform, routing.Operation.WRITE)
+
+    return {
+        "server": SERVER_NAME,
+        "device": dev.public(),
+        "source_used": res.source.value,
+        "credentials": cred_posture,
+        "credential_error": cred_error,
+        "routing": {
+            "owning_server": read.owning_server,
+            "normalized_read_permitted": read.permitted,
+            "raw_read_permitted": raw.permitted,
+            "write_permitted": write.permitted,
+            "write_refused_reason": write.reason,
+        },
+        "ready": cred_error is None,
     }
 
 

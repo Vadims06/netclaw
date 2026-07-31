@@ -86,18 +86,18 @@ passing a tested server-side filter.
 **Independent test**: Resolve a device from each of the three sources in turn and confirm each reports
 its own source; confirm no credential appears in any file on disk.
 
-- [ ] T017 [US4] Implement `inventory/sources.py` with the three-source model and resolution order `live_sot` → `generated` → `operator`, plus `auto` (FR-017, FR-017b). A device absent from **every** source MUST be reported as absent, never guessed at or silently defaulted (FR-021).
+- [X] T017 [US4] Implement `inventory/sources.py` with the three-source model and resolution order `live_sot` → `generated` → `operator`, plus `auto` (FR-017, FR-017b). A device absent from **every** source MUST be reported as absent, never guessed at or silently defaulted (FR-021).
 - [ ] T018 [P] [US4] Implement `inventory/live_sot.py` using `nornir-netbox` / `nornir-nautobot`, plus Infrahub via its existing MCP surface (FR-017 live tier).
 - [ ] T019 [P] [US4] Implement `inventory/generated.py` to render an inventory file from a source of truth, writing a machine-readable **generated marker** so a refresh can never overwrite an operator file (FR-017a/b).
 - [ ] T020 [P] [US4] Implement `inventory/operator.py` as a strictly **read-only** consumer of an operator-authored file. The server MUST NOT write to it under any circumstance (FR-017b).
-- [ ] T021 [US4] Populate `source` on every resolved Device and surface it in every result, with `fallback_reason` when the source is not `live_sot` — a stale-cache answer must never look live (FR-017c).
-- [ ] T022 [US4] Reject any inventory record carrying credential-shaped fields, from any of the three sources, with a clear error naming the offending device and field (FR-017d, Principle XIII).
-- [ ] T023 [US4] Explicitly refuse `PYATS_TESTBED_PATH` as an inventory source, with an error explaining that pyATS assumes Cisco and those platforms route to `pyATS` instead (FR-017e).
-- [ ] T024 [US4] Implement `credentials.py` with Vault preferred and environment variables as a documented fallback. **Vault MUST NOT be a hard prerequisite** — an operator with an operator-authored inventory typically has no Vault either (FR-018). Support per-device, per-site and per-platform credential differences via the Device `credential_ref`; a single global credential is not a realistic assumption for a mixed network (FR-020).
-- [ ] T025 [US4] Report the credential path (`vault` or `environment`) in results so a deployment's posture is inspectable, while never emitting the secret value itself (FR-018a, FR-019).
-- [ ] T026 [US4] Implement the `list_devices` tool per contracts/mcp-tools.md, including `source_used` and `owning_server`, and never returning credential values.
-- [ ] T027 [P] [US4] Add inventory contract tests to `tests/multivendor/`: each source reports itself; a credential-bearing inventory record is rejected; a generated-file refresh leaves an operator file byte-identical; a device in no source is reported absent; two devices with different `credential_ref` values resolve independently (SC-007, FR-020, FR-021).
-- [ ] T028 [P] [US4] Document all three onboarding paths in `.env.example` with descriptions and no values (Principle XIII).
+- [X] T021 [US4] Populate `source` on every resolved Device and surface it in every result, with `fallback_reason` when the source is not `live_sot` — a stale-cache answer must never look live (FR-017c).
+- [X] T022 [US4] Reject any inventory record carrying credential-shaped fields, from any of the three sources, with a clear error naming the offending device and field (FR-017d, Principle XIII).
+- [X] T023 [US4] Explicitly refuse `PYATS_TESTBED_PATH` as an inventory source, with an error explaining that pyATS assumes Cisco and those platforms route to `pyATS` instead (FR-017e).
+- [X] T024 [US4] Implement `credentials.py` with Vault preferred and environment variables as a documented fallback. **Vault MUST NOT be a hard prerequisite** — an operator with an operator-authored inventory typically has no Vault either (FR-018). Support per-device, per-site and per-platform credential differences via the Device `credential_ref`; a single global credential is not a realistic assumption for a mixed network (FR-020).
+- [X] T025 [US4] Report the credential path (`vault` or `environment`) in results so a deployment's posture is inspectable, while never emitting the secret value itself (FR-018a, FR-019).
+- [X] T026 [US4] Implement the `list_devices` tool per contracts/mcp-tools.md, including `source_used` and `owning_server`, and never returning credential values.
+- [X] T027 [P] [US4] Add inventory contract tests to `tests/multivendor/`: each source reports itself; a credential-bearing inventory record is rejected; a generated-file refresh leaves an operator file byte-identical; a device in no source is reported absent; two devices with different `credential_ref` values resolve independently (SC-007, FR-020, FR-021).
+- [X] T028 [P] [US4] Document all three onboarding paths in `.env.example` with descriptions and no values (Principle XIII).
 
 **Checkpoint US4**: any device is resolvable and authenticable, with attribution, and no secret on disk.
 
@@ -138,11 +138,11 @@ shape, presentable as a single table with no per-vendor special-casing.
 - [ ] T040 [US2] Report an unavailable getter explicitly with a `gap_reason`, never omitting it silently from results (FR-007).
 - [ ] T041 [US2] Set `provenance` to `napalm` or `ttp_template`, and **never present a TTP-parsed result as equivalent to a NAPALM one** — emulating a missing getter by scraping CLI output is the exact failure FR-007 exists to prevent (research R9).
 - [ ] T042 [US2] Implement the `get_facts` tool per contracts/mcp-tools.md, permitted read-only on Cisco and Junos devices because cross-vendor normalized comparison is the one case where this server is correct for them (FR-008).
-- [ ] T043 [US2] Implement the platform-first routing rule in `routing.py`: dedicated servers own their platforms; this server covers the rest plus cross-vendor normalized reads (FR-009).
-- [ ] T044 [US2] Refuse configuration changes on platforms owned by another server, naming that server in `owning_server`, so every platform has exactly one write path (FR-010).
-- [ ] T045 [US2] Return a refusal as a **successful call with a refusal result**, not a protocol error, so the agent can read why and route elsewhere (contracts/mcp-tools.md).
-- [ ] T046 [US2] Stamp `server: "multivendor-cli"` on every result so answers are attributable when more than one server could have answered (FR-011).
-- [ ] T047 [P] [US2] Add routing contract tests: a Cisco write is refused and names `pyats`; a Cisco normalized read succeeds; both behaviours hold for Junos and `junos-mcp`.
+- [X] T043 [US2] Implement the platform-first routing rule in `routing.py`: dedicated servers own their platforms; this server covers the rest plus cross-vendor normalized reads (FR-009).
+- [X] T044 [US2] Refuse configuration changes on platforms owned by another server, naming that server in `owning_server`, so every platform has exactly one write path (FR-010).
+- [X] T045 [US2] Return a refusal as a **successful call with a refusal result**, not a protocol error, so the agent can read why and route elsewhere (contracts/mcp-tools.md).
+- [X] T046 [US2] Stamp `server: "multivendor-cli"` on every result so answers are attributable when more than one server could have answered (FR-011).
+- [X] T047 [P] [US2] Add routing contract tests: a Cisco write is refused and names `pyats`; a Cisco normalized read succeeds; both behaviours hold for Junos and `junos-mcp`.
 - [ ] T048 [US2] Verify SC-003: one normalized fact across three or more vendors returns one shape, and SC-010: a Cisco/Junos write through this server is refused with the correct server named.
 
 **Checkpoint US2**: cross-vendor questions answerable in one shape, with the boundary against pyATS and
@@ -174,18 +174,18 @@ confirm every reachable device returns and the failure is isolated.
 > Can proceed in parallel from the US1 checkpoint onward. Unlike spec 075, this feature genuinely adds
 > capability, so **every** Principle XI touchpoint applies.
 
-- [ ] T056 Finalise `server.py`: confirm every tool built in Phases 3–6 is registered, the read-only surface is complete, and write tools are absent unless `MULTIVENDOR_WRITE_ENABLED` is set. The stub itself was created in T016a (analyze finding O1).
-- [ ] T057 Add a catalog entry to `scripts/lib/catalog.sh` — no generic-driver catalog id exists today, so this is a genuinely new component (FR-030).
-- [ ] T058 Add `component_install_multivendor_cli()` to `scripts/lib/install-steps.sh` creating the venv per T008's method, using the venv's own pip and never bare `pip3` (FR-030a, R7).
-- [ ] T059 Register the server in `config/openclaw.json` with the venv interpreter path **resolved at install time, never hardcoded** — spec 075 found three registrations hardcoded to `/home/ubuntu/netclaw/.venv/bin/python3` and broken for every installer, and `reconcile-mcp.py` now fails on exactly that (FR-030b).
-- [ ] T060 [P] Write `mcp-servers/multivendor-cli-mcp/README.md` documenting every tool, environment variable, transport, and install step (Principle XII).
-- [ ] T061 [P] Create `workspace/skills/multivendor-device-query/SKILL.md` for normalized facts, and **state the routing rule explicitly** so operator and agent select consistently (FR-012, FR-031).
+- [X] T056 Finalise `server.py`: confirm every tool built in Phases 3–6 is registered, the read-only surface is complete, and write tools are absent unless `MULTIVENDOR_WRITE_ENABLED` is set. The stub itself was created in T016a (analyze finding O1).
+- [X] T057 Add a catalog entry to `scripts/lib/catalog.sh` — no generic-driver catalog id exists today, so this is a genuinely new component (FR-030).
+- [X] T058 Add `component_install_multivendor_cli()` to `scripts/lib/install-steps.sh` creating the venv per T008's method, using the venv's own pip and never bare `pip3` (FR-030a, R7).
+- [X] T059 Register the server in `config/openclaw.json` with the venv interpreter path **resolved at install time, never hardcoded** — spec 075 found three registrations hardcoded to `/home/ubuntu/netclaw/.venv/bin/python3` and broken for every installer, and `reconcile-mcp.py` now fails on exactly that (FR-030b).
+- [X] T060 [P] Write `mcp-servers/multivendor-cli-mcp/README.md` documenting every tool, environment variable, transport, and install step (Principle XII).
+- [X] T061 [P] Create `workspace/skills/multivendor-device-query/SKILL.md` for normalized facts, and **state the routing rule explicitly** so operator and agent select consistently (FR-012, FR-031).
 - [ ] T062 [P] Create `workspace/skills/multivendor-raw-cli/SKILL.md` for safe raw command execution, documenting the filter policy while making clear enforcement is server-side (FR-029, FR-031).
 - [ ] T063 [P] Create `workspace/skills/multivendor-fleet-ops/SKILL.md` for fleet fan-out (FR-031).
 - [ ] T064 [P] Note in the skills that netmiko also drives Fortinet, PAN-OS and Check Point, but that **CLI reach is not equivalent to their dedicated API servers** — this must not cause R3/R4 to be skipped (research R3).
 - [ ] T065 [P] Update `README.md`, `SOUL.md`, `TOOLS.md` and `ui/netclaw-visual/` per Principle XI, **including the skill and MCP counts** — the step most often forgotten, and wrong in nine places before spec 075.
 - [ ] T066 Publish `docs/ADDING-AN-MCP.md`-compliant onboarding by copying `quickstart.md` guidance into the server README, covering all three inventory sources.
-- [ ] T067 Verify `python3 scripts/reconcile-mcp.py` exits 0 with the new server registered (SC-012).
+- [X] T067 Verify `python3 scripts/reconcile-mcp.py` exits 0 with the new server registered (SC-012).
 
 ---
 

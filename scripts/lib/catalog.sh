@@ -13,6 +13,7 @@ CATALOG=(
     "aruba-cx|Device Automation|Aruba CX|Switch management — 16 tools (11 read, 5 write)"
     "gnmi|Device Automation|gNMI Telemetry|Streaming telemetry — Get/Set/Subscribe, YANG (bundled)"
     "radkit|Device Automation|Cisco RADKit|Cloud-relayed remote CLI, SNMP, inventory (5 tools)"
+    "multivendor-cli|Device Automation|Multivendor CLI Driver|Nornir/NAPALM/Netmiko — ~90 platform families Cisco/Juniper servers cannot reach (read-only)"
 
     "netbox|Source of Truth|NetBox|DCIM/IPAM source of truth (read-write)"
     "nautobot|Source of Truth|Nautobot|IPAM — IPs, prefixes, VRF/tenant/site (5 tools)"

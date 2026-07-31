@@ -124,12 +124,6 @@ VENDORED_STATE_REASONS = {
     "checkpoint-mcp-servers": "single source backing all fifteen registered chkp-* entries",
     "clab-mcp-server": "external — EXTERNAL_INTEGRATIONS 'ContainerLab', catalog id 'containerlab' (dir name abbreviates it)",
     "mcp-cvp-fun": "backs the registered 'arista-cvp-mcp' entry (EXTERNAL_INTEGRATIONS 'Arista CVP')",
-    # IN DEVELOPMENT under spec 076 (roadmap R1). Registration, catalog entry and
-    # install function land in that spec's Phase 7 (T057-T059); until then the
-    # directory legitimately exists with no config entry. Temporary and dated --
-    # NOT a suppression -- and spec 076 T067 removes this line by registering the
-    # server properly.
-    "multivendor-cli-mcp": "in development, spec 076 Phase 7 registers it (T057-T059)",
     # OPEN FINDING, spec 075 -- recorded here so it is tracked, NOT suppressed.
     # EVE-NG is vendored and has five skills (eve-lab-topology-*, eve-ng-*), but
     # it appears in neither EXTERNAL_INTEGRATIONS nor scripts/lib/catalog.sh.

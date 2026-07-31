@@ -3729,3 +3729,59 @@ log_info "Domain-verified identity (optional): scripts/patch-claw-certs.sh --dom
 log_info "Existing claws upgrade in one command: scripts/patch-claw-certs.sh"
 echo ""
 }
+
+component_install_multivendor_cli() {
+log_step "Installing Multivendor CLI Driver (Nornir/NAPALM/Netmiko)..."
+echo "  Reaches ~90 platform families no other NetClaw server can: MikroTik, VyOS,"
+echo "  SONiC, Nokia SR Linux, Extreme, Huawei, Dell, Ubiquiti EdgeOS."
+echo "  Read-only by default. Cisco/Juniper stay with pyATS/junos-mcp."
+
+MV_DIR="$NETCLAW_DIR/mcp-servers/multivendor-cli-mcp"
+MV_VENV="$MV_DIR/.venv"
+
+# DEDICATED virtualenv, not the shared environment (spec 076 FR-030a).
+# napalm/netmiko resolve cryptography 49.x while the system carries 46.x, which
+# NCFED uses for X.509 issuance (spec 060). Installing these shared would move
+# cryptography three major versions under the certificate stack.
+#
+# `virtualenv`, not `python3 -m venv`: Python 3.14 has no ensurepip on Ubuntu
+# unless python3.14-venv is installed, and that needs root (spec 076 research R12).
+if ! command -v virtualenv &> /dev/null; then
+    log_warn "virtualenv not found — required because Python 3.14 lacks ensurepip here."
+    log_warn "Install it with: python3 -m pip install --user virtualenv"
+    log_warn "Skipping Multivendor CLI Driver."
+    return 0
+fi
+
+CRYPTO_BEFORE=$(/usr/bin/python3 -c 'import importlib.metadata as m; print(m.version("cryptography"))' 2>/dev/null || echo "none")
+
+log_info "Creating dedicated virtualenv at $MV_VENV"
+virtualenv -q -p /usr/bin/python3 "$MV_VENV" || {
+    log_warn "virtualenv creation failed — skipping Multivendor CLI Driver."
+    return 0
+}
+
+# The venv's OWN pip. Never bare pip3: on some hosts pip3 targets a different
+# interpreter's site-packages than python3 (spec 076 research R7).
+log_info "Installing dependencies (~21 packages) into the virtualenv..."
+"$MV_VENV/bin/python" -m pip install -q -r "$MV_DIR/requirements.txt" || {
+    log_warn "dependency install failed — skipping Multivendor CLI Driver."
+    return 0
+}
+
+# FR-030c: the system cryptography must be untouched, or NCFED certificate
+# handling breaks rather than this server.
+CRYPTO_AFTER=$(/usr/bin/python3 -c 'import importlib.metadata as m; print(m.version("cryptography"))' 2>/dev/null || echo "none")
+if [ "$CRYPTO_BEFORE" != "$CRYPTO_AFTER" ]; then
+    log_warn "System cryptography changed ($CRYPTO_BEFORE -> $CRYPTO_AFTER)!"
+    log_warn "NCFED X.509 issuance depends on it. Investigate before using the federation."
+else
+    log_info "System cryptography unchanged ($CRYPTO_AFTER) — NCFED stack safe"
+fi
+
+if "$MV_VENV/bin/python" -c "import nornir, napalm, netmiko, jdiff" 2>/dev/null; then
+    log_info "Multivendor CLI Driver ready (read-only; set MULTIVENDOR_WRITE_ENABLED=true to allow writes)"
+else
+    log_warn "Multivendor CLI Driver installed but imports failed — check $MV_VENV"
+fi
+}
