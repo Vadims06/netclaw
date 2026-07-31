@@ -54,7 +54,7 @@ Default 10 concurrent workers and a 30s per-device timeout, both operator-overri
 (FR-019). Must not perturb the system `cryptography` used by the NCFED X.509 stack (FR-030c). Must not
 regress the 18 pyATS skills or the Junos skill (FR-032).
 
-**Scale/Scope**: ~90 platform families reachable, 3 inventory sources, 41 FRs, 15 SCs, 5 user stories.
+**Scale/Scope**: ≥90 platform families driver-supported (≥5 live-verified), 3 inventory sources, 44 FRs, 17 SCs, 5 user stories.
 
 ## Constitution Check
 
@@ -64,7 +64,7 @@ regress the 18 pyATS skills or the Junos skill (FR-032).
 |---|---|---|
 | **I — Safety-First (NON-NEGOTIABLE)** | **Yes — central** | Read-only default (FR-022); server-side command filtering (FR-029); unreachable devices halt rather than return assumed state (FR-004); writes require approval (FR-025). This is the principle the entire safety design serves |
 | **II — Read-Before-Write** | **Yes** | FR-024 requires a captured baseline before any modification |
-| III — ITSM-Gated Changes | Partially | Production changes need a CR; lab mode exempt. Inherited from the existing approval path rather than reimplemented |
+| **III — ITSM-Gated Changes** | **Yes** | **Corrected after `/speckit.analyze`**, which found this had zero task coverage. It had been marked "Partially — inherited", but that was an assertion rather than an implementation: FR-025's human approval and a ServiceNow Change Request are distinct gates. Now FR-025a/b/c and T070a–T070d, via the existing `servicenow-mcp` and `servicenow-change-workflow`. Unclassified devices are treated as production |
 | **IV — Immutable Audit Trail** | **Yes** | FR-028: every device interaction GAIT-logged |
 | **V — MCP-Native** | **Yes** | Delivered as an MCP server with proper JSON-RPC lifecycle; stdio transport declared |
 | **VI — Multi-Vendor Neutrality** | **Yes — this feature *is* the principle** | Vendor-neutral where the operation is generic (NAPALM getters); vendor-specific logic stays in vendor servers. FR-009/FR-010 keep the boundary explicit |
@@ -80,8 +80,9 @@ regress the 18 pyATS skills or the Junos skill (FR-032).
 | XVI — Spec-Driven Development | Yes | Spec ratified, 4 clarifications resolved, this plan precedes implementation |
 | XVII — Milestone Documentation | Yes | Blog post at completion |
 
-**Gate result: PASS.** No violations requiring justification. Two tracked high-risk areas (Principles I
-and XV), both with stated mitigations reflected in the task ordering below.
+**Gate result: PASS** — after correction. `/speckit.analyze` found Principle III (a MUST) with zero task
+coverage, which would have been a CRITICAL violation at implementation time. Now covered. Two tracked
+high-risk areas remain (Principles I and XV), both with mitigations reflected in the task ordering.
 
 **Note on Principle VI**: this is the first feature where multi-vendor neutrality is the deliverable
 rather than a constraint. The routing rule (FR-009–FR-012) is what stops "neutral" degrading into

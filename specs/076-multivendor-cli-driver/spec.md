@@ -5,6 +5,16 @@
 **Status**: Draft
 **Roadmap item**: R1 in `docs/COVERAGE-ROADMAP.md` — highest coverage-per-line item on the roadmap
 **Depends on**: R0 / spec 075 (this branch is stacked on it — R1 must follow `docs/ADDING-AN-MCP.md` and pass `scripts/reconcile-mcp.py`)
+**Canonical identifiers** (declared once — three related names circulate, and FR-011 requires results
+to name the answering server unambiguously):
+
+| Use | Value |
+|---|---|
+| Vendored directory | `mcp-servers/multivendor-cli-mcp/` |
+| Registered server key (`config/openclaw.json`) | `multivendor-cli-mcp` |
+| `server` field in every tool result (FR-011) | `multivendor-cli` |
+| Installer catalog id / install function | `multivendor-cli` / `component_install_multivendor_cli()` |
+
 **Input**: User description: "Generic multivendor network CLI driver via Nornir, NAPALM and Netmiko. Roadmap item R1 — the largest coverage-per-line item on the roadmap. NetClaw's device reach today is pyATS (Cisco), junos-mcp (Juniper), gnmi-mcp (streaming telemetry) and radkit-mcp (cloud-relayed) — there is no general 'SSH to any platform' capability. One server adds MikroTik RouterOS, VyOS, SONiC, Nokia SR Linux, Extreme, Huawei, Dell, Ubiquiti EdgeOS and roughly ninety more platforms NetClaw cannot reach at all. […] Must be read-only first with writes explicitly gated. Must follow docs/ADDING-AN-MCP.md and pass scripts/reconcile-mcp.py, both established by spec 075."
 
 ---
@@ -242,6 +252,15 @@ without approval, that a baseline was captured first, and that it can be reverte
    baseline is attempted and the outcome reported.
 5. **Given** a Cisco or Juniper device, **When** a configuration change is requested through this
    server, **Then** it is refused and the dedicated server named instead — writes stay single-pathed.
+6. **Given** a **production** device, **When** a change is requested without an approved ServiceNow
+   Change Request, **Then** it does not proceed — human approval alone is insufficient (Principle III).
+7. **Given** an in-flight change, **When** its Change Request is rejected or withdrawn, **Then** the
+   change halts immediately and rolls back to the captured baseline.
+8. **Given** a **lab** device, **When** a change is requested, **Then** it may proceed without a Change
+   Request but is still recorded in the audit trail.
+9. **Given** a device whose inventory does not classify it as lab or production, **When** a change is
+   requested, **Then** it is treated as production and requires a Change Request — never assumed to be
+   lab.
 6. **Given** any device interaction, **When** it completes, **Then** it is recorded in the audit
    trail (Principle IV).
 
@@ -331,7 +350,8 @@ without approval, that a baseline was captured first, and that it can be reverte
   attributable and a stale-cache answer is never mistaken for a live one.
 - **FR-017d**: **No inventory source may contain credential material in any form** — only hostnames,
   addresses, platform identifiers, grouping metadata, and credential *references*. This applies
-  identically to all three sources (Principle XIII).
+  identically to all three sources (Principle XIII). This is the inventory-scoped instance of the global
+  rule in FR-019; both are intentional and neither is redundant.
 - **FR-017e**: The pyATS `testbed.yaml` MUST NOT be used as an inventory source. It assumes Cisco, and
   its platforms are precisely those FR-009 routes away from this server.
 - **FR-018**: Credentials MUST come from Vault where available, with environment variables as a
@@ -356,6 +376,16 @@ without approval, that a baseline was captured first, and that it can be reverte
 - **FR-024**: Configuration changes MUST capture a baseline before modifying anything (Principle II).
 - **FR-025**: Configuration changes MUST require explicit human approval through NetClaw's existing
   approval path (Principle I).
+- **FR-025a**: A configuration change against a **production** device MUST additionally have an approved
+  ServiceNow Change Request before execution (Constitution Principle III). Human approval (FR-025) and
+  an ITSM Change Request are **distinct gates** — the first is a person saying yes, the second is
+  change-management authorisation with an Assess → Authorize → Implement → Review lifecycle. Satisfying
+  one does not satisfy the other.
+- **FR-025b**: If a Change Request is rejected or withdrawn mid-execution, the change MUST halt
+  immediately and roll back to the captured baseline (Principle III).
+- **FR-025c**: Lab devices MAY be changed without a Change Request, and MUST still be recorded in the
+  audit trail (Principle III). Lab-versus-production MUST be determined from device inventory metadata,
+  never inferred or assumed — an unclassified device MUST be treated as production.
 - **FR-026**: After a change, actual state MUST be compared against expected state — not merely that
   the command returned successfully (Principle VIII).
 - **FR-027**: On failed verification, rollback to the captured baseline MUST be attempted and the
@@ -409,7 +439,11 @@ without approval, that a baseline was captured first, and that it can be reverte
 
 - **SC-001**: NetClaw can retrieve live state from at least **five platform families it cannot reach
   today**, demonstrated against real devices or lab instances.
-- **SC-002**: Total reachable platform families increase from **4 to 90+**.
+- **SC-002**: Reachable platform families increase from **4** to **≥90 documented as driver-supported**,
+  of which **≥5 are verified against live devices** (SC-001). The distinction is deliberate: the 90+
+  figure comes from the underlying driver's supported-platform list, while only platforms hostable in
+  containerlab can be live-tested without licensed images (research R4). Claiming 90 verified would be
+  untestable.
 - **SC-003**: A normalized fact requested across at least three vendors returns one shape, presentable
   as a single table without per-vendor special-casing.
 - **SC-004**: A fleet query against a mixed group including at least one unreachable device returns
@@ -429,6 +463,11 @@ without approval, that a baseline was captured first, and that it can be reverte
   approval, verified by attempting to bypass both.
 - **SC-010**: A configuration change on a Cisco or Juniper device through this server is refused and
   names the correct server.
+- **SC-009a**: No change applies to a production device without an approved Change Request, verified by
+  attempting one without it; and a lab-classified device can change without one while still being
+  audit-logged.
+- **SC-009b**: An unclassified device is treated as production, verified by attempting a change
+  against a device with no lab/production metadata.
 - **SC-011**: All 18 pyATS skills and the Junos skill remain functional (SC verified against the
   pre-change baseline).
 - **SC-012**: `scripts/reconcile-mcp.py` exits zero with the new server registered.

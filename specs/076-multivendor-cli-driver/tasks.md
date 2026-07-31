@@ -23,6 +23,19 @@ packages. Everything in spec 075 was repository files; this is not. R7 found the
 (`pip3` → Python 3.13 stranded site-packages, `python3` → 3.14.4, two different `cryptography`
 versions), so the install must be done with the venv's own pip and verified, not assumed.
 
+**4. Post-analyze corrections applied.** `/speckit.analyze` found one CRITICAL and two HIGH issues,
+all fixed here rather than deferred:
+
+- **CRITICAL** — Constitution Principle III (ITSM-gated changes) had **zero** task coverage. The plan
+  had marked it "Partially — inherited from the existing approval path", which was an assertion, not an
+  implementation. Human approval (FR-025) and a ServiceNow Change Request are **distinct gates**. Now
+  T070a–T070d and T076a–T076b.
+- **HIGH** — the MCP entry point was sequenced *after* the stories that need it, so no story phase was
+  independently testable as an MCP capability. A stub now lands in Foundational as T016a.
+- **HIGH** — SC-002's "90+ platform families" was not verifiable; the figure comes from a driver's
+  supported-platform list, and only containerlab-hostable platforms can be live-tested. Split into
+  documented-versus-verified.
+
 ---
 
 ## Phase 1: Setup
@@ -55,6 +68,7 @@ task here is done.**
 - [ ] T013 Implement `mcp-servers/multivendor-cli-mcp/policy/platform_deny.py` with per-platform destructive first tokens (R6): VyOS `delete`, MikroTik `/system reset-configuration`, SR Linux `tools system configuration`, SONiC `config erase`, plus the Constitution's Cisco set. A Cisco-shaped denylist is explicitly insufficient (FR-023).
 - [ ] T014 Implement read-only mode as the default, with write tools absent from `tools/list` entirely unless `MULTIVENDOR_WRITE_ENABLED` is set (FR-022). Absent, not present-and-refusing.
 - [ ] T015 [P] Add Pydantic input validation across every tool argument, ported from candidate A's design (research R1).
+- [ ] T016a Implement `mcp-servers/multivendor-cli-mcp/server.py` as a **FastMCP stdio server stub** now, registering tools as they land in later phases (Principle V). **Moved into Foundational per analyze finding O1**: T029–T055 implement the tools, but without an entry point none of them is reachable over MCP, so no story phase would be independently testable as an MCP capability. The stub need only expose `initialize` / `tools/list` / `tools/call` with an empty tool set.
 - [ ] T016 [P] Add filter contract tests to `tests/multivendor/run-tests.sh` — these run with **no device**: chaining rejected first, per-platform denylist fires, read-only mode blocks non-allowlisted verbs, and `show version` alone passes. Assert exit codes directly.
 
 **Checkpoint Phase 2**: dependencies isolated and proven, and no command can reach a device without
@@ -160,7 +174,7 @@ confirm every reachable device returns and the failure is isolated.
 > Can proceed in parallel from the US1 checkpoint onward. Unlike spec 075, this feature genuinely adds
 > capability, so **every** Principle XI touchpoint applies.
 
-- [ ] T056 Implement `server.py` as a FastMCP stdio server exposing the read-only tool surface, with proper `initialize` / `tools/list` / `tools/call` lifecycle (Principle V).
+- [ ] T056 Finalise `server.py`: confirm every tool built in Phases 3–6 is registered, the read-only surface is complete, and write tools are absent unless `MULTIVENDOR_WRITE_ENABLED` is set. The stub itself was created in T016a (analyze finding O1).
 - [ ] T057 Add a catalog entry to `scripts/lib/catalog.sh` — no generic-driver catalog id exists today, so this is a genuinely new component (FR-030).
 - [ ] T058 Add `component_install_multivendor_cli()` to `scripts/lib/install-steps.sh` creating the venv per T008's method, using the venv's own pip and never bare `pip3` (FR-030a, R7).
 - [ ] T059 Register the server in `config/openclaw.json` with the venv interpreter path **resolved at install time, never hardcoded** — spec 075 found three registrations hardcoded to `/home/ubuntu/netclaw/.venv/bin/python3` and broken for every installer, and `reconcile-mcp.py` now fails on exactly that (FR-030b).
@@ -188,12 +202,18 @@ was captured first, and that it reverts on verification failure.
 - [ ] T068 [US5] Implement `tools/change.py` with the `ChangeTransaction` state machine from data-model.md, where each transition is a gate rather than a step.
 - [ ] T069 [US5] Capture a baseline **before** any modification, written inside a path-sandboxed root with traversal prevented, ported from candidate A's design (FR-024, Principle II).
 - [ ] T070 [US5] Require explicit human approval via NetClaw's existing approval path; no transition past `awaiting_approval` without it (FR-025, Principle I).
+- [ ] T070a [US5] Classify each device as **lab or production** from inventory metadata, treating an unclassified device as **production**. Never infer or assume lab status (FR-025c). **Added per analyze finding D1.**
+- [ ] T070b [US5] Require an approved ServiceNow Change Request before any change to a production device, via the existing `servicenow-mcp` integration and `servicenow-change-workflow` skill. This is a **second gate**, distinct from FR-025's human approval — a person saying yes is not change-management authorisation (FR-025a, Constitution Principle III).
+- [ ] T070c [US5] Halt immediately and roll back to the captured baseline if a Change Request is rejected or withdrawn mid-execution (FR-025b, Principle III).
+- [ ] T070d [US5] Permit lab-device changes without a Change Request while still recording them in the audit trail (FR-025c, Principle III).
 - [ ] T071 [US5] Verify post-change state by structured comparison of actual against expected using `jdiff`, **never** from command exit status (FR-026, Principle VIII, research R9).
 - [ ] T072 [US5] Attempt rollback to the captured baseline on verification failure, and **halt and alert** if rollback itself fails (FR-027, Principle VIII).
 - [ ] T073 [US5] Terminate at `refused` for Cisco and Junos devices, naming the owning server (FR-010).
 - [ ] T074 [US5] Expose `apply_config` only when `MULTIVENDOR_WRITE_ENABLED` is set — absent from `tools/list` otherwise (FR-022).
 - [ ] T075 [US5] GAIT-log every device interaction and every state transition (FR-028, Principle IV).
 - [ ] T076 [US5] Verify SC-009: no change applies without both a captured baseline and explicit approval, tested by attempting to bypass each.
+- [ ] T076a [US5] Verify SC-009a: a production-device change is refused without an approved Change Request, and a lab-classified device may change without one while still being audit-logged.
+- [ ] T076b [US5] Verify SC-009b: a device with no lab/production metadata is treated as production and requires a Change Request.
 
 ---
 
@@ -204,7 +224,7 @@ was captured first, and that it reverts on verification failure.
 - [ ] T079 Verify SC-007b / FR-030c: installing this server leaves the system `cryptography` version unchanged.
 - [ ] T080 Verify SC-006: no credential appears in any file on disk outside a gitignored `.env`, inspected across all three inventory sources.
 - [ ] T081 Verify SC-008: every Constitution-forbidden operation is blocked on **every** supported platform, tested per platform rather than inferred from one.
-- [ ] T082 Verify SC-002 and SC-013: reachable platform families increased from 4 to 90+, and an operator can tell from skill documentation alone which server should answer a given question.
+- [ ] T082 Verify SC-002 and SC-013: **≥90 platform families documented as driver-supported and ≥5 verified against live devices** — the two are separate claims and only the second is testable without licensed images (analyze finding U1, research R4). Also verify an operator can tell from skill documentation alone which server should answer a given question.
 - [ ] T083 [P] Raise the repo-wide `pip3` hazard from research R7 as its own roadmap item: `scripts/lib/install-steps.sh` contains 186 `pip install` invocations, and on a split-toolchain host any bare `pip3` lands where servers cannot import from. Out of scope here; must not be lost.
 - [ ] T084 [P] Update `docs/COVERAGE-ROADMAP.md`: mark R1 `DONE`, record that both candidate servers were rejected and why, and note the CLI-reach-is-not-R3/R4 caveat.
 - [ ] T085 Run the Constitution Principle XI Artifact Coherence Checklist and record the result.
@@ -218,7 +238,7 @@ was captured first, and that it reverts on verification failure.
 ```
 Phase 1 Setup (T001–T004)
       ↓
-Phase 2 Foundational — venv (T005–T010) then filter (T011–T016)
+Phase 2 Foundational — venv (T005–T010), filter (T011–T016), server stub (T016a)
       ↓                 ← NOTHING touches a device until this completes
 Phase 3 US4 inventory + credentials (T017–T028)
       ↓                 ← dependency prerequisite for US1, despite being P2
@@ -230,7 +250,7 @@ Phase 5 US2 (T038–T048)   Phase 6 US3 (T049–T055)   Phase 7 Integration (T05
    ↓                   ↓                     ↓
    └───────────────────┴─────────────────────┘
                        ↓
-       Phase 8 US5 gated writes (T068–T076)   ← deferrable
+       Phase 8 US5 gated writes (T068–T076b)  ← deferrable; includes ITSM CR gating
                        ↓
        Phase 9 Polish (T077–T087)
 ```
@@ -274,12 +294,12 @@ valuable; writes are the only part that can cause an outage.
 | Phase | Story | Tasks | Count |
 |---|---|---|---|
 | 1 Setup | — | T001–T004 | 4 |
-| 2 Foundational (venv + filter) | — | T005–T016 | 12 |
+| 2 Foundational (venv + filter + server stub) | — | T005–T016a | 13 |
 | 3 | US4 (P2) | T017–T028 | 12 |
 | 4 | US1 (P1) | T029–T037 | 9 |
 | 5 | US2 (P1) | T038–T048 | 11 |
 | 6 | US3 (P2) | T049–T055 | 7 |
 | 7 Integration (XI) | — | T056–T067 | 12 |
-| 8 | US5 (P3) | T068–T076 | 9 |
+| 8 | US5 (P3) | T068–T076b | 15 |
 | 9 Polish | — | T077–T087 | 11 |
-| **Total** | | | **87** |
+| **Total** | | | **94** |
