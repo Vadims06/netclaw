@@ -33,6 +33,7 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -230,6 +231,39 @@ def _norm(name):
     return s
 
 
+def _tracked_dirs(servers_dir):
+    """Names under mcp-servers/ that git actually tracks content for.
+
+    A directory with no tracked files is not a vendored server -- it is a build
+    artifact. The common case is a gitignored virtualenv or __pycache__ left
+    behind after switching branches: the directory still exists on disk, git
+    cannot see it, but a filesystem scan can. Flagging those produced a spurious
+    failure on `main` immediately after spec 075 merged, because a feature
+    branch's .venv (9,300+ ignored files) survived the checkout.
+
+    CI never hit this -- a fresh clone has no leftovers -- which is precisely why
+    it needed catching here rather than there.
+
+    Returns None when git is unavailable, so callers fall back to scanning
+    everything rather than silently checking nothing.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "-C", REPO_ROOT, "ls-files", "--", "mcp-servers"],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    names = set()
+    for line in out.stdout.splitlines():
+        parts = line.split("/", 2)
+        if len(parts) >= 3 and parts[0] == "mcp-servers":
+            names.add(parts[1])
+    return names
+
+
 def check_vendored_state(registered, external_names):
     """Every mcp-servers/ directory must resolve to exactly one state:
     registered, external, or explained (which covers dropped). Added by spec
@@ -238,12 +272,17 @@ def check_vendored_state(registered, external_names):
     if not os.path.isdir(servers_dir):
         return []
 
+    tracked = _tracked_dirs(servers_dir)
+
     reg_norm = {_norm(k) for k in registered}
     ext_norm = {_norm(n) for n in external_names}
 
     gaps = []
     for entry in sorted(os.listdir(servers_dir)):
         if not os.path.isdir(os.path.join(servers_dir, entry)):
+            continue
+        # Untracked directory => build artifact, not a vendored server.
+        if tracked is not None and entry not in tracked:
             continue
         if entry in VENDORED_STATE_REASONS:
             continue
