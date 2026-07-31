@@ -61,9 +61,13 @@ pip3    -> ~/.local/bin/pip3       3.13     cryptography 45.0.2
 | Invocation style | Count |
 |---|---|
 | bare `pip3 install` | **143** |
-| bare `pip install` | **46** |
-| venv-scoped (`<venv>/bin/python -m pip`) | **2** |
-| **total** | **188** |
+| bare `pip install` | **45** |
+| interpreter/venv-scoped | **1** |
+| **total lines** | **188** |
+
+*(An earlier pass reported 46 bare `pip` and 2 scoped — it double-counted lines matching both patterns.
+Recounted precisely: **188 bare invocations, 1 scoped**. Corrected here rather than left to diverge
+between sections.)*
 
 Any bare invocation on a split-toolchain host installs where the server cannot see it. This is the same
 defect class as the hardcoded interpreter paths R0 fixed — a path that resolves on the author's machine
@@ -79,6 +83,51 @@ root. `python3 -m venv` therefore fails outright. Audited: **two** places create
 - `scripts/lib/install-steps.sh`
 
 Spec 076 works around it with `virtualenv`, which bundles pip and needs no root.
+
+---
+
+## Clarifications
+
+### Session 2026-07-31
+
+- Q: For `n2n-mcp` — pin `fastmcp<2` or migrate to 2.x? → A: **Migrate to `fastmcp` 2.x and pin `>=2,<3`.** Forward-looking, aligned with where the ecosystem went.
+- Q: How does the gate determine that an unbounded pin is dangerous? → A: **Static import scan** — parse each server's Python for submodule imports and cross-reference against its declared pins. Derived from the code, so it cannot drift.
+- Q: How should the 188 bare pip invocations be remediated? → A: **Introduce one `netclaw_pip_install()` helper that resolves the correct interpreter, and route all calls through it.** One mechanism, one place to fix, no per-call judgement.
+
+**`n2n-mcp` diverges from the other six deliberately.** Six servers get a bounded pin (`mcp>=…,<2`),
+which is provably correct there because the module was *removed* — there is nothing to migrate to within
+1.x. `n2n-mcp` instead **migrates forward** to `fastmcp` 2.x, pinned `>=2,<3`.
+
+This was chosen over pinning backwards, and the tradeoff is worth stating plainly. Migration is the
+larger blast radius: `n2n-mcp` backs the NCFED federation and is one of the seven live servers. Pinning
+`<2` would have been the smaller change, but it freezes the server on 0.x-era API indefinitely and
+accumulates its own debt. The decision accepts short-term risk to avoid long-term drift.
+
+Because the risk lands on the federation, this repair carries extra requirements the other six do not
+(FR-001a–FR-001c): the migration must be verified against a working federation, must be independently
+revertable, and must not be batched with the six pin changes in a single commit. A divergence this
+visible must also be documented so a future reader does not read it as an oversight.
+
+**Why a static scan, and what it deliberately does not catch.** Deriving danger from the code means a
+server that adds a submodule import is flagged automatically, with nobody needing to remember. The
+alternative — a hand-maintained list of risky packages — is precisely the artefact R0 caught going stale
+("Verified … as of 2026-07-07").
+
+**Known blind spot, accepted knowingly:** a static submodule scan catches **6 of the 7** exposed servers.
+It does **not** catch `n2n-mcp`, which imports `from fastmcp import FastMCP` — a *top-level* import — yet
+is still exposed because `fastmcp` went 0.x → 2.x with API changes. Top-level API drift is invisible to
+this technique.
+
+That gap is accepted rather than papered over: the scan is the part that cannot rot, and a curated list
+to close the remaining case can be added later if the gap proves to matter (FR-006b). All seven servers
+are still repaired by US1 regardless — the blind spot affects *future detection*, not this feature's fix.
+
+**Why a helper rather than 188 individual edits.** The hazard is not "bare pip" in the abstract — it is
+bare pip *on a split-toolchain host*. A helper fixes every call site at once and gives one place to
+change behaviour when the next toolchain quirk appears. The two already-correct venv-scoped calls came
+from spec 076, written by hand and correct only because that author had just been burned by this exact
+problem; that is not a repeatable safeguard. Constitution Principle XV ("new dependencies MUST be
+isolated") is also unenforceable while 188 call sites each decide independently where packages land.
 
 ---
 
@@ -188,10 +237,24 @@ status in a time short enough to run before pushing.
 
 - **FR-001**: All seven exposed servers MUST resolve to a dependency version providing the API they
   import, either by bounding the pin or by migrating to the successor distribution.
+- **FR-001a**: `n2n-mcp` MUST migrate to `fastmcp` 2.x pinned `>=2,<3`, rather than being pinned
+  backwards. This diverges from the other six deliberately and MUST be documented as such.
+- **FR-001b**: Because `n2n-mcp` backs the NCFED federation, its migration MUST be verified against a
+  working federation — not merely by the entry point importing. Import success is not evidence the
+  federation still functions.
+- **FR-001c**: The `n2n-mcp` migration MUST be a separate, independently revertable change, and MUST NOT
+  be batched into the same commit as the six pin repairs. If it must be backed out, that must not also
+  revert six unrelated fixes.
 - **FR-002**: Each repair MUST be verified by importing the server's entry point under the resolved
   versions, not by inspecting the pin alone.
-- **FR-003**: Bare `pip`/`pip3` invocations in install steps MUST be replaced with invocations scoped to
-  the interpreter the server will actually run under.
+- **FR-003**: A single shared helper (`netclaw_pip_install()` or equivalent) MUST resolve the correct
+  interpreter and perform every package installation. **All 188 bare `pip`/`pip3` invocations in install
+  steps MUST be routed through it** — not fixed individually, so there is one mechanism and one place to
+  change.
+- **FR-003a**: The helper MUST install into the interpreter the target server will actually run under,
+  and MUST accept an explicit virtualenv when a server has one (as `multivendor-cli-mcp` does).
+- **FR-003b**: The helper MUST fail loudly rather than silently falling back to a bare `pip` if it
+  cannot determine the correct interpreter.
 - **FR-004**: Venv creation MUST work on hosts lacking `ensurepip`, or fail with a message naming the
   missing prerequisite and the remedy.
 - **FR-005**: `scripts/gait-venv-setup.sh` MUST be included in FR-004's fix — GAIT is the audit trail
@@ -200,7 +263,14 @@ status in a time short enough to run before pushing.
 **Enforcement**
 
 - **FR-006**: The reconciliation gate MUST fail when a server declares an unbounded pin on a package
-  whose submodule it imports.
+  whose submodule it imports, determined by **statically scanning the server's own source** — not from a
+  hand-maintained list of risky packages, which would rot the way R0 found `EXTERNAL_INTEGRATIONS` had.
+- **FR-006a**: The scan MUST report which import in which file triggered each finding, so a maintainer
+  can judge it rather than merely suppress it.
+- **FR-006b**: The gate's blind spot MUST be documented: a submodule scan cannot detect breakage from
+  *top-level* API drift. `n2n-mcp` (`from fastmcp import FastMCP`, pinned `fastmcp>=0.1.0`) is the known
+  instance and would NOT be caught. A curated supplement is explicitly out of scope for this feature and
+  MUST NOT be added silently to make the gate look complete.
 - **FR-007**: The gate MUST fail on a new bare `pip`/`pip3` invocation in an install step.
 - **FR-008**: The gate MUST flag `python3 -m venv` usage with the `ensurepip` caveat.
 - **FR-009**: Every failure MUST name the file, the server, and the specific package or line.
@@ -240,11 +310,20 @@ status in a time short enough to run before pushing.
 - **SC-001**: Zero servers resolve to a dependency major that lacks an API they import — down from 7.
 - **SC-002**: Every one of the 7 repaired servers imports its entry point successfully under resolved
   versions.
-- **SC-003**: Bare pip invocations in install steps drop from 189 to zero, or each remaining one is
-  recorded as an intentional exception with a reason.
+- **SC-002a**: After the `n2n-mcp` migration, the federation still functions — verified by exercising it,
+  not by import alone.
+- **SC-002b**: The `n2n-mcp` migration is revertable on its own, verified by confirming it lands in a
+  commit containing no other server's pin change.
+- **SC-003**: Bare pip invocations in install steps drop from 188 to zero, all routed through the shared
+  helper, or each remaining one is recorded as an intentional exception with a reason.
+- **SC-003a**: The helper is the single installation path — verified by confirming no install step calls
+  `pip`/`pip3` directly.
 - **SC-004**: Both `python3 -m venv` call sites work on a host without `ensurepip`, or fail naming the
   remedy.
-- **SC-005**: Introducing an unbounded API-significant pin causes the gate to fail, confirmed by test.
+- **SC-005**: Introducing an unbounded pin on a package whose submodule the server imports causes the
+  gate to fail, confirmed by test.
+- **SC-005a**: The gate detects at least **6 of the 7** currently-exposed servers from a static scan
+  alone, with `n2n-mcp` documented as the known undetectable case rather than counted as covered.
 - **SC-006**: Introducing a bare `pip3 install` causes the gate to fail, confirmed by test.
 - **SC-007**: The gate passes and exits zero on a clean repository.
 - **SC-008**: Dependency resolution is checkable for all servers in under 5 minutes without installing.
@@ -255,23 +334,24 @@ status in a time short enough to run before pushing.
 
 - **Extend R0's gate, do not build a second one.** `scripts/reconcile-mcp.py` is the established single
   entry point and CI already runs it. A separate dependency checker would be a second thing to remember.
-- **Pinning `<2` is the default repair**, since it is the minimal change and spec 076 already proved it.
-  Migrating to standalone `fastmcp` is a legitimate alternative where a server wants the new API, but is
-  a bigger change per server and should not be forced by this feature.
+- **Pinning `<2` is the default repair for the six `mcp>=` servers**, since the module was removed and
+  there is nothing to migrate to within 1.x. Spec 076 already proved this pattern.
+- **`n2n-mcp` migrates forward instead**, to `fastmcp>=2,<3`, per the ratified clarification. This is the
+  one deliberate divergence, taken to avoid freezing the federation server on 0.x-era API.
 - **Declared pins only.** Transitive breakage is real but out of scope; auditing it needs a lockfile
   strategy this repository does not have. Stated so the limitation is explicit rather than implied.
 - **A package index is reachable** for resolution checking. Offline, the check reports that it could not
   resolve rather than passing vacuously.
 - **`virtualenv` is the venv remedy**, matching spec 076. If absent, failure names the one-line install.
-- **The audit figures are ground truth** as of 2026-07-31: 7 exposed servers, 188 pip installs (143 bare
-  `pip3`, 46 bare `pip`, 2 venv-scoped), 2 `ensurepip`-dependent venv creations.
+- **The audit figures are ground truth** as of 2026-07-31: 7 exposed servers, 188 bare pip invocations
+  (143 `pip3`, 45 `pip`) with only 1 interpreter-scoped, and 2 `ensurepip`-dependent venv creations.
 - **No capability changes**, per FR-015 — this is repair and enforcement only, like R0.
 
 ## Dependencies
 
 - `scripts/reconcile-mcp.py`, `scripts/verify-catalog-coverage.py` — the gate being extended (spec 075).
 - `mcp-servers/*/requirements.txt` — the declarations being audited.
-- `scripts/lib/install-steps.sh` — 188 pip invocations.
+- `scripts/lib/install-steps.sh` — 188 bare pip invocations.
 - `scripts/gait-venv-setup.sh` — the second `ensurepip`-dependent venv creation.
 - `tests/reconcile/run-tests.sh` — the harness the new contract tests join.
 - `docs/ADDING-AN-MCP.md` — gains the pinning rule so R2–R24 inherit it.

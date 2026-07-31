@@ -63,11 +63,33 @@ This mirrors spec 075, where the enforcement story was co-equal with the cleanup
   submodules are imported — from those used via stable top-level APIs. Demanding upper bounds everywhere
   would produce noise and train people to suppress the check.
 
-### One thing worth watching in planning
+### Clarifications resolved (3 questions, 2026-07-31)
 
-`n2n-mcp` is exposed via `fastmcp>=0.1.0` — the *standalone* package, a different hazard from the other
-six, and it backs the federation. It is the highest-risk single repair here and should not be batched
-carelessly with the six `mcp>=` fixes.
+1. **Bare pip remediation** → one shared `netclaw_pip_install()` helper, all 188 calls routed through it.
+   Not 188 individual edits: the hazard is bare pip *on a split-toolchain host*, and one mechanism means
+   one place to fix. The two hand-written correct calls from spec 076 were correct only because that
+   author had just been burned — not a repeatable safeguard.
+2. **How the gate detects danger** → static import scan of each server's own source, so it cannot rot the
+   way `EXTERNAL_INTEGRATIONS` did. **Accepted blind spot, recorded as FR-006b**: a submodule scan catches
+   6 of 7 and cannot see top-level API drift, so `n2n-mcp` would not be detected. Documented rather than
+   closed with a curated list that would make the gate merely *look* complete.
+3. **`n2n-mcp`** → migrate forward to `fastmcp>=2,<3` rather than pinning backwards. **This was not my
+   recommendation** — I proposed measuring the working version first, since this server backs the
+   federation and pattern-matching from the other six is not reasoning. The maintainer chose migration to
+   avoid freezing on 0.x-era API, which is a defensible tradeoff of short-term risk against long-term
+   drift.
+
+Because that risk lands on the federation, the migration carries three requirements the other six do not:
+verified against a *working federation* rather than by import alone (FR-001b), independently revertable
+(FR-001c), and not batched with the six pin changes (SC-002b). Import success is not evidence the
+federation still functions.
+
+### A figure I had wrong twice
+
+The pip counts were reported as 188 total / 189 bare across different sections — impossible, and caused by
+double-counting lines matching both patterns. Recounted precisely: **188 bare invocations (143 `pip3`,
+45 `pip`), 1 interpreter-scoped.** Reconciled across the spec and the roadmap. A spec whose own figures
+contradict each other is not trustworthy, so this is called out rather than quietly fixed.
 
 ## Notes
 

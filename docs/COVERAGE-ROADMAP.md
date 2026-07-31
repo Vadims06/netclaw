@@ -41,7 +41,7 @@ and the IETF datatracker.
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R0** | MCP config reconciliation — repo vs live vs vendored | [075](../specs/075-mcp-config-reconciliation/spec.md) | `DONE` |
-| **R0a** | **Dependency-pin hazards** | [077](../specs/077-dependency-pin-hazards/spec.md) | `IN FLIGHT` — spec branch open; audit complete (7 servers exposed, 189 bare pip calls, 2 broken venv creations) |
+| **R0a** | **Dependency-pin hazards** | [077](../specs/077-dependency-pin-hazards/spec.md) | `IN FLIGHT` — spec branch open; audit complete (7 servers exposed, 188 bare pip calls, 2 broken venv creations) |
 
 > ### R0a — two latent breakages that make fresh installs fail
 >
@@ -72,8 +72,7 @@ and the IETF datatracker.
 >
 > **2. `pip3` and `python3` can be different interpreters.** On the development host, `pip3` targets a
 > stranded Python 3.13 `site-packages` while `python3` is 3.14.4 — carrying two different
-> `cryptography` versions. Audited: `scripts/lib/install-steps.sh` has **188 pip installs, of which 143
-> are bare `pip3 install` and 46 bare `pip install`. Only 2 are venv-scoped.** Any bare invocation lands
+> `cryptography` versions. Audited: **188 bare pip invocations (143 `pip3`, 45 `pip`), only 1 interpreter-scoped.** Any bare invocation lands
 > where the servers cannot import from. Same defect class as the hardcoded interpreter paths R0 fixed.
 >
 > **3. `python3 -m venv` fails outright** where `ensurepip` is unavailable (Python 3.14 here, because
