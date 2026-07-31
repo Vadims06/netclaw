@@ -41,7 +41,7 @@ and the IETF datatracker.
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R0** | MCP config reconciliation — repo vs live vs vendored | [075](../specs/075-mcp-config-reconciliation/spec.md) | `DONE` |
-| **R0a** | **Dependency-pin hazards — do this NEXT** | — | `NOT STARTED` |
+| **R0a** | **Dependency-pin hazards — DO THIS NEXT** | — | `NOT STARTED` — unblocked, R1 partially merged |
 
 > ### R0a — two latent breakages that make fresh installs fail
 >
@@ -90,7 +90,7 @@ and the IETF datatracker.
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R1** | Generic multivendor CLI driver (Nornir/Netmiko/NAPALM) | [076](../specs/076-multivendor-cli-driver/spec.md) | `IN FLIGHT` — Phases 1–2 of 9 done. **SC-001 BLOCKED**: the only lab is CML with 4 Cisco devices, i.e. exactly the platforms this server routes away. Needs containerlab (SR Linux / SONiC / VyOS — free container images) |
+| **R1** | Generic multivendor CLI driver (Nornir/Netmiko/NAPALM) | [076](../specs/076-multivendor-cli-driver/spec.md) | `IN FLIGHT` — **38/94 merged (PR #200)**. Foundation, filter, inventory, credentials, routing, registration all done and green on `main`. Device tools (Phases 4–6) and gated writes (Phase 8) remain. **SC-001 BLOCKED**: only lab is CML with 4 Cisco devices — exactly the platforms this server routes away. Needs containerlab (SR Linux / SONiC / VyOS, free container images) |
 | **R2** | Cisco Support APIs (PSIRT / EoX / Bug / Case) | — | `NOT STARTED` |
 | **R3** | Fortinet (FortiOS / FortiManager / FortiAnalyzer) | — | `NOT STARTED` |
 | **R4** | Palo Alto PAN-OS / Panorama NGFW | — | `NOT STARTED` |
