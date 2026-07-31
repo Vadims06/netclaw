@@ -41,7 +41,7 @@ and the IETF datatracker.
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R0** | MCP config reconciliation — repo vs live vs vendored | [075](../specs/075-mcp-config-reconciliation/spec.md) | `DONE` |
-| **R0a** | **Dependency-pin hazards** | [077](../specs/077-dependency-pin-hazards/spec.md) | `IN FLIGHT` — spec branch open; audit complete (7 servers exposed, 188 bare pip calls, 2 broken venv creations) |
+| **R0a** | Dependency-pin hazards | [077](../specs/077-dependency-pin-hazards/spec.md) | `DONE` — 41/41. 25 pins bounded across 20 servers, 130 bare pip calls routed through one helper, GAIT's unbounded install fixed, new `dependencies` gate surface |
 
 > ### R0a — two latent breakages that make fresh installs fail
 >
@@ -826,3 +826,56 @@ That is not FortiManager's policy packages or Panorama's device groups. R3 and R
 `labs/multivendor-r1/` — containerlab topology (SR Linux, public image, no account) and an FRR+sshd
 Dockerfile. The repo's existing `netclaw-*` FRR containers cannot be used: no `sshd`, and they are
 live BGP peers.
+
+---
+
+# R0a — Dependency-pin hazards (outcome)
+
+**Status:** `DONE` (2026-07-31, spec 077) · 41/41 tasks
+
+Fresh installs work again, and the three breakage classes now fail loudly. All three broke *new* installs
+only, which is why none was noticed.
+
+## What shipped
+
+| Repair | Scale |
+|---|---|
+| Pins bounded (unbounded + submodule import) | **25 failures across 20 servers**, 15 of them `mcp`/`fastmcp` |
+| Bare pip calls routed through `netclaw_pip_install()` | **130** |
+| `gait-venv-setup.sh` unbounded `uv pip install gait-ai mcp fastmcp` | bounded — GAIT is the Principle IV audit trail |
+| Dead `fastmcp` declarations removed | 2 (`n2n-mcp`, `protocol-mcp`) |
+| New gate surface | `dependencies` in `reconcile-mcp.py` — **four surfaces**, all green |
+| Contract tests | 23/23, including false-positive guards |
+
+## The finding worth remembering
+
+**My audit found 7 exposed servers. The static scan found 25 failures across 20.** The audit looked for a
+pattern it already knew — unbounded `mcp>=` plus a `mcp.server.fastmcp` import. The scan looked for the
+*class*: any unbounded pin on any package whose submodule is imported.
+
+A human audit finds what it expects. A static scan finds what is there. That is the whole case for
+deriving the check from source rather than from a maintained list.
+
+## Three figure corrections
+
+Recorded in the spec rather than quietly patched, because a spec whose numbers shift silently is not
+trustworthy:
+
+1. **"188 bare pip calls" counted comments and log messages.** Real figure: **130** executable.
+2. **Hazard 3 had ZERO instances.** Both venv sites were already correct — `gait-venv-setup.sh` uses
+   `uv venv` and documents why. The grep matched the comment *explaining* the problem.
+3. **`n2n-mcp` needed no migration.** It imports `mcp.server.fastmcp` like the others. The approved
+   `fastmcp` 2.x migration would not have fixed it, since fastmcp 2.x provides no `mcp/server/fastmcp`.
+   Proceeded with the correct minimal fix instead of executing an instruction premised on my own error.
+
+## One requirement dropped
+
+**FR-006c** (flag declared-but-unimported dependencies) is dropped as unimplementable reliably: a
+distribution name is not a module name (`python-dotenv` → `dotenv`), and resolving that needs
+`importlib.metadata` against *installed* packages. The first implementation produced **187 findings,
+nearly all false** — and a noisy check trains people to ignore it, which is worse than no check.
+
+## Inherited by R2–R24
+
+`docs/ADDING-AN-MCP.md` now carries both rules: bound any pin on a package whose submodule you import,
+and never call bare `pip`. The gate enforces both, and an exception requires a stated reason.
