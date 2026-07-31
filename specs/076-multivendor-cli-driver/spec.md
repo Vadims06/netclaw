@@ -64,6 +64,54 @@ platform. Recorded here so it is not re-litigated.
 
 ---
 
+## Clarifications
+
+### Session 2026-07-30
+
+- Q: How is the device inventory sourced — live dynamic plugin, generated YAML, or both? → A: **Both tiers, live preferred, generated YAML as fallback/cache.**
+- Q: Should the existing pyATS `testbed.yaml` be reused as an inventory source? → A: **No.** pyATS assumes Cisco. Operators needing inventory for other tools either **maintain their own YAML** or **use the existing source of truth**.
+- Q: How are this server's Python dependencies isolated, given `napalm`/`netmiko` pull `cryptography` which the NCFED stack also uses? → A: **Dedicated virtualenv for this server**, created by its install function, interpreter path resolved at install time and never hardcoded.
+- Q: Is Vault mandatory for credentials? → A: **No — Vault preferred, environment variables as a documented fallback.** Both keep secrets off disk; a credential in an inventory file remains forbidden.
+
+**Why the fallback is not a weakening.** Principle XIII requires secrets live in `.env` and never be
+hardcoded in source or configuration — it does not require Vault specifically, and the existing
+`pyATS` server already supports env-var credentials alongside `VAULT_ADDR`. Requiring Vault would make
+this server stricter than every existing NetClaw server while excluding exactly the no-source-of-truth
+operators the inventory decision above just made first-class.
+
+**Three accepted inventory sources, and the distinction between two of them matters.** The second
+answer above adds an operator-authored file, which the first answer's "never hand-authored" wording
+did not allow. Resolved as follows — a generated file and an operator-authored file are *different
+artifacts with different rules*, and conflating them is what produces "the refresh wiped my edits":
+
+| Source | Authority | Hand-editable? |
+|---|---|---|
+| Live source of truth (NetBox / Nautobot / Infrahub) | Preferred | N/A |
+| Inventory generated *from* a source of truth | Cache / offline fallback | **No** — regenerable, edits are lost by design |
+| Operator-authored inventory file | Operator's own responsibility | **Yes** — it is theirs to maintain |
+
+`pyATS`'s `testbed.yaml` is explicitly **not** a source. Its `os:` values (`iosxe`, `nxos`, `iosxr`)
+describe exactly the platforms FR-009 routes *away* from this server, so deriving inventory from it
+would mostly yield devices this server should decline to act on.
+
+The credential prohibition applies identically to all three sources.
+
+**Correction this clarification forces on Phase 0 research.** Research R1 called candidate A's YAML
+inventory a violation of FR-017. That conflated two separable things and was wrong:
+
+- **Device inventory in YAML is not a violation.** It is NetClaw's established pattern — `pyATS` ships
+  `PYATS_TESTBED_PATH`, where the operator builds `testbed.yaml` at install, and
+  `netbox-reconcile`/`pyats-topology` already reference generating it from a source of truth. Hostnames,
+  addresses and platform identifiers are not secret.
+- **Credentials in YAML *is* a violation**, and it is what candidate A actually does wrong by storing
+  them in Nornir group definitions. This is independent of where inventory lives.
+
+The build-rather-than-adopt decision stands, but on the narrower and more honest grounds that
+candidate A is archived and unmaintained, and reloads `config.yaml` from the working directory on
+every tool call — threading the inventory assumption through the request path. Not "YAML is wrong."
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Reach a platform NetClaw cannot touch today (Priority: P1)
@@ -266,10 +314,34 @@ without approval, that a baseline was captured first, and that it can be reverte
 
 **Inventory and credentials**
 
-- **FR-017**: Device inventory MUST be resolved from NetClaw's existing sources of truth rather than a
-  new hand-maintained inventory file.
-- **FR-018**: Credentials MUST come from NetClaw's existing secret store.
-- **FR-019**: No credential may be written to any file on disk, in any form (Principle XIII).
+- **FR-017**: Device inventory MUST come from one of exactly three sources, and the server MUST
+  support all three:
+  - **Live source of truth** (preferred): query NetBox / Nautobot / Infrahub at call time, so
+    inventory cannot drift.
+  - **Generated from a source of truth**: an inventory file rendered from those same sources at
+    install and on refresh, for offline, air-gapped, or SoT-unavailable operation.
+  - **Operator-authored**: an inventory file the operator writes and maintains themselves, for
+    operators with no source of truth.
+- **FR-017a**: A **generated** inventory file MUST be regenerable from its source and MUST be treated
+  as a cache — the server MUST warn that hand edits will be lost on refresh. One that cannot be
+  regenerated is a defect.
+- **FR-017b**: An **operator-authored** inventory file MUST never be overwritten or regenerated by the
+  server. The two file kinds MUST be distinguishable so a refresh cannot destroy operator work.
+- **FR-017c**: The server MUST report which of the three sources supplied a device, so results are
+  attributable and a stale-cache answer is never mistaken for a live one.
+- **FR-017d**: **No inventory source may contain credential material in any form** — only hostnames,
+  addresses, platform identifiers, grouping metadata, and credential *references*. This applies
+  identically to all three sources (Principle XIII).
+- **FR-017e**: The pyATS `testbed.yaml` MUST NOT be used as an inventory source. It assumes Cisco, and
+  its platforms are precisely those FR-009 routes away from this server.
+- **FR-018**: Credentials MUST come from Vault where available, with environment variables as a
+  documented fallback. Vault MUST NOT be a hard prerequisite for using the server — an operator with
+  an operator-authored inventory and no source of truth typically has no Vault either.
+- **FR-018a**: The server MUST report which path supplied a credential (Vault or environment), so the
+  security posture of a given deployment is inspectable.
+- **FR-019**: No credential may be written to, or read from, any file on disk in any form other than a
+  gitignored `.env` (Principle XIII). Reading a credential from an inventory file is forbidden
+  regardless of which of the three inventory sources it came from.
 - **FR-020**: Per-device, per-site or per-platform credential differences MUST be supported; a single
   global credential is not sufficient.
 - **FR-021**: A device absent from every source of truth MUST be reported as absent rather than
@@ -297,6 +369,16 @@ without approval, that a baseline was captured first, and that it can be reverte
 - **FR-030**: The server MUST be registered and installable per `docs/ADDING-AN-MCP.md`, and
   `scripts/reconcile-mcp.py` MUST pass — including a catalog entry and install function, since no
   generic-driver catalog id exists today.
+- **FR-030a**: The server's Python dependencies MUST be installed into a **dedicated virtualenv**, not
+  the shared system environment. `napalm`/`netmiko` transitively require `cryptography` and `paramiko`,
+  and `cryptography` is used by the NCFED federation stack for X.509 issuance (spec 060) — a version
+  conflict would break certificate handling rather than this server (Principle XV).
+- **FR-030b**: The registration MUST resolve that virtualenv's interpreter path **at install time** and
+  MUST NOT hardcode an absolute path. Spec 075 found three registrations hardcoded to
+  `/home/ubuntu/netclaw/.venv/bin/python3` and broken for every installer; `scripts/reconcile-mcp.py`
+  now fails on exactly that defect.
+- **FR-030c**: Installation MUST verify the system `cryptography` version is unchanged afterwards, so a
+  regression in the federation stack is caught at install rather than at certificate-renewal time.
 - **FR-031**: Accompanying skills MUST cover, at minimum: normalized fact retrieval, safe raw command
   execution, and fleet-wide fan-out.
 - **FR-032**: Existing device-facing capability MUST NOT regress; all 18 pyATS skills and the Junos
@@ -305,7 +387,10 @@ without approval, that a baseline was captured first, and that it can be reverte
 ### Key Entities
 
 - **Device**: A reachable network element. Has a name, an address, a platform identifier, and a
-  credential reference. Resolved from a source of truth, never defined locally.
+  credential *reference* — never a credential. Supplied by one of three inventory sources.
+- **Inventory source**: One of live source-of-truth, generated-from-source-of-truth, or
+  operator-authored. Each device carries which source supplied it (FR-017c). Generated files are
+  caches and are overwritten on refresh; operator-authored files are never touched by the server.
 - **Platform**: The OS family determining which driver and command syntax apply. Mismatch between the
   recorded and actual platform is a detectable error condition.
 - **Device group**: A named set of devices — by site, role, platform, or tag — that one query can
@@ -330,9 +415,14 @@ without approval, that a baseline was captured first, and that it can be reverte
 - **SC-004**: A fleet query against a mixed group including at least one unreachable device returns
   results for every reachable device and isolates the failure.
 - **SC-005**: A fleet query of N devices completes substantially faster than N sequential queries.
-- **SC-006**: Zero credentials appear in any file on disk, verified by inspection.
-- **SC-007**: Zero devices are defined in a local inventory file; every device resolves from a source
-  of truth.
+- **SC-006**: Zero credentials appear in any file on disk other than a gitignored `.env`, verified by
+  inspection of all three inventory sources.
+- **SC-007**: Every device reports which of the three inventory sources supplied it, and a refresh of a
+  generated inventory leaves any operator-authored inventory untouched.
+- **SC-007a**: The server is usable by an operator with neither a source of truth nor Vault — verified
+  by onboarding one device using an operator-authored inventory and env-var credentials.
+- **SC-007b**: Installing this server leaves the system `cryptography` version unchanged, verified
+  before and after.
 - **SC-008**: Every Constitution-forbidden operation is blocked on every supported platform, verified
   per platform rather than assumed from one.
 - **SC-009**: No configuration change can be applied without a captured baseline and explicit

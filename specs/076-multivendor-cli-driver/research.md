@@ -38,13 +38,27 @@ reasons.**
 | Credentials | Env vars plus YAML credential profiles | Partially violates FR-019 |
 | Inventory | `config/devices.yaml` with groups and tags | **Violates FR-017** |
 
-### The shared, disqualifying pattern
+### The shared pattern — and a correction to how this was first assessed
 
-Both are built around a **local YAML inventory with credentials in it**. That is the standard Nornir
-idiom, and it is precisely what FR-017 through FR-021 forbid: NetClaw resolves devices from
-NetBox/Nautobot/Infrahub and secrets from Vault, specifically so a second inventory cannot drift and
-no credential lands on disk. This is not a small integration detail — it is the layer both projects
-are organised around.
+> **Corrected 2026-07-30 after clarification.** This section originally called "a local YAML inventory
+> with credentials in it" a single disqualifying pattern. That conflated two separable things and
+> overstated the case. The spec's Clarifications section is authoritative; this is kept for the record.
+
+Both projects are built around a local YAML inventory that also holds credentials. Split properly:
+
+- **The YAML inventory is not disqualifying.** It is NetClaw's established pattern — `pyATS` ships
+  `PYATS_TESTBED_PATH` for an operator-built `testbed.yaml`. Hostnames, addresses and platform
+  identifiers are not secret. The clarified spec accepts three inventory sources, two of which are
+  files (FR-017).
+- **Credentials in the YAML are disqualifying**, and that is what both candidates actually do wrong —
+  candidate A in Nornir group definitions, candidate B in YAML credential profiles. Forbidden by
+  FR-019 and Principle XIII regardless of which inventory source is in use.
+
+The build-rather-than-adopt conclusion is unchanged, but rests on narrower and more defensible
+grounds: candidate A is **archived and unmaintained** and reloads `config.yaml` from the working
+directory on every tool call, threading the inventory assumption through the request path; candidate B
+has **no command filtering whatsoever**, which is the hardest part to get right and the part
+Principle I most depends on.
 
 Candidate B additionally has **no command filtering of any kind**, which is the single hardest thing
 to get right and the thing FR-023/FR-029 and Constitution Principle I most depend on.
@@ -174,7 +188,7 @@ universal chaining prohibition and a universal read-only prefix allowlist. Enfor
 
 | Spec assumption | Research finding | Impact |
 |---|---|---|
-| A community server will be adopted | Both candidates fail FR-017/019; A is archived, B has no filtering | **Build on libraries, port A's safety model. Scope increases.** |
+| A community server will be adopted | A is **archived** and threads its inventory assumption through the request path; B has **no command filtering at all**. Both store credentials in YAML (FR-019). Their *YAML inventory* is fine — see the correction in R1 | **Build on libraries, port A's safety model. Scope increases.** |
 | Dependency isolation "needs attention" | `cryptography`/`paramiko` are shared with the NCFED TLS stack | Isolation is a hard requirement, not a nicety |
 | Reach claim ~90 platforms | Confirmed, and includes Fortinet/PAN-OS/Check Point | Bonus reach — must not be mistaken for R3/R4 completion |
 | Lab platforms available | True for SR Linux/SONiC/VyOS; MikroTik/Extreme/Huawei need licensed images | SC-001 targets containerlab platforms |
