@@ -105,6 +105,7 @@ Auto-generated from all feature plans. Last updated: 2026-07-31
 - N/A — all state is existing repository files; this feature adds no datastore (075-mcp-config-reconciliation)
 - Python — **interpreter choice is a live decision, not a default** (see R7). + `nornir` 3.5.0, `napalm` 5.2.0, `netmiko` (>=4,<5 per `nornir-netmiko`), (076-multivendor-cli-driver)
 - No database. A generated inventory cache on disk (regenerable, credential-free); an (076-multivendor-cli-driver)
+- on-disk cache, one JSON file per `(ostype, version)` under `~/.openclaw/cisco-psirt/`. No (078-cisco-psirt-vulnerability)
 
 - Python 3.10+ + FastMCP (MCP framework), grpcio + grpcio-tools (gRPC transport), pygnmi (gNMI client library), protobuf, cryptography (TLS handling) (003-gnmi-mcp-server)
 
@@ -124,6 +125,7 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.10+: Follow standard conventions
 
 ## Recent Changes
+- 078-cisco-psirt-vulnerability: Added on-disk cache, one JSON file per `(ostype, version)` under `~/.openclaw/cisco-psirt/`. No
 - 076-multivendor-cli-driver: Added Python — **interpreter choice is a live decision, not a default** (see R7). + `nornir` 3.5.0, `napalm` 5.2.0, `netmiko` (>=4,<5 per `nornir-netmiko`),
 - 075-mcp-config-reconciliation: Added Python 3.10+ (all `scripts/*.py`), Bash (CI wiring, catalog is a Bash array) + None — Python standard library only, per the convention every existing
 
