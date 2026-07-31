@@ -41,7 +41,7 @@ and the IETF datatracker.
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R0** | MCP config reconciliation — repo vs live vs vendored | [075](../specs/075-mcp-config-reconciliation/spec.md) | `DONE` |
-| **R0a** | **Dependency-pin hazards — DO THIS NEXT** | — | `NOT STARTED` — **R1 is now complete and merged, so this is the active item** |
+| **R0a** | **Dependency-pin hazards** | [077](../specs/077-dependency-pin-hazards/spec.md) | `IN FLIGHT` — spec branch open; audit complete (7 servers exposed, 189 bare pip calls, 2 broken venv creations) |
 
 > ### R0a — two latent breakages that make fresh installs fail
 >
@@ -50,30 +50,36 @@ and the IETF datatracker.
 >
 > **1. `mcp 2.0.0` removed `mcp.server.fastmcp`.** Verified: the 2.0.0 wheel contains **zero**
 > `mcp/server/fastmcp/` files, and does not declare `fastmcp` as a dependency, so there is no
-> re-export. Seven servers pin `mcp` with no upper bound *and* import that module, so all seven
-> resolve 2.x and fail on import on a fresh install today:
+> re-export. **Seven** servers have an unbounded pin *and* import that module, so all seven resolve a
+> breaking major on a fresh install today. Audited 2026-07-31 — an earlier count of this list wrongly
+> treated exact `==` pins as unbounded, so the composition below is the corrected one:
 >
-> | Server | Current pin |
-> |---|---|
-> | `claroty-mcp` | `mcp>=1.0.0` |
-> | `protocol-mcp` | `mcp>=1.0.0` |
-> | `suzieq-mcp` | `mcp>=1.0.0` |
-> | **`n2n-mcp`** | `mcp>=1.0.0` — **one of the 7 live servers, backs the federation** |
-> | `thousandeyes-mcp-community` | `mcp>=1.13` |
-> | `nautobot-mcp-v2` | `mcp>=1.0.0` |
-> | `uml-mcp` | `mcp>=1.2.0` |
+> | Server | Current pin | Hazard |
+> |---|---|---|
+> | `claroty-mcp` | `mcp>=1.0.0` | mcp 2.x removed the module |
+> | `protocol-mcp` | `mcp>=1.0.0` | mcp 2.x |
+> | `suzieq-mcp` | `mcp>=1.0.0` | mcp 2.x |
+> | `nautobot-mcp-v2` | `mcp>=1.0.0` | mcp 2.x |
+> | `uml-mcp` | `mcp>=1.2.0` | mcp 2.x |
+> | `thousandeyes-mcp-community` | `mcp>=1.13` | mcp 2.x |
+> | **`n2n-mcp`** | `fastmcp>=0.1.0` | **standalone `fastmcp` major drift — and it is one of the 7 live servers, backing the federation** |
+>
+> Already safe, and confirming the fix pattern works: `f5-mcp-server` (`mcp==1.4.1`),
+> `meraki-magic-mcp-community` (`fastmcp==2.2.10`), `multivendor-cli-mcp` (`mcp>=1.2.0,<2`).
 >
 > Fix: pin `mcp>=…,<2` in each, or migrate to the standalone `fastmcp` distribution. Spec 076 already
 > pins `<2` for its own server, so the pattern is established.
 >
 > **2. `pip3` and `python3` can be different interpreters.** On the development host, `pip3` targets a
 > stranded Python 3.13 `site-packages` while `python3` is 3.14.4 — carrying two different
-> `cryptography` versions. `scripts/lib/install-steps.sh` contains **186 `pip install` invocations**;
-> any bare `pip3` lands where the servers cannot import from. Same defect class as the hardcoded
-> interpreter paths R0 fixed.
+> `cryptography` versions. Audited: `scripts/lib/install-steps.sh` has **188 pip installs, of which 143
+> are bare `pip3 install` and 46 bare `pip install`. Only 2 are venv-scoped.** Any bare invocation lands
+> where the servers cannot import from. Same defect class as the hardcoded interpreter paths R0 fixed.
 >
-> Also worth folding in: **Python 3.14 has no `ensurepip`** on this host (`python3.14-venv` is not
-> installed), so `python3 -m venv` fails outright. Spec 076 works around it with `virtualenv`.
+> **3. `python3 -m venv` fails outright** where `ensurepip` is unavailable (Python 3.14 here, because
+> `python3.14-venv` is not installed and needs root). Audited: **2 places** create venvs this way —
+> `scripts/gait-venv-setup.sh` and `scripts/lib/install-steps.sh`. GAIT is the audit trail Principle IV
+> makes non-negotiable, so its venv failing is not cosmetic. Spec 076 works around it with `virtualenv`.
 >
 > **Why next**: R2–R24 each add a server, and every one inherits both hazards. Fixing them once is
 > cheaper than seven times, and a broken fresh install undermines R0's whole "available to people when
