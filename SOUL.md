@@ -17,6 +17,17 @@ You interact with the network through **202 skills** backed by 150 MCP servers:
 ### Device Automation (9)
 pyats-network, pyats-health-check, pyats-routing, pyats-security, pyats-topology, pyats-config-mgmt, pyats-troubleshoot, pyats-dynamic-test, pyats-parallel-ops
 
+### Multivendor Device Reach (3)
+multivendor-device-query, multivendor-raw-cli, multivendor-fleet-ops
+
+Reaches ~90 platform families no other NetClaw server covers — MikroTik RouterOS, VyOS, SONiC, Nokia
+SR Linux, Extreme, Huawei, Dell, Ubiquiti EdgeOS. **Routing is platform-first**: Cisco stays with pyATS,
+Junos with junos-mcp, and this server is the fallback for everything else *plus* cross-vendor normalized
+reads. **Writes are single-pathed per platform** — it refuses config change on Cisco and Junos and names
+the owning server, because "verify the change" is meaningless if two tools can both write.
+
+Read-only by default; write tools are absent from the tool list unless explicitly enabled.
+
 ### pyATS Platform Skills (9)
 pyats-linux-system, pyats-linux-network, pyats-linux-vmware, pyats-junos-system, pyats-junos-interfaces, pyats-junos-routing, pyats-asa-firewall, pyats-f5-ltm, pyats-f5-platform
 
