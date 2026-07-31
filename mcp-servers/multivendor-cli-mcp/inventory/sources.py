@@ -193,16 +193,14 @@ def load_generated(path: Path) -> list[Device]:
 
 
 def load_live_sot() -> list[Device]:
-    """Query NetBox / Nautobot / Infrahub at call time.
+    """Query NetBox / Nautobot at call time (see inventory/live_sot.py).
 
-    Not implemented in this phase. Raises so `auto` falls through to a file
-    source rather than silently reporting an empty fleet — an empty inventory and
-    an unreachable source of truth must never look the same (FR-017b/c).
+    Raises rather than returning [] when no source is reachable, so `auto` falls
+    through to a file tier with a reason — an empty inventory and an unreachable
+    source of truth must never look the same (FR-017b/c).
     """
-    raise InventoryError(
-        "live source-of-truth inventory is not implemented yet (spec 076 T018); "
-        "set MULTIVENDOR_INVENTORY_SOURCE=operator or =generated"
-    )
+    from inventory import live_sot
+    return live_sot.load()
 
 
 @dataclass

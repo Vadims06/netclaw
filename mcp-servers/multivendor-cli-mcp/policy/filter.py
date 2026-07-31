@@ -89,6 +89,24 @@ CHAINING_PATTERNS: tuple[tuple[str, str], ...] = (
 
 MAX_COMMAND_LEN = 512
 
+# CLI wrappers: a host-shell command that hands a *network* command to a router
+# CLI. FRR is the motivating case — `vtysh -c "show ip route"` is the ONLY way to
+# read FRR over SSH, and netmiko drives it with the `linux` driver.
+#
+# These must be UNWRAPPED and their inner command evaluated, not allowlisted.
+# Adding "vtysh" to READ_ONLY_PREFIXES would have been the obvious fix and is
+# badly wrong: it permits `vtysh -c "configure terminal"`, turning the wrapper
+# into a config escape. Found by testing against a real FRR container rather than
+# by reading the code.
+CLI_WRAPPERS: tuple[str, ...] = (
+    "vtysh -c",      # FRR
+    "vtysh -c ",
+    "cli -c",        # assorted Linux-based NOSes
+    "birdc",         # BIRD
+)
+
+MAX_UNWRAP_DEPTH = 2
+
 
 def _normalise(command: str) -> str:
     """Collapse whitespace and lowercase for comparison.
@@ -104,8 +122,26 @@ def _first_token(normalised: str) -> str:
     return normalised.split(" ", 1)[0] if normalised else ""
 
 
+def _unwrap(command: str) -> tuple[str, str | None]:
+    """Strip a recognised CLI wrapper, returning (inner_command, wrapper_used).
+
+    Returns the command unchanged with wrapper=None when nothing matched.
+    """
+    normalised = _normalise(command)
+    for wrapper in CLI_WRAPPERS:
+        w = wrapper.strip()
+        if normalised.startswith(w + " "):
+            inner = command.strip()[len(w):].strip()
+            # strip one layer of surrounding quotes
+            if len(inner) >= 2 and inner[0] == inner[-1] and inner[0] in "\"'":
+                inner = inner[1:-1]
+            return inner.strip(), w
+    return command, None
+
+
 def evaluate(command: str, platform: str | None = None,
-             mode: Mode = Mode.READ_ONLY) -> Verdict:
+             mode: Mode = Mode.READ_ONLY,
+             _depth: int = 0) -> Verdict:
     """Evaluate one command against policy. Returns a Verdict, never raises.
 
     `mode` defaults to READ_ONLY so a caller that forgets to pass it gets the
@@ -128,6 +164,23 @@ def evaluate(command: str, platform: str | None = None,
                 f"contains {description} ({token!r}); send commands separately",
                 modelled,
             )
+
+    # ---- Step 1b: unwrap a CLI wrapper and judge what it actually runs ----
+    # Runs AFTER the chaining check so `vtysh -c "show x"; reload` is already
+    # rejected, and BEFORE the denylist so the inner command is what gets judged.
+    inner, wrapper = _unwrap(command)
+    if wrapper is not None:
+        if _depth >= MAX_UNWRAP_DEPTH:
+            return Verdict(False, DenyRule.CHAINING,
+                           f"nested CLI wrappers beyond depth {MAX_UNWRAP_DEPTH}", modelled)
+        if not inner:
+            return Verdict(False, DenyRule.EMPTY,
+                           f"{wrapper!r} with no command to run", modelled)
+        verdict = evaluate(inner, platform, mode, _depth + 1)
+        if verdict.allowed:
+            return verdict
+        return Verdict(verdict.allowed, verdict.rule,
+                       f"via {wrapper!r}: {verdict.detail}", modelled)
 
     normalised = _normalise(command)
     first = _first_token(normalised)

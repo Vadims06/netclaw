@@ -126,3 +126,8 @@ docs/ietf/*.txt
 docs/ietf/*.html
 docs/ietf/.refcache/
 docs/ietf/kdrfc-err.txt
+
+# Containerlab runtime state (spec 076 R1 lab). Created root-owned by the
+# container runtime and regenerated on every deploy — lab output, not source.
+labs/*/clab-*/
+labs/**/.tls/

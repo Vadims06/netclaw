@@ -48,6 +48,10 @@ import routing  # noqa: E402
 from credentials import CredentialError, resolve as resolve_credential  # noqa: E402
 from inventory import sources as inv  # noqa: E402
 from policy.filter import Mode, evaluate  # noqa: E402
+from tools import facts as fact_tools  # noqa: E402
+from tools import change as change_tools  # noqa: E402
+from tools import fleet as fleet_tools  # noqa: E402
+from tools import raw as raw_tools  # noqa: E402
 from policy.platform_deny import (  # noqa: E402
     PLATFORM_DENY,
     READ_ONLY_PREFIXES,
@@ -199,6 +203,96 @@ def check_device_readiness(device: str) -> dict:
         },
         "ready": cred_error is None,
     }
+
+
+@mcp.tool()
+def run_command(device: str, command: str, timeout_s: int | None = None) -> dict:
+    """Execute a read-only command on a device and return its output.
+
+    The command is filtered server-side BEFORE any connection is opened, so a
+    denied command never establishes a session. Failure statuses stay distinct —
+    unreachable, auth_failed, platform_mismatch, denied, timeout — because each
+    needs a different fix.
+
+    Refuses raw execution on platforms owned by pyATS or junos-mcp, naming the
+    correct server.
+    """
+    return raw_tools.run_command(device, command, timeout_s)
+
+
+@mcp.tool()
+def check_reachability(device: str) -> dict:
+    """Probe a device, separating unreachable from auth-failed from wrong-platform.
+
+    The right first call on a newly added device: those three failures look
+    identical in a generic error and need three different remedies.
+    """
+    return raw_tools.check_reachability(device)
+
+
+@mcp.tool()
+def get_facts(device: str, getters: list[str] | None = None,
+              timeout_s: int | None = None) -> dict:
+    """Retrieve normalized operational facts in one shape across vendors.
+
+    This is the capability no other NetClaw server provides: pyATS and junos-mcp
+    each answer well for their own platform, but their shapes differ, so
+    cross-vendor questions need manual reconciliation. NAPALM returns one shape.
+
+    Permitted read-only even on Cisco and Juniper, which is the deliberate
+    exception to platform-first routing.
+
+    Where a platform has no NAPALM driver — SR Linux, FRR, VyOS, MikroTik — every
+    requested getter is returned as an explicit gap with a reason, never silently
+    omitted. An absent getter and an empty result are different answers.
+    """
+    return fact_tools.get_facts(device, getters, timeout_s)
+
+
+@mcp.tool()
+def run_fleet(target: str, command: str | None = None,
+              getters: list[str] | None = None,
+              max_workers: int | None = None,
+              timeout_s: int | None = None) -> dict:
+    """Run one query across a group of devices, concurrently.
+
+    `target` is a group name, a comma-separated device list, or "all". Supply
+    exactly one of `command` (raw) or `getters` (normalized).
+
+    Every targeted device appears in the results, including failures — a silently
+    absent device would read as success, which is the most dangerous possible
+    output for a fleet query. One device failing never aborts the others.
+    """
+    return fleet_tools.run_fleet(target, command, getters, max_workers, timeout_s)
+
+
+if write_enabled():
+    # Registered ONLY when write mode is enabled (FR-022): absent from tools/list
+    # otherwise, so an agent cannot attempt a change that was never sanctioned.
+    @mcp.tool()
+    def apply_config(device: str, config: str, change_request: str | None = None,
+                     approved_by: str | None = None) -> dict:
+        """Apply configuration, only if every gate is satisfied.
+
+        Gates, in order, each returning before the next is considered:
+        routing -> command filter -> lab/production classification -> ServiceNow
+        change request (production only) -> explicit human approval -> baseline
+        capture.
+
+        A production change requires BOTH an approved ServiceNow change request
+        and human approval — they are distinct gates. An unclassified device is
+        treated as production, never assumed to be lab.
+
+        Refuses outright on Cisco and Juniper: writes are single-pathed per
+        platform.
+        """
+        return change_tools.apply_config(device, config, change_request, approved_by)
+
+
+    @mcp.tool()
+    def check_change_request(change_request: str) -> dict:
+        """Check whether a ServiceNow change request authorises implementation."""
+        return change_tools.check_change_request(change_request)
 
 
 def main() -> None:
