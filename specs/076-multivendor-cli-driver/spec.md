@@ -530,6 +530,20 @@ without approval, that a baseline was captured first, and that it can be reverte
   `docs/ADDING-AN-MCP.md` and `scripts/reconcile-mcp.py` from it. If R0 changes during review, R1
   rebases.
 
+## Known limitation: writes to commit-required platforms
+
+Configuration **writes** are not fully supported on platforms using a candidate datastore that needs an
+explicit commit — Nokia SR Linux and SR OS, Juniper Junos, VyOS. This module pushes configuration but
+does not issue a commit, so a change cannot be confirmed in the after-state.
+
+Such outcomes are reported as **`verification_inconclusive`**, deliberately distinct from
+`verification_failed`: the former is a limitation of this verifier, the latter is evidence the device
+did not change. Both roll back (fail-safe), but conflating them would misreport a tooling gap as a
+device fault. Discovered by applying a real change to a live SR Linux node.
+
+**Reads are unaffected** on every platform. Junos writes were never in scope — FR-010 routes them to
+`junos-mcp`.
+
 ## Dependencies
 
 - **Spec 075 / R0** — the add-an-MCP procedure and the reconciliation gate this feature must satisfy.

@@ -41,3 +41,17 @@ wrong one. `provenance` is never faked as `napalm` for scraped output.
 
 Verified live: `get_facts` across IOS-XE and SR Linux returns rows with identical keys — one is data,
 one is a reported gap.
+
+## Caveat: CLI reach is not full vendor support
+
+netmiko also drives **Fortinet, Palo Alto PAN-OS and Check Point**, so this server gives *CLI-level*
+reach to them today. That is **not** equivalent to their dedicated API integrations:
+
+| Vendor | What CLI gives you | What it does NOT give you |
+|---|---|---|
+| Fortinet | FortiOS CLI reads | FortiManager policy packages, ADOM model, install preview |
+| Palo Alto | PAN-OS CLI reads | Panorama device groups, templates, commit validation |
+| Check Point | GAiA CLI reads | Management API policy layers, threat intel |
+
+Roadmap items **R3** (Fortinet) and **R4** (Palo Alto) are still needed. Do not treat CLI reach as
+completing them.

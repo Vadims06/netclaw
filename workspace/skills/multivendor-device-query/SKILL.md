@@ -80,3 +80,17 @@ inventory records containing credential-shaped fields.
 Netmiko also drives Fortinet, PAN-OS and Check Point, so this server gives *CLI-level* reach to them.
 That is **not** equivalent to their dedicated API integrations — FortiManager's policy-package model
 and Panorama's device groups have no CLI equivalent. Do not treat CLI reach as full vendor support.
+
+## Caveat: CLI reach is not full vendor support
+
+netmiko also drives **Fortinet, Palo Alto PAN-OS and Check Point**, so this server gives *CLI-level*
+reach to them today. That is **not** equivalent to their dedicated API integrations:
+
+| Vendor | What CLI gives you | What it does NOT give you |
+|---|---|---|
+| Fortinet | FortiOS CLI reads | FortiManager policy packages, ADOM model, install preview |
+| Palo Alto | PAN-OS CLI reads | Panorama device groups, templates, commit validation |
+| Check Point | GAiA CLI reads | Management API policy layers, threat intel |
+
+Roadmap items **R3** (Fortinet) and **R4** (Palo Alto) are still needed. Do not treat CLI reach as
+completing them.

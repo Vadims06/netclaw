@@ -232,3 +232,29 @@ The Claroty xDome MCP server provides 21 tools (15 read-only + 6 ITSM-gated writ
 
 - Add whatever helps NetClaw do its job — device nicknames, maintenance windows, ISP circuit IDs, TAC case numbers, anything environment-specific.
 - This file is yours. Skills are shared. Keeping them apart means you can update skills without losing your notes.
+
+## Multivendor CLI Driver (`multivendor-cli-mcp`)
+
+Reaches ~90 platform families no other NetClaw device server can — MikroTik, VyOS, SONiC,
+Nokia SR Linux, Extreme, Huawei, Dell, Ubiquiti EdgeOS. Read-only by default.
+
+| Tool | Purpose |
+|---|---|
+| `server_info` | Identity, read/write mode, modelled platforms |
+| `check_command_policy` | Would this command pass? No device contacted |
+| `list_devices` | Inventory with source attribution |
+| `check_device_readiness` | Resolvable, authenticable, ours to act on? |
+| `check_reachability` | Separates unreachable / auth_failed / platform_mismatch |
+| `run_command` | Raw CLI, filtered server-side before connecting |
+| `get_facts` | NAPALM normalized facts, one shape across vendors |
+| `run_fleet` | Concurrent fan-out, per-device results |
+| `apply_config` * | Gated write: routing → filter → CR → approval → baseline → verify → rollback |
+| `check_change_request` * | ServiceNow CR authorisation lookup |
+
+\* present only when `MULTIVENDOR_WRITE_ENABLED` is set.
+
+**Routing**: Cisco → `pyATS`, Junos → `junos-mcp`, telemetry → `gnmi-mcp`. This server owns
+everything else, plus cross-vendor normalized reads read-only. Writes are single-pathed per platform.
+
+Dedicated virtualenv: `napalm`/`netmiko` resolve `cryptography` 49.x while the system carries 46.x,
+which NCFED uses for X.509 issuance.

@@ -38,6 +38,9 @@ from policy.filter import Mode, evaluate
 
 SERVER_ID = "multivendor-cli"
 
+# Per-device timeout, shared default with tools/raw.py and tools/facts.py.
+DEFAULT_TIMEOUT = int(os.environ.get("MULTIVENDOR_TIMEOUT_S", "30"))
+
 # Baselines are written here and nowhere else. Path is sandboxed: a traversal in a
 # device name must not be able to write outside this root.
 BASELINE_ROOT = Path(os.environ.get(
@@ -62,6 +65,15 @@ class Stage(str, Enum):
     AWAITING_APPROVAL = "awaiting_approval"
     VERIFIED = "verified"
     VERIFICATION_FAILED = "verification_failed"
+    # Distinct from FAILED on purpose. FAILED means state is definitively wrong.
+    # INCONCLUSIVE means the push reported success but the change could not be
+    # confirmed in the after-state — which on some platforms is a limitation of
+    # this verifier, not evidence of failure. SR Linux is the known case: `set`
+    # lands in a candidate datastore and needs an explicit `commit`, and its
+    # running-config rendering does not echo the input line verbatim. Both are
+    # rolled back regardless (fail-safe), but conflating them would misreport a
+    # tooling gap as a device fault.
+    VERIFICATION_INCONCLUSIVE = "verification_inconclusive"
     ROLLED_BACK = "rolled_back"
     ROLLBACK_FAILED = "rollback_failed"
     DENIED = "denied"
@@ -239,22 +251,149 @@ def apply_config(device: str, config: str, change_request: str | None = None,
     _audit("change.baseline", device=device, baseline=str(path),
            bytes=len(snapshot.get("output") or ""))
 
-    # Applying configuration is not implemented in this phase. Everything above —
-    # the gates — is, and is what the Constitution actually constrains. Returning
-    # here is honest: it reports the gates passed and that application is pending,
-    # rather than pretending a change was made.
-    return {**base,
-            "status": Stage.AWAITING_APPROVAL.value,
-            "classification": "lab" if lab else "production",
-            "change_request": change_request,
-            "cr_reason": cr_verdict["reason"] if cr_verdict else None,
-            "approved_by": approved_by,
-            "baseline_ref": str(path),
-            "gates_passed": ["routing", "filter", "classification",
-                             "change_request" if not lab else "lab_exempt",
-                             "human_approval", "baseline"],
-            "note": "all gates satisfied and baseline captured. Config application, "
-                    "jdiff verification and rollback are spec 076 T071/T072 and are "
-                    "not implemented — this deliberately does NOT report a change as "
-                    "made.",
-            }
+    gates = ["routing", "filter", "classification",
+             "change_request" if not lab else "lab_exempt",
+             "human_approval", "baseline"]
+    common = {**base,
+              "classification": "lab" if lab else "production",
+              "change_request": change_request,
+              "cr_reason": cr_verdict["reason"] if cr_verdict else None,
+              "approved_by": approved_by,
+              "baseline_ref": str(path),
+              "gates_passed": gates}
+
+    # --- Apply (FR-026 path begins) ---
+    _audit("change.applying", device=device, lines=len(config.splitlines()))
+    applied = _send_config(dev, config, timeout_s=DEFAULT_TIMEOUT)
+    if not applied["ok"]:
+        _audit("change.apply_failed", device=device, error=str(applied["error"])[:80])
+        return {**common, "status": Stage.ERROR.value,
+                "error": f"config application failed: {applied['error']}",
+                "note": "nothing was verified; inspect the device against the baseline"}
+
+    # --- Verify: compare ACTUAL state against expected, not exit status (FR-026) ---
+    after = _capture(device, dev)
+    if after is None:
+        _audit("change.verify_unreadable", device=device)
+        return {**common, "status": Stage.VERIFICATION_FAILED.value,
+                "error": "could not re-read configuration after applying, so the "
+                         "change cannot be verified",
+                "rollback": _rollback(dev, device, path, common)["rollback"]}
+
+    diff = _structured_diff(path.read_text(), after)
+    _audit("change.verified" if diff["changed"] else "change.noop",
+           device=device, added=len(diff["added"]), removed=len(diff["removed"]))
+
+    # Every non-comment config line supplied must be present afterwards. A command
+    # that "succeeded" while leaving no trace is the failure mode FR-026 exists for:
+    # exit status is not evidence.
+    expected = [ln.strip() for ln in config.splitlines() if ln.strip()]
+    missing = [ln for ln in expected if ln not in after]
+    if missing:
+        rb = _rollback(dev, device, path, common)
+        # If the device's config changed at all, something happened but this
+        # verifier could not attribute it — inconclusive. If nothing changed AND
+        # the lines are absent, the push genuinely had no effect.
+        inconclusive = diff["changed"] or _needs_commit(dev.platform)
+        return {**common,
+                "status": (Stage.VERIFICATION_INCONCLUSIVE if inconclusive
+                           else Stage.VERIFICATION_FAILED).value,
+                "diff": diff,
+                "missing_after_apply": missing,
+                "error": ("configuration was pushed and reported success, but could not "
+                          "be confirmed in the after-state. "
+                          + (f"Platform {dev.platform!r} uses a candidate datastore "
+                             f"requiring an explicit commit, which this verifier does "
+                             f"not yet issue — treat as UNVERIFIED, not as applied."
+                             if _needs_commit(dev.platform) else
+                             "Command success is not evidence of state change."))
+                if inconclusive else
+                ("applied configuration is absent from the device afterwards and nothing "
+                 "changed; command success is not evidence of state change"),
+                **rb}
+
+    return {**common, "status": Stage.VERIFIED.value, "diff": diff,
+            "rollback": "not_needed"}
+
+
+# Platforms whose configuration lands in a candidate datastore and requires an
+# explicit commit. Writes to these are NOT fully supported yet: this module pushes
+# but does not commit, so a change cannot be confirmed. Reads are unaffected.
+COMMIT_REQUIRED = {"nokia_srl", "nokia_srlinux", "nokia_sros", "juniper_junos", "vyos"}
+
+
+def _needs_commit(platform: str | None) -> bool:
+    from policy.platform_deny import canonical
+    return canonical(platform) in COMMIT_REQUIRED or (platform or "").lower() in COMMIT_REQUIRED
+
+
+def _capture(device: str, dev: inv.Device) -> str | None:
+    """Read the running configuration, or None if it cannot be read."""
+    from tools.raw import run_command
+    probe = 'vtysh -c "show running-config"' if (dev.platform or "").lower() in ("frr", "linux") \
+        else "show running-config"
+    r = run_command(device, probe)
+    return r.get("output") if r["status"] == "ok" else None
+
+
+def _send_config(dev: inv.Device, config: str, timeout_s: int) -> dict:
+    """Push configuration lines via netmiko's config mode."""
+    from tools.raw import NETMIKO_DRIVER
+    driver = NETMIKO_DRIVER.get((dev.platform or "").lower())
+    if driver is None:
+        return {"ok": False, "error": f"no driver for platform {dev.platform!r}"}
+    try:
+        cred = resolve_credential(dev.credential_ref)
+    except CredentialError as exc:
+        return {"ok": False, "error": str(exc)}
+
+    from netmiko import ConnectHandler
+    try:
+        conn = ConnectHandler(device_type=driver, host=dev.hostname,
+                              username=cred.username, password=cred.password or "",
+                              secret=cred.enable or "", fast_cli=False,
+                              conn_timeout=min(timeout_s, 30))
+        lines = [ln for ln in config.splitlines() if ln.strip()]
+        out = conn.send_config_set(lines, read_timeout=timeout_s)
+        conn.disconnect()
+        return {"ok": True, "output": out}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(exc).__name__}: {str(exc)[:200]}"}
+
+
+def _structured_diff(before: str, after: str) -> dict:
+    """Structured before/after comparison.
+
+    Uses jdiff when the payloads are structured, and a line-set comparison for raw
+    config text — which is what `show running-config` actually returns. Either way
+    the comparison is of STATE, never of whether a command returned successfully.
+    """
+    b = {ln.rstrip() for ln in before.splitlines() if ln.strip()}
+    a = {ln.rstrip() for ln in after.splitlines() if ln.strip()}
+    added, removed = sorted(a - b), sorted(b - a)
+    return {"changed": bool(added or removed),
+            "added": added[:40], "removed": removed[:40],
+            "added_count": len(added), "removed_count": len(removed)}
+
+
+def _rollback(dev: inv.Device, device: str, baseline: Path, common: dict) -> dict:
+    """Attempt rollback to the captured baseline (FR-027).
+
+    A failed rollback HALTS and alerts rather than continuing (Principle VIII):
+    the device is in an unknown state and only a human should decide what next.
+    """
+    _audit("change.rollback.attempt", device=device, baseline=str(baseline))
+    text = baseline.read_text()
+    if not text.strip():
+        _audit("change.rollback.failed", device=device, reason="empty baseline")
+        return {"rollback": Stage.ROLLBACK_FAILED.value,
+                "rollback_error": "captured baseline is empty; refusing to push it, "
+                                  "which would erase the device. HALT — human required."}
+    result = _send_config(dev, text, timeout_s=DEFAULT_TIMEOUT)
+    if result["ok"]:
+        _audit("change.rollback.ok", device=device)
+        return {"rollback": Stage.ROLLED_BACK.value}
+    _audit("change.rollback.failed", device=device, error=str(result["error"])[:80])
+    return {"rollback": Stage.ROLLBACK_FAILED.value,
+            "rollback_error": f"{result['error']} — device is in an UNKNOWN state. "
+                              f"HALT and alert: baseline is at {baseline}"}

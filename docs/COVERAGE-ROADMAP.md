@@ -41,7 +41,7 @@ and the IETF datatracker.
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R0** | MCP config reconciliation — repo vs live vs vendored | [075](../specs/075-mcp-config-reconciliation/spec.md) | `DONE` |
-| **R0a** | **Dependency-pin hazards — DO THIS NEXT** | — | `NOT STARTED` — unblocked, R1 partially merged |
+| **R0a** | **Dependency-pin hazards — DO THIS NEXT** | — | `NOT STARTED` — **R1 is now complete and merged, so this is the active item** |
 
 > ### R0a — two latent breakages that make fresh installs fail
 >
@@ -90,7 +90,7 @@ and the IETF datatracker.
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R1** | Generic multivendor CLI driver (Nornir/Netmiko/NAPALM) | [076](../specs/076-multivendor-cli-driver/spec.md) | `IN FLIGHT` — **38/94 merged (PR #200)**. Foundation, filter, inventory, credentials, routing, registration all done and green on `main`. Device tools (Phases 4–6) and gated writes (Phase 8) remain. **SC-001 BLOCKED**: only lab is CML with 4 Cisco devices — exactly the platforms this server routes away. Needs containerlab (SR Linux / SONiC / VyOS, free container images) |
+| **R1** | Generic multivendor CLI driver (Nornir/Netmiko/NAPALM) | [076](../specs/076-multivendor-cli-driver/spec.md) | `DONE` — 94/94. ~90 platform families reachable; 2 verified live (SR Linux native CLI, FRR shell). Read-only default, server-side filter, 3-tier inventory, gated writes with real ServiceNow CR checking |
 | **R2** | Cisco Support APIs (PSIRT / EoX / Bug / Case) | — | `NOT STARTED` |
 | **R3** | Fortinet (FortiOS / FortiManager / FortiAnalyzer) | — | `NOT STARTED` |
 | **R4** | Palo Alto PAN-OS / Panorama NGFW | — | `NOT STARTED` |
@@ -768,3 +768,56 @@ Landscape scan, 2026-07-30.
 - [Google Workspace MCP server (official, preview)](https://workspace.google.com/blog/product-announcements/10-more-announcements-workspace-at-next-2026)
 - [CiscoDevNet/webex-mcp-official](https://developer.cisco.com/codeexchange/github/repo/CiscoDevNet/webex-mcp-official/)
 - [draft-zw-opsawg-mcp-network-mgmt](https://www.ietf.org/archive/id/draft-zw-opsawg-mcp-network-mgmt-00.html) · [draft-yang-nmrg-mcp-nm](https://datatracker.ietf.org/doc/draft-yang-nmrg-mcp-nm/) · [draft-serra-mcp-discovery-uri](https://datatracker.ietf.org/doc/draft-serra-mcp-discovery-uri/) · [draft-morrison-mcp-dns-discovery](https://datatracker.ietf.org/doc/draft-morrison-mcp-dns-discovery/) · [MCP at the IETF — overview](https://chatforest.com/guides/mcp-ietf-standardization/)
+
+---
+
+# R1 — Generic multivendor CLI driver (outcome)
+
+**Status:** `DONE` (2026-07-31, spec 076) · 94/94 tasks
+
+## What shipped
+
+`mcp-servers/multivendor-cli-mcp` — 10 tools, read-only by default, reaching platform families no
+other NetClaw device server can.
+
+| Verified live | Evidence |
+|---|---|
+| Nokia SR Linux (native NOS CLI) | `show version`, `show interface brief` real output |
+| FRR (shell-hosted, `vtysh`) | real routing table via the `linux` driver |
+| IOS-XE normalized read | NAPALM `ios`, real hostname/interfaces — FR-008 exception |
+| SR Linux normalization gap | reported as a row with a reason, never omitted — FR-007 |
+| Fleet fan-out | `requested == returned` with an unreachable device isolated |
+| ServiceNow CR gate | live instance: production + approval but no CR → **blocked** |
+
+**31/31 live integration checks**, 175 platform families driver-documented.
+
+## Both candidate servers were rejected
+
+`sydasif/nornir-mcp-server` is **archived** (June 2026, 2 stars) and reloads `config.yaml` from cwd on
+every call, threading its inventory assumption through the request path.
+`ntunes/netmiko-mcp-server` has **no command filtering at all** (3 stars, 5 commits). Both store
+credentials in YAML. Built on the libraries instead, deliberately porting candidate A's safety design
+(prefix allowlist, destructive-token denylist, chaining prevention, path sandboxing) — the part most
+easily got wrong.
+
+## Three bugs only real devices found
+
+1. **The filter blocked FRR's only read path.** `vtysh -c "show ip route"` starts with `vtysh`. The
+   tempting fix — allowlisting `vtysh` — would have permitted `vtysh -c "configure terminal"`, a config
+   escape. Fixed by unwrapping wrappers and judging the inner command.
+2. **SR Linux was under-protected.** `nokia_srl` (driver/inventory) ≠ `nokia_srlinux` (denylist table),
+   so it missed `tools system configuration`. Fixed with alias normalisation.
+3. **Principle III had zero coverage.** `/speckit.analyze` caught it: the plan claimed ITSM gating was
+   "inherited from the existing approval path", which was an assertion. Human approval and a
+   ServiceNow CR are distinct gates.
+
+## Caveat for R3/R4
+
+netmiko also drives Fortinet, PAN-OS and Check Point, so this server gives **CLI-level** reach to them.
+That is not FortiManager's policy packages or Panorama's device groups. R3 and R4 are still needed.
+
+## Lab
+
+`labs/multivendor-r1/` — containerlab topology (SR Linux, public image, no account) and an FRR+sshd
+Dockerfile. The repo's existing `netclaw-*` FRR containers cannot be used: no `sshd`, and they are
+live BGP peers.

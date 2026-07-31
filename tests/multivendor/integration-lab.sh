@@ -157,8 +157,16 @@ if srl:
     check("lab device is CR-exempt but still needs human approval",
           r["status"] == "awaiting_approval" and r.get("classification") == "lab", r["status"])
     r = chg.apply_config("srl1", "set / system information location lab", approved_by="tester")
-    check("lab + approval -> gates pass and baseline captured",
-          r["status"] == "awaiting_approval" and r.get("baseline_ref"), str(r.get("error"))[:60])
+    # SR Linux uses a candidate datastore needing an explicit commit, which this
+    # verifier does not issue — so the honest outcome is INCONCLUSIVE with a
+    # rollback, not "verified". Reporting it as applied would be a false claim.
+    check("lab + approval -> gates pass, baseline captured, outcome honest",
+          r.get("baseline_ref") and r["status"] in ("verified", "verification_inconclusive"),
+          f"{r['status']}: {str(r.get('error'))[:70]}")
+    check("  ...and a commit-required platform is labelled inconclusive, not failed",
+          r["status"] != "verification_failed", r["status"])
+    check("  ...with rollback attempted (FR-027)", r.get("rollback") in
+          ("rolled_back", "rollback_failed", "not_needed"), str(r.get("rollback")))
 r = chg.apply_config("srl1", "reload", approved_by="tester")
 check("destructive config DENIED even with approval", r["status"] == "denied", r["status"])
 del os.environ["MULTIVENDOR_WRITE_ENABLED"]

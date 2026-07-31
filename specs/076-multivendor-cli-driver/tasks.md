@@ -87,9 +87,9 @@ passing a tested server-side filter.
 its own source; confirm no credential appears in any file on disk.
 
 - [X] T017 [US4] Implement `inventory/sources.py` with the three-source model and resolution order `live_sot` → `generated` → `operator`, plus `auto` (FR-017, FR-017b). A device absent from **every** source MUST be reported as absent, never guessed at or silently defaulted (FR-021).
-- [ ] T018 [P] [US4] Implement `inventory/live_sot.py` using `nornir-netbox` / `nornir-nautobot`, plus Infrahub via its existing MCP surface (FR-017 live tier).
-- [ ] T019 [P] [US4] Implement `inventory/generated.py` to render an inventory file from a source of truth, writing a machine-readable **generated marker** so a refresh can never overwrite an operator file (FR-017a/b).
-- [ ] T020 [P] [US4] Implement `inventory/operator.py` as a strictly **read-only** consumer of an operator-authored file. The server MUST NOT write to it under any circumstance (FR-017b).
+- [X] T018 [P] [US4] Implement `inventory/live_sot.py` using `nornir-netbox` / `nornir-nautobot`, plus Infrahub via its existing MCP surface (FR-017 live tier).
+- [X] T019 [P] [US4] Implement `inventory/generated.py` to render an inventory file from a source of truth, writing a machine-readable **generated marker** so a refresh can never overwrite an operator file (FR-017a/b).
+- [X] T020 [P] [US4] Implement `inventory/operator.py` as a strictly **read-only** consumer of an operator-authored file. The server MUST NOT write to it under any circumstance (FR-017b).
 - [X] T021 [US4] Populate `source` on every resolved Device and surface it in every result, with `fallback_reason` when the source is not `live_sot` — a stale-cache answer must never look live (FR-017c).
 - [X] T022 [US4] Reject any inventory record carrying credential-shaped fields, from any of the three sources, with a clear error naming the offending device and field (FR-017d, Principle XIII).
 - [X] T023 [US4] Explicitly refuse `PYATS_TESTBED_PATH` as an inventory source, with an error explaining that pyATS assumes Cisco and those platforms route to `pyATS` instead (FR-017e).
@@ -182,9 +182,9 @@ confirm every reachable device returns and the failure is isolated.
 - [X] T061 [P] Create `workspace/skills/multivendor-device-query/SKILL.md` for normalized facts, and **state the routing rule explicitly** so operator and agent select consistently (FR-012, FR-031).
 - [X] T062 [P] Create `workspace/skills/multivendor-raw-cli/SKILL.md` for safe raw command execution, documenting the filter policy while making clear enforcement is server-side (FR-029, FR-031).
 - [X] T063 [P] Create `workspace/skills/multivendor-fleet-ops/SKILL.md` for fleet fan-out (FR-031).
-- [ ] T064 [P] Note in the skills that netmiko also drives Fortinet, PAN-OS and Check Point, but that **CLI reach is not equivalent to their dedicated API servers** — this must not cause R3/R4 to be skipped (research R3).
-- [ ] T065 [P] Update `README.md`, `SOUL.md`, `TOOLS.md` and `ui/netclaw-visual/` per Principle XI, **including the skill and MCP counts** — the step most often forgotten, and wrong in nine places before spec 075.
-- [ ] T066 Publish `docs/ADDING-AN-MCP.md`-compliant onboarding by copying `quickstart.md` guidance into the server README, covering all three inventory sources.
+- [X] T064 [P] Note in the skills that netmiko also drives Fortinet, PAN-OS and Check Point, but that **CLI reach is not equivalent to their dedicated API servers** — this must not cause R3/R4 to be skipped (research R3).
+- [X] T065 [P] Update `README.md`, `SOUL.md`, `TOOLS.md` and `ui/netclaw-visual/` per Principle XI, **including the skill and MCP counts** — the step most often forgotten, and wrong in nine places before spec 075.
+- [X] T066 Publish `docs/ADDING-AN-MCP.md`-compliant onboarding by copying `quickstart.md` guidance into the server README, covering all three inventory sources.
 - [X] T067 Verify `python3 scripts/reconcile-mcp.py` exits 0 with the new server registered (SC-012).
 
 ---
@@ -206,8 +206,8 @@ was captured first, and that it reverts on verification failure.
 - [X] T070b [US5] Require an approved ServiceNow Change Request before any change to a production device, via the existing `servicenow-mcp` integration and `servicenow-change-workflow` skill. This is a **second gate**, distinct from FR-025's human approval — a person saying yes is not change-management authorisation (FR-025a, Constitution Principle III).
 - [X] T070c [US5] Halt immediately and roll back to the captured baseline if a Change Request is rejected or withdrawn mid-execution (FR-025b, Principle III).
 - [X] T070d [US5] Permit lab-device changes without a Change Request while still recording them in the audit trail (FR-025c, Principle III).
-- [ ] T071 [US5] Verify post-change state by structured comparison of actual against expected using `jdiff`, **never** from command exit status (FR-026, Principle VIII, research R9).
-- [ ] T072 [US5] Attempt rollback to the captured baseline on verification failure, and **halt and alert** if rollback itself fails (FR-027, Principle VIII).
+- [X] T071 [US5] Verify post-change state by structured comparison of actual against expected using `jdiff`, **never** from command exit status (FR-026, Principle VIII, research R9).
+- [X] T072 [US5] Attempt rollback to the captured baseline on verification failure, and **halt and alert** if rollback itself fails (FR-027, Principle VIII).
 - [X] T073 [US5] Terminate at `refused` for Cisco and Junos devices, naming the owning server (FR-010).
 - [X] T074 [US5] Expose `apply_config` only when `MULTIVENDOR_WRITE_ENABLED` is set — absent from `tools/list` otherwise (FR-022).
 - [X] T075 [US5] GAIT-log every device interaction and every state transition (FR-028, Principle IV).
@@ -219,17 +219,17 @@ was captured first, and that it reverts on verification failure.
 
 ## Phase 9: Polish and Cross-Cutting
 
-- [ ] T077 Verify SC-011 / FR-032: all 18 pyATS skills and the Junos skill still work unchanged. This feature must not regress existing device access.
-- [ ] T078 Verify SC-007a: an operator with **neither** a source of truth **nor** Vault can onboard a device, using an operator-authored inventory and env-var credentials.
-- [ ] T079 Verify SC-007b / FR-030c: installing this server leaves the system `cryptography` version unchanged.
-- [ ] T080 Verify SC-006: no credential appears in any file on disk outside a gitignored `.env`, inspected across all three inventory sources.
-- [ ] T081 Verify SC-008: every Constitution-forbidden operation is blocked on **every** supported platform, tested per platform rather than inferred from one.
-- [ ] T082 Verify SC-002 and SC-013: **≥90 platform families documented as driver-supported and ≥5 verified against live devices** — the two are separate claims and only the second is testable without licensed images (analyze finding U1, research R4). Also verify an operator can tell from skill documentation alone which server should answer a given question.
-- [ ] T083 [P] Raise the repo-wide `pip3` hazard from research R7 as its own roadmap item: `scripts/lib/install-steps.sh` contains 186 `pip install` invocations, and on a split-toolchain host any bare `pip3` lands where servers cannot import from. Out of scope here; must not be lost.
-- [ ] T084 [P] Update `docs/COVERAGE-ROADMAP.md`: mark R1 `DONE`, record that both candidate servers were rejected and why, and note the CLI-reach-is-not-R3/R4 caveat.
-- [ ] T085 Run the Constitution Principle XI Artifact Coherence Checklist and record the result.
-- [ ] T086 [P] Draft the WordPress milestone post per Principle XVII: what R1 added, the split-toolchain finding, and why building beat adopting. Present to John before publishing.
-- [ ] T087 Record the GAIT session summary commit (Principle IV).
+- [X] T077 Verify SC-011 / FR-032: all 18 pyATS skills and the Junos skill still work unchanged. This feature must not regress existing device access.
+- [X] T078 Verify SC-007a: an operator with **neither** a source of truth **nor** Vault can onboard a device, using an operator-authored inventory and env-var credentials.
+- [X] T079 Verify SC-007b / FR-030c: installing this server leaves the system `cryptography` version unchanged.
+- [X] T080 Verify SC-006: no credential appears in any file on disk outside a gitignored `.env`, inspected across all three inventory sources.
+- [X] T081 Verify SC-008: every Constitution-forbidden operation is blocked on **every** supported platform, tested per platform rather than inferred from one.
+- [X] T082 Verify SC-002 and SC-013: **≥90 platform families documented as driver-supported and ≥5 verified against live devices** — the two are separate claims and only the second is testable without licensed images (analyze finding U1, research R4). Also verify an operator can tell from skill documentation alone which server should answer a given question.
+- [X] T083 [P] Raise the repo-wide `pip3` hazard from research R7 as its own roadmap item: `scripts/lib/install-steps.sh` contains 186 `pip install` invocations, and on a split-toolchain host any bare `pip3` lands where servers cannot import from. Out of scope here; must not be lost.
+- [X] T084 [P] Update `docs/COVERAGE-ROADMAP.md`: mark R1 `DONE`, record that both candidate servers were rejected and why, and note the CLI-reach-is-not-R3/R4 caveat.
+- [X] T085 Run the Constitution Principle XI Artifact Coherence Checklist and record the result.
+- [X] T086 [P] Draft the WordPress milestone post per Principle XVII: what R1 added, the split-toolchain finding, and why building beat adopting. Present to John before publishing.
+- [X] T087 Record the GAIT session summary commit (Principle IV).
 
 ---
 
