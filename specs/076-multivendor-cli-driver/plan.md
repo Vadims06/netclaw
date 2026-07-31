@@ -54,7 +54,7 @@ Default 10 concurrent workers and a 30s per-device timeout, both operator-overri
 (FR-019). Must not perturb the system `cryptography` used by the NCFED X.509 stack (FR-030c). Must not
 regress the 18 pyATS skills or the Junos skill (FR-032).
 
-**Scale/Scope**: ~90 platform families reachable, 3 inventory sources, 41 FRs, 15 SCs, 6 user stories.
+**Scale/Scope**: ~90 platform families reachable, 3 inventory sources, 41 FRs, 15 SCs, 5 user stories.
 
 ## Constitution Check
 
