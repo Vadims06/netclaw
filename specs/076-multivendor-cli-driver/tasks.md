@@ -40,10 +40,10 @@ all fixed here rather than deferred:
 
 ## Phase 1: Setup
 
-- [ ] T001 Read `specs/076-multivendor-cli-driver/research.md` in full before writing any code, R7 and R8 especially — R7 invalidates an earlier conclusion about dependency safety and R8 corrects the transport decision.
-- [ ] T002 Create the server skeleton at `mcp-servers/multivendor-cli-mcp/` with the package layout from plan.md (`inventory/`, `policy/`, `tools/`, `server.py`, `routing.py`, `credentials.py`).
-- [ ] T003 Add a `.gitignore` negation entry for `mcp-servers/multivendor-cli-mcp/` so the new server directory is tracked — the repo ignores broadly and new server dirs are otherwise silently untracked.
-- [ ] T004 [P] Create the test harness skeleton at `tests/multivendor/run-tests.sh`, following spec 075's `tests/reconcile/run-tests.sh` pattern: bash + stdlib, no new framework in the shared environment. **Capture exit codes without a pipe** (`cmd >/dev/null 2>&1; echo $?`) — a `| tail` pipe reports the pipe's status and caused a misdiagnosis in spec 075.
+- [X] T001 Read `specs/076-multivendor-cli-driver/research.md` in full before writing any code, R7 and R8 especially — R7 invalidates an earlier conclusion about dependency safety and R8 corrects the transport decision.
+- [X] T002 Create the server skeleton at `mcp-servers/multivendor-cli-mcp/` with the package layout from plan.md (`inventory/`, `policy/`, `tools/`, `server.py`, `routing.py`, `credentials.py`).
+- [X] T003 Add a `.gitignore` negation entry for `mcp-servers/multivendor-cli-mcp/` so the new server directory is tracked — the repo ignores broadly and new server dirs are otherwise silently untracked.
+- [X] T004 [P] Create the test harness skeleton at `tests/multivendor/run-tests.sh`, following spec 075's `tests/reconcile/run-tests.sh` pattern: bash + stdlib, no new framework in the shared environment. **Capture exit codes without a pipe** (`cmd >/dev/null 2>&1; echo $?`) — a `| tail` pipe reports the pipe's status and caused a misdiagnosis in spec 075.
 
 ---
 
@@ -54,22 +54,22 @@ task here is done.**
 
 ### Stage 1 — dedicated virtualenv and dependency isolation (FR-030a/b/c, R7)
 
-- [ ] T005 Confirm wheel availability for the full dependency tree on `/usr/bin/python3` (3.14.4) using `--dry-run` executed by **that interpreter's own pip**. If any wheel is unavailable, select an older base interpreter and record the choice and reason in research.md — this is the plan's one open item and must be resolved by evidence, not assumption.
-- [ ] T006 Record the pre-install `cryptography` version as reported by `/usr/bin/python3` (currently 46.0.5) in `specs/076-multivendor-cli-driver/baseline-deps.txt`. This is the FR-030c comparison point and MUST be read from the interpreter NetClaw's servers run under, not from `pip3`.
-- [ ] T007 Write `mcp-servers/multivendor-cli-mcp/requirements.txt` with every dependency **explicitly pinned**: `nornir`, `napalm`, `netmiko`, `nornir-netmiko`, `nornir_napalm`, `nornir-netbox`, `nornir-nautobot`, `pynautobot`, `jdiff`. Note in a comment that the scrapli family arrives transitively via NAPALM 5.x and is expected, not accidental (R8).
-- [ ] T008 Create the virtualenv with `/usr/bin/python3 -m venv mcp-servers/multivendor-cli-mcp/.venv` and install using `<venv>/bin/python -m pip install -r requirements.txt`. **Never bare `pip3`** — on this host it targets a stranded Python 3.13 site-packages the server cannot import from (R7).
-- [ ] T009 Verify the system `cryptography` version reported by `/usr/bin/python3` is unchanged against T006's baseline (FR-030c). If it moved, stop — the NCFED X.509 stack (spec 060) depends on it and a regression here breaks certificate handling, not this server.
-- [ ] T010 Verify the venv can import `nornir`, `napalm`, `netmiko` and `jdiff`, and that the system interpreter still **cannot** — proving isolation actually holds rather than assuming it.
+- [X] T005 Confirm wheel availability for the full dependency tree on `/usr/bin/python3` (3.14.4) using `--dry-run` executed by **that interpreter's own pip**. If any wheel is unavailable, select an older base interpreter and record the choice and reason in research.md — this is the plan's one open item and must be resolved by evidence, not assumption.
+- [X] T006 Record the pre-install `cryptography` version as reported by `/usr/bin/python3` (currently 46.0.5) in `specs/076-multivendor-cli-driver/baseline-deps.txt`. This is the FR-030c comparison point and MUST be read from the interpreter NetClaw's servers run under, not from `pip3`.
+- [X] T007 Write `mcp-servers/multivendor-cli-mcp/requirements.txt` with every dependency **explicitly pinned**: `nornir`, `napalm`, `netmiko`, `nornir-netmiko`, `nornir_napalm`, `nornir-netbox`, `nornir-nautobot`, `pynautobot`, `jdiff`. Note in a comment that the scrapli family arrives transitively via NAPALM 5.x and is expected, not accidental (R8).
+- [X] T008 Create the virtualenv with `/usr/bin/python3 -m venv mcp-servers/multivendor-cli-mcp/.venv` and install using `<venv>/bin/python -m pip install -r requirements.txt`. **Never bare `pip3`** — on this host it targets a stranded Python 3.13 site-packages the server cannot import from (R7).
+- [X] T009 Verify the system `cryptography` version reported by `/usr/bin/python3` is unchanged against T006's baseline (FR-030c). If it moved, stop — the NCFED X.509 stack (spec 060) depends on it and a regression here breaks certificate handling, not this server.
+- [X] T010 Verify the venv can import `nornir`, `napalm`, `netmiko` and `jdiff`, and that the system interpreter still **cannot** — proving isolation actually holds rather than assuming it.
 
 ### Stage 2 — command filter and per-platform denylists (FR-022/023/029, R6)
 
-- [ ] T011 Implement `mcp-servers/multivendor-cli-mcp/policy/filter.py` with the four-step evaluation from contracts/mcp-tools.md. **Chaining rejection MUST be step 1** — `show version; write erase` passes an allowlist check on its first token and is catastrophic. Order is contractual, not stylistic.
-- [ ] T012 Implement chaining detection for `;`, `&&`, `||`, `>`, `<`, backtick and `$(` in `policy/filter.py` (FR-023).
-- [ ] T013 Implement `mcp-servers/multivendor-cli-mcp/policy/platform_deny.py` with per-platform destructive first tokens (R6): VyOS `delete`, MikroTik `/system reset-configuration`, SR Linux `tools system configuration`, SONiC `config erase`, plus the Constitution's Cisco set. A Cisco-shaped denylist is explicitly insufficient (FR-023).
-- [ ] T014 Implement read-only mode as the default, with write tools absent from `tools/list` entirely unless `MULTIVENDOR_WRITE_ENABLED` is set (FR-022). Absent, not present-and-refusing.
-- [ ] T015 [P] Add Pydantic input validation across every tool argument, ported from candidate A's design (research R1).
-- [ ] T016a Implement `mcp-servers/multivendor-cli-mcp/server.py` as a **FastMCP stdio server stub** now, registering tools as they land in later phases (Principle V). **Moved into Foundational per analyze finding O1**: T029–T055 implement the tools, but without an entry point none of them is reachable over MCP, so no story phase would be independently testable as an MCP capability. The stub need only expose `initialize` / `tools/list` / `tools/call` with an empty tool set.
-- [ ] T016 [P] Add filter contract tests to `tests/multivendor/run-tests.sh` — these run with **no device**: chaining rejected first, per-platform denylist fires, read-only mode blocks non-allowlisted verbs, and `show version` alone passes. Assert exit codes directly.
+- [X] T011 Implement `mcp-servers/multivendor-cli-mcp/policy/filter.py` with the four-step evaluation from contracts/mcp-tools.md. **Chaining rejection MUST be step 1** — `show version; write erase` passes an allowlist check on its first token and is catastrophic. Order is contractual, not stylistic.
+- [X] T012 Implement chaining detection for `;`, `&&`, `||`, `>`, `<`, backtick and `$(` in `policy/filter.py` (FR-023).
+- [X] T013 Implement `mcp-servers/multivendor-cli-mcp/policy/platform_deny.py` with per-platform destructive first tokens (R6): VyOS `delete`, MikroTik `/system reset-configuration`, SR Linux `tools system configuration`, SONiC `config erase`, plus the Constitution's Cisco set. A Cisco-shaped denylist is explicitly insufficient (FR-023).
+- [X] T014 Implement read-only mode as the default, with write tools absent from `tools/list` entirely unless `MULTIVENDOR_WRITE_ENABLED` is set (FR-022). Absent, not present-and-refusing.
+- [X] T015 [P] Add Pydantic input validation across every tool argument, ported from candidate A's design (research R1).
+- [X] T016a Implement `mcp-servers/multivendor-cli-mcp/server.py` as a **FastMCP stdio server stub** now, registering tools as they land in later phases (Principle V). **Moved into Foundational per analyze finding O1**: T029–T055 implement the tools, but without an entry point none of them is reachable over MCP, so no story phase would be independently testable as an MCP capability. The stub need only expose `initialize` / `tools/list` / `tools/call` with an empty tool set.
+- [X] T016 [P] Add filter contract tests to `tests/multivendor/run-tests.sh` — these run with **no device**: chaining rejected first, per-platform denylist fires, read-only mode blocks non-allowlisted verbs, and `show version` alone passes. Assert exit codes directly.
 
 **Checkpoint Phase 2**: dependencies isolated and proven, and no command can reach a device without
 passing a tested server-side filter.

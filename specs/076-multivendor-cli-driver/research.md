@@ -301,3 +301,65 @@ novel, which lowers the review burden.
   devices; 30s bounds a hung device without prematurely failing legitimate slow commands.
 
 Both are defaults with overrides, so neither becomes a hidden constraint.
+
+---
+
+## R12 — Python 3.14 has no `ensurepip` on this host; `python3 -m venv` fails
+
+Discovered executing T005/T008. `/usr/bin/python3 -m venv` fails with:
+
+```
+The virtual environment was not created successfully because ensurepip is not
+available. On Debian/Ubuntu systems, you need to install the python3-venv
+package: apt install python3.14-venv
+```
+
+Installed venv packages are `python3.10-venv`, `python3.11-venv`, `python3.12-venv` — **not**
+`python3.14-venv`, while the system interpreter is 3.14.4. More residue from the same messy upgrade
+that produced R7's split toolchain.
+
+**Decision**: create the venv with **`virtualenv -p /usr/bin/python3`**, which bundles pip and does not
+need `ensurepip`. Verified: Python 3.14.4, pip 25.1.1, isolated `site-packages`.
+
+**Rationale**: `virtualenv` is already installed and needs no root. `apt install python3.14-venv`
+requires sudo and cannot be assumed on an operator's machine. `uv` is also present and would work, but
+`virtualenv` preserves the plan's exact contract of `<venv>/bin/python -m pip`.
+
+**Consequence**: the install function (T058) must use `virtualenv`, not `python3 -m venv`, with a clear
+error if `virtualenv` is absent. Recorded in `requirements.txt` and `tests/multivendor/run-tests.sh`.
+
+---
+
+## R13 — T005 confirmed the dependency conflict FR-030c was written for
+
+The tree resolves cleanly on Python 3.14.4 — 68 packages — but wants **`cryptography 49.0.0`** while
+the system interpreter carries **46.0.5**.
+
+| Environment | cryptography |
+|---|---|
+| System `/usr/bin/python3` (NCFED X.509, spec 060) | **46.0.5** — unchanged after install |
+| Server venv | **49.0.0** |
+
+Had these been installed into the shared environment, `cryptography` would have moved three major
+versions underneath NetClaw's certificate stack. Isolation is therefore not hygiene here; it is the
+thing preventing a real regression. Verified post-install: system still 46.0.5, and `nornir`, `napalm`,
+`netmiko`, `jdiff` are all absent from the system interpreter.
+
+Also pulled: `netmiko 4.7.0`, `paramiko 4.0.0`, `scrapli 2026.2.20` (transitively via NAPALM 5.x, per
+R8), `jdiff 1.0.1`.
+
+---
+
+## R14 — `mcp 2.0.0` removes `mcp.server.fastmcp`; ten NetClaw servers are exposed
+
+An unbounded `mcp>=1.2.0` resolved **2.0.0**, in which `mcp.server.fastmcp` no longer exists (FastMCP
+moved to the separate `fastmcp` distribution). That is the import used by
+`from mcp.server.fastmcp import FastMCP` — the convention in `suzieq-mcp`, `gnmi-mcp` and others.
+
+**Decision**: pin `mcp>=1.2.0,<2` for this server. Verified working at `mcp 1.29.0`.
+
+**Repo-wide finding, out of scope here but must not be lost**: ten existing servers declare an
+unbounded `mcp>=1.0.0`, two declare `mcp>=1.2.0`, one `mcp>=1.13`. **Every one of them resolves mcp 2.x
+on a fresh install today and breaks on import.** This is the same shape as R7's `pip3` hazard: existing
+servers that work only because their environments predate the breaking change. Should be raised
+alongside T083 as its own roadmap item.
