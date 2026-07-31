@@ -147,3 +147,35 @@ is needed, and your own live gateway's contents are irrelevant.
 | `docs: README.md:N: claims 198` | Counts not updated | Update them |
 | `docs: could not locate 'installer prose'` | Prose was reworded so the check can no longer find it | Restore a matchable phrasing or update the pattern |
 | Server not visible after install | Missing `cwd` | Confirm `normalize-mcp-cwd.py` ran |
+
+## Pinning rules (spec 077 — enforced by the gate)
+
+Two rules, both because they break **fresh installs only** and so survive unnoticed.
+
+**1. Bound any pin on a package whose submodule you import.**
+
+```
+mcp>=1.0.0        # WRONG if you write `from mcp.server.fastmcp import ...`
+mcp>=1.0.0,<2     # right
+```
+
+`mcp 2.0.0` removed `mcp.server.fastmcp` entirely. Twenty declarations across the repo resolved that
+breaking major and would have died on import for every new installer. The gate statically scans your
+source for submodule imports and fails on an unbounded pin — you cannot forget.
+
+If a bound is genuinely un-inferable (the package does not use semver), record an exception with a
+reason in `scripts/check-dependency-pins.py`. Silencing without a reason is not possible by design.
+
+**2. Never call `pip` or `pip3` directly. Use the helper.**
+
+```bash
+netclaw_pip_install -r "$SERVER_DIR/requirements.txt"        # right
+NETCLAW_VENV="$MY_VENV" netclaw_pip_install -r requirements.txt   # into a venv
+netclaw_venv_create "$MY_VENV"                               # venv that works without ensurepip
+```
+
+`pip3` and `python3` are not guaranteed to be the same interpreter. On a host where they differ, a bare
+`pip3 install` reports success and installs where the server cannot import from — then fails at first
+use with `ModuleNotFoundError`. 130 call sites had this shape before spec 077.
+
+`scripts/lib/pip-helper.sh` is sourced by `install-steps.sh`, so the helper is always available.
