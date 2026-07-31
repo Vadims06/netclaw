@@ -60,9 +60,6 @@ directory on every tool call, threading the inventory assumption through the req
 has **no command filtering whatsoever**, which is the hardest part to get right and the part
 Principle I most depends on.
 
-Candidate B additionally has **no command filtering of any kind**, which is the single hardest thing
-to get right and the thing FR-023/FR-029 and Constitution Principle I most depend on.
-
 ### Decision: build on the libraries directly, using Candidate A as the safety reference
 
 **Not** "adopt", **not** "write blind". Specifically:
@@ -89,8 +86,9 @@ functionally the same as building, minus the freedom to structure it for NetClaw
   inherits an archived Python-3.12+ dependency.
 - *Adopt Candidate B and add filtering* — writing the safety layer is the hard part; B contributes
   nothing to it, so this is building with extra steps plus a foreign inventory model.
-- *Scrapli instead of Netmiko* — faster and cleaner, but materially narrower platform coverage.
-  Reach is the entire point of R1 (FR-001), so Netmiko's ~100 platforms wins.
+- *Scrapli instead of Netmiko* — **this framing was superseded by R8.** NAPALM 5.x is scrapli-based, so
+  scrapli arrives regardless; the decision is not either/or. Netmiko is retained for raw-CLI platform
+  reach (FR-001), scrapli comes in under NAPALM's getters.
 
 **Consequence for the spec**: the "adopt a community server" assumption is void. Effort increases
 from integration to implementation. This is a **material scope change and needs the maintainer's
@@ -114,10 +112,13 @@ conflict with existing ones.
 environment, and pin explicitly. Verify the installed `cryptography` version is unchanged after
 install, since the federation stack depends on it.
 
-**Open item for Phase 1**: confirm whether NetClaw's other MCP servers use per-server virtualenvs or
-a shared environment, and match the prevailing pattern. (Note: the repo has a `.venv`, and R0 found
-three registrations that had hardcoded a `.venv` interpreter — so the pattern is not currently
-consistent and this needs deciding rather than assuming.)
+**Open item — RESOLVED by R10**: `mcp-servers/mcp-nvd/.venv` establishes the per-server venv
+precedent, so FR-030a follows existing practice.
+
+**Superseded in part by R7**: this item's risk assessment was later measured, and the measurement
+initially *understated* the problem. The host has a split toolchain (`pip3` → Python 3.13,
+`python3` → 3.14.4) carrying two different `cryptography` versions. Read R7 before acting on this
+section.
 
 ---
 
@@ -193,3 +194,110 @@ universal chaining prohibition and a universal read-only prefix allowlist. Enfor
 | Reach claim ~90 platforms | Confirmed, and includes Fortinet/PAN-OS/Check Point | Bonus reach — must not be mistaken for R3/R4 completion |
 | Lab platforms available | True for SR Linux/SONiC/VyOS; MikroTik/Extreme/Huawei need licensed images | SC-001 targets containerlab platforms |
 | Normalized facts across platforms | Bounded by uneven NAPALM getter support | FR-007's explicit-gap reporting is essential, not optional |
+
+---
+
+## R7 — CRITICAL: the host toolchain is split, and it invalidated an earlier finding
+
+Measured 2026-07-30:
+
+```
+python3  -> /usr/bin/python3              Python 3.14.4   cryptography 46.0.5   netmiko absent
+pip3     -> ~/.local/bin/pip3  (py 3.13)                  cryptography 45.0.2   netmiko 4.6.0
+```
+
+`pip3` installs into a **stranded Python 3.13 `site-packages`** that `/usr/bin/python3` (3.14.4)
+cannot import. Two different `cryptography` versions are present, in two environments.
+
+**This invalidated a conclusion drawn earlier in this research.** A `pip install --dry-run` of the R1
+tree reported that `cryptography`, `paramiko` and `netmiko` were "not pulled", which was read as
+evidence that the NCFED conflict risk was low. That reading was unsound: pip was resolving against
+the 3.13 environment, where those packages are *already installed*, so they were omitted as
+already-satisfied. **The conflict question is unmeasured, not resolved.**
+
+Corroborating detail: `nornir-netmiko 1.0.1` declares `netmiko (>=4.0.0,<5.0.0)`, so netmiko is
+unambiguously a real dependency — it only appeared absent because of the environment mismatch.
+
+### Consequences
+
+1. **FR-030a (dedicated virtualenv) is vindicated and now load-bearing.** With a split toolchain, any
+   install that relies on bare `pip3` lands in an environment the server will not run under.
+2. **The venv MUST be created from an explicitly chosen interpreter** and populated with that
+   interpreter's own `-m pip`, never bare `pip3`. `python3 -m venv` + `<venv>/bin/python -m pip` is the
+   only form that is self-consistent here.
+3. **The FR-030c check must compare the right environment.** Asserting "system `cryptography` unchanged"
+   is only meaningful against the interpreter NetClaw's servers actually run under (`/usr/bin/python3`,
+   3.14.4), not whatever `pip3` points at.
+4. **This is a repo-wide hazard, not an R1 one.** `scripts/lib/install-steps.sh` contains 186
+   `pip install` invocations. If any run as bare `pip3` on a host with this split, they install where
+   the servers cannot see them. Out of scope for R1, but it should be raised as its own finding — it is
+   the same class of defect spec 075 found in hardcoded interpreter paths.
+
+**Decision**: create the venv with `/usr/bin/python3 -m venv`, install with `<venv>/bin/python -m pip`,
+record the resolved interpreter path at install time (FR-030b), and run the FR-030c `cryptography`
+assertion against `/usr/bin/python3`.
+
+---
+
+## R8 — NAPALM 5.2.0 is scrapli-based, which changes the transport calculus
+
+The resolved tree for `nornir napalm netmiko nornir-netbox nornir-nautobot nornir-utils` is 21
+packages and includes:
+
+```
+napalm 5.2.0    nornir 3.5.0        nornir-netmiko 1.0.1   nornir_napalm 0.5.0
+scrapli 2026.2.20    scrapli_cfg    scrapli_community      scrapli_netconf
+nornir_scrapli  pyeapi 1.0.4   pynautobot 3.1.1   nornir-netbox 0.3.0
+jdiff 1.0.2     deepdiff 8.6.2      ttp / ttp_templates    httpx 0.27.0
+```
+
+Research R1 rejected scrapli on the grounds of narrower platform coverage. That framing was wrong:
+**scrapli arrives regardless**, because NAPALM 5.x uses it. The real position is that both transports
+are present — scrapli underneath NAPALM's normalized getters, netmiko for broad-platform raw CLI.
+
+**Decision**: keep netmiko as the raw-CLI transport for platform reach (FR-001 depends on its ~100
+platforms) and let NAPALM use scrapli internally for normalized getters. Do not attempt to force NAPALM
+onto netmiko, and do not drop netmiko in favour of scrapli.
+
+**Rationale**: this is the layering the spec already ratified — NAPALM for normalized cross-vendor
+facts, netmiko for reach. The dependency tree happens to match it.
+
+---
+
+## R9 — Two unplanned-for packages are directly useful
+
+- **`jdiff 1.0.2`** — structured diffing of network state. Lands squarely on FR-026 (compare actual
+  post-change state against expected, not merely that the command succeeded). Worth using rather than
+  hand-rolling comparison logic.
+- **`ttp` / `ttp_templates`** — template-based parsing for platforms with no NAPALM getter. Relevant to
+  FR-007, but must be used carefully: FR-007 requires reporting a normalization *gap* explicitly rather
+  than emulating a getter by scraping CLI output. TTP output must therefore be labelled as
+  template-parsed, never presented as a normalized fact.
+
+**Decision**: adopt `jdiff` for change verification. Treat `ttp` as available but explicitly
+second-class, and never let its output masquerade as a NAPALM normalized fact.
+
+---
+
+## R10 — Per-server virtualenv already has precedent
+
+R2 left open whether NetClaw uses per-server venvs or a shared environment. Answer: **both, and
+inconsistently.** `mcp-servers/mcp-nvd/.venv` exists, so the pattern is established; most other
+servers pip-install into the shared environment.
+
+**Decision**: follow the `mcp-nvd` precedent. FR-030a is consistent with existing practice rather than
+novel, which lowers the review burden.
+
+---
+
+## R11 — Deferred non-functional values, now resolved
+
+- **Concurrency bound (FR-015)**: default to **10** concurrent workers, operator-overridable. Nornir's
+  own default `num_workers` is 20; 10 is chosen because each worker holds an SSH session and network
+  devices commonly cap concurrent management sessions (frequently 5–15). Starting conservative and
+  documenting the override is safer than discovering a device's session limit under load.
+- **Per-device timeout (FR-016)**: default **30 seconds** for connect-and-execute, operator-overridable.
+  Netmiko's default read timeout is 10s, which is too aggressive for slow `show` output on loaded
+  devices; 30s bounds a hung device without prematurely failing legitimate slow commands.
+
+Both are defaults with overrides, so neither becomes a hidden constraint.
