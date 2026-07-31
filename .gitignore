@@ -65,6 +65,9 @@ mcp-servers/*
 !mcp-servers/syslog-mcp/
 !mcp-servers/snmptrap-mcp/
 !mcp-servers/ipfix-mcp/
+!mcp-servers/multivendor-cli-mcp/
+# ...but never track its dedicated virtualenv (spec 076 FR-030a)
+mcp-servers/multivendor-cli-mcp/.venv/
 !mcp-servers/gns3-mcp-server/
 !mcp-servers/eve-ng-mcp-server/
 !mcp-servers/prisma-sdwan-mcp/

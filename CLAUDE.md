@@ -1,6 +1,6 @@
 # netclaw Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-07-30
+Auto-generated from all feature plans. Last updated: 2026-07-31
 
 ## Active Technologies
 - N/A (stateless server; subscription state held in-memory during runtime) (003-gnmi-mcp-server)
@@ -103,6 +103,8 @@ Auto-generated from all feature plans. Last updated: 2026-07-30
 - Extends the existing phone-local JSON-Lines `MessageFeedStore` and whole-file JSON `ConversationStore` (both under the app's documents directory) with new fields — no new store, no new database (073-push-notifications-sync)
 - Python 3.10+ (all `scripts/*.py`), Bash (CI wiring, catalog is a Bash array) + None — Python standard library only, per the convention every existing (075-mcp-config-reconciliation)
 - N/A — all state is existing repository files; this feature adds no datastore (075-mcp-config-reconciliation)
+- Python — **interpreter choice is a live decision, not a default** (see R7). + `nornir` 3.5.0, `napalm` 5.2.0, `netmiko` (>=4,<5 per `nornir-netmiko`), (076-multivendor-cli-driver)
+- No database. A generated inventory cache on disk (regenerable, credential-free); an (076-multivendor-cli-driver)
 
 - Python 3.10+ + FastMCP (MCP framework), grpcio + grpcio-tools (gRPC transport), pygnmi (gNMI client library), protobuf, cryptography (TLS handling) (003-gnmi-mcp-server)
 
@@ -122,9 +124,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.10+: Follow standard conventions
 
 ## Recent Changes
+- 076-multivendor-cli-driver: Added Python — **interpreter choice is a live decision, not a default** (see R7). + `nornir` 3.5.0, `napalm` 5.2.0, `netmiko` (>=4,<5 per `nornir-netmiko`),
 - 075-mcp-config-reconciliation: Added Python 3.10+ (all `scripts/*.py`), Bash (CI wiring, catalog is a Bash array) + None — Python standard library only, per the convention every existing
 - 073-push-notifications-sync: Added Dart 3.x / Flutter 3.x (extends `mobile/netclaw-mobile/`, SDK constraint `^3.12.2` per pubspec.yaml); Swift 5.0 (extends the `WatchApp Watch App` target from spec 072); Python 3.10+ (the one Border-side addition, `authorization.py`/`service.py`, matching specs 052-072) + `flutter_local_notifications` (new — local notification posting, Darwin/Android notification actions, iOS badge control); existing `firebase_messaging`/`firebase_core` (unchanged, remote-push path stays out of scope per Assumptions); existing `app_links` (extended, not replaced, per research D4); watchOS `AVSpeechSynthesizer` (system framework, no new dependency, watch-side only)
-- 072-apple-watch-companion: Added Swift 5.0 (new watch app target + new `WatchRelayPlugin.swift` on the phone + `WatchConnectivity` (Apple system framework, phone + watch sides — no new
 
 
 <!-- MANUAL ADDITIONS START -->
