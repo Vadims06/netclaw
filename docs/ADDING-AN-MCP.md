@@ -179,3 +179,22 @@ netclaw_venv_create "$MY_VENV"                               # venv that works w
 use with `ModuleNotFoundError`. 130 call sites had this shape before spec 077.
 
 `scripts/lib/pip-helper.sh` is sourced by `install-steps.sh`, so the helper is always available.
+
+## Two artifacts that are easy to miss (found missing after spec 076)
+
+R1 shipped with a catalog entry and an install function — so it was *selectable* — but three artifacts
+were still missing, and none of them fail the gate:
+
+**1. Curated install-profile membership.** `scripts/lib/catalog.sh` defines `PROFILE_MINIMAL`,
+`PROFILE_RECOMMENDED`, `PROFILE_CISCO`, `PROFILE_MULTIVENDOR`, `PROFILE_CLOUD`, `PROFILE_SECURITY`. A
+component absent from all of them appears only in the fine-tune checklist. The multivendor CLI driver was
+missing from `PROFILE_MULTIVENDOR` — the one profile named after it.
+
+**2. The HUD needs TWO entries, not one.** `ui/netclaw-visual/server.js` has a *node list*
+(`{ id: '...', name: ..., prefixes: [...] }`) which renders the node, and a separate *annotation map*
+(`'id': { env, files, notes }`). Adding only the annotation leaves no node on the dashboard.
+
+**3. SOUL.md needs the capability, not just the count.** Bumping "N skills backed by M MCP servers" does
+not tell the agent what it can now do. Add a section describing the capability and its routing boundaries.
+
+None of these is caught by `reconcile-mcp.py`, so they need checking by hand until they are.

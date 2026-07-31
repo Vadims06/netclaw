@@ -140,7 +140,7 @@ drawio-rfc uml packet-buddy nmap gtrace suzieq batfish protocol n2n tts chrome-d
 PROFILE_CISCO="pyats gait netbox servicenow aci ise catalyst-center meraki sdwan cml fmc \
 radkit te-community te-official nvd-cve subnet-calc drawio-rfc uml packet-buddy"
 
-PROFILE_MULTIVENDOR="pyats junos arista-cvp aruba-cx f5 netbox nautobot gait servicenow \
+PROFILE_MULTIVENDOR="pyats junos arista-cvp aruba-cx f5 multivendor-cli netbox nautobot gait servicenow \
 fwrule subnet-calc drawio-rfc uml packet-buddy"
 
 PROFILE_CLOUD="aws azure gcp cloudflare terraform vault github gait drawio-rfc uml subnet-calc"
