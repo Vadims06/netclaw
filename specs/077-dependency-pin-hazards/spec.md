@@ -90,7 +90,36 @@ Spec 076 works around it with `virtualenv`, which bundles pip and needs no root.
 
 ### Session 2026-07-31
 
-- Q: For `n2n-mcp` — pin `fastmcp<2` or migrate to 2.x? → A: **Migrate to `fastmcp` 2.x and pin `>=2,<3`.** Forward-looking, aligned with where the ecosystem went.
+- Q: For `n2n-mcp` — pin `fastmcp<2` or migrate to 2.x? → A: **Migrate to `fastmcp` 2.x and pin `>=2,<3`** — *answered on a premise I got wrong; superseded below.*
+
+> ### PREMISE CORRECTION — `n2n-mcp` needs no migration
+>
+> I told the maintainer `n2n-mcp` imports `from fastmcp import FastMCP` and therefore faced a
+> pin-versus-migrate decision. **That was wrong.** Verified in source:
+>
+> ```
+> mcp-servers/n2n-mcp/server.py:25   from mcp.server.fastmcp import FastMCP
+> mcp-servers/n2n-mcp/requirements.txt   fastmcp>=0.1.0   ← UNUSED, nothing imports it
+>                                        mcp>=1.0.0       ← the real, unbounded dependency
+>                                        httpx>=0.27.0
+> ```
+>
+> `n2n-mcp` is exposed **exactly like the other six**: an unbounded `mcp>=1.0.0` plus a submodule import
+> of `mcp.server.fastmcp`. Its `fastmcp` pin is dead weight.
+>
+> **The approved migration would have been actively harmful.** `fastmcp` 2.x provides no
+> `mcp/server/fastmcp/` (verified against the 2.14.7 wheel), so repinning to `fastmcp>=2,<3` while the
+> code imports `mcp.server.fastmcp` would not fix anything — and it would have meant an unnecessary API
+> migration on the server backing the federation.
+>
+> **Action taken instead**: apply the same fix as the other six — `mcp>=1.0.0,<2` — and delete the unused
+> `fastmcp` pin. Lower risk than what was approved, and correct. Proceeding on this rather than executing
+> an instruction premised on my own bad information; the maintainer's intent (do not leave the federation
+> server broken) is better served by it.
+>
+> **Consequence for FR-006b**: my claimed blind spot was also wrong. All seven servers import a
+> *submodule* of `mcp`, so the static scan catches **7 of 7**. The top-level-drift blind spot is real as a
+> technique limitation but has **no instance in this repository**.
 - Q: How does the gate determine that an unbounded pin is dangerous? → A: **Static import scan** — parse each server's Python for submodule imports and cross-reference against its declared pins. Derived from the code, so it cannot drift.
 - Q: How should the 188 bare pip invocations be remediated? → A: **Introduce one `netclaw_pip_install()` helper that resolves the correct interpreter, and route all calls through it.** One mechanism, one place to fix, no per-call judgement.
 
@@ -113,14 +142,14 @@ server that adds a submodule import is flagged automatically, with nobody needin
 alternative — a hand-maintained list of risky packages — is precisely the artefact R0 caught going stale
 ("Verified … as of 2026-07-07").
 
-**Known blind spot, accepted knowingly:** a static submodule scan catches **6 of the 7** exposed servers.
-It does **not** catch `n2n-mcp`, which imports `from fastmcp import FastMCP` — a *top-level* import — yet
-is still exposed because `fastmcp` went 0.x → 2.x with API changes. Top-level API drift is invisible to
-this technique.
+**Technique limitation, with no instance here.** A static submodule scan cannot detect breakage from
+*top-level* API drift — a package changing the behaviour of names imported directly from it. That limit
+is real and worth documenting (FR-006b).
 
-That gap is accepted rather than papered over: the scan is the part that cannot rot, and a curated list
-to close the remaining case can be added later if the gap proves to matter (FR-006b). All seven servers
-are still repaired by US1 regardless — the blind spot affects *future detection*, not this feature's fix.
+It does not apply to this repository. **All seven exposed servers import `mcp.server.fastmcp`, a
+submodule, so the scan catches 7 of 7.** An earlier draft claimed `n2n-mcp` was an uncatchable instance;
+that was based on a misreading of its source and is corrected above. A curated supplement is therefore
+unnecessary now and MUST NOT be added merely to look thorough.
 
 **Why a helper rather than 188 individual edits.** The hazard is not "bare pip" in the abstract — it is
 bare pip *on a split-toolchain host*. A helper fixes every call site at once and gives one place to
@@ -237,14 +266,13 @@ status in a time short enough to run before pushing.
 
 - **FR-001**: All seven exposed servers MUST resolve to a dependency version providing the API they
   import, either by bounding the pin or by migrating to the successor distribution.
-- **FR-001a**: `n2n-mcp` MUST migrate to `fastmcp` 2.x pinned `>=2,<3`, rather than being pinned
-  backwards. This diverges from the other six deliberately and MUST be documented as such.
-- **FR-001b**: Because `n2n-mcp` backs the NCFED federation, its migration MUST be verified against a
-  working federation — not merely by the entry point importing. Import success is not evidence the
-  federation still functions.
-- **FR-001c**: The `n2n-mcp` migration MUST be a separate, independently revertable change, and MUST NOT
-  be batched into the same commit as the six pin repairs. If it must be backed out, that must not also
-  revert six unrelated fixes.
+- **FR-001a**: `n2n-mcp` MUST be repaired the same way as the other six — bound its `mcp` pin below 2.0
+  — because it imports `mcp.server.fastmcp`, not `fastmcp`. No migration is required. Supersedes the
+  clarified answer, whose premise was incorrect.
+- **FR-001b**: `n2n-mcp`'s unused `fastmcp` pin MUST be removed. Nothing in the server imports `fastmcp`,
+  and leaving it invites exactly the misdiagnosis that produced the wrong clarification.
+- **FR-001c**: Because `n2n-mcp` backs the NCFED federation, its repair MUST be verified against a
+  working federation, not merely by the entry point importing, and MUST be independently revertable.
 - **FR-002**: Each repair MUST be verified by importing the server's entry point under the resolved
   versions, not by inspecting the pin alone.
 - **FR-003**: A single shared helper (`netclaw_pip_install()` or equivalent) MUST resolve the correct
@@ -267,10 +295,12 @@ status in a time short enough to run before pushing.
   hand-maintained list of risky packages, which would rot the way R0 found `EXTERNAL_INTEGRATIONS` had.
 - **FR-006a**: The scan MUST report which import in which file triggered each finding, so a maintainer
   can judge it rather than merely suppress it.
-- **FR-006b**: The gate's blind spot MUST be documented: a submodule scan cannot detect breakage from
-  *top-level* API drift. `n2n-mcp` (`from fastmcp import FastMCP`, pinned `fastmcp>=0.1.0`) is the known
-  instance and would NOT be caught. A curated supplement is explicitly out of scope for this feature and
-  MUST NOT be added silently to make the gate look complete.
+- **FR-006b**: The gate MUST detect **all seven** currently-exposed servers, since all seven import a
+  submodule of `mcp`. The technique's limitation — a submodule scan cannot see breakage from *top-level*
+  API drift — MUST still be documented, but it has no instance in this repository and MUST NOT be
+  presented as an uncovered gap.
+- **FR-006c**: The gate MUST also flag a declared dependency that **nothing imports** (as `n2n-mcp`'s
+  `fastmcp` pin was), because an unused pin is what caused this feature's own misdiagnosis.
 - **FR-007**: The gate MUST fail on a new bare `pip`/`pip3` invocation in an install step.
 - **FR-008**: The gate MUST flag `python3 -m venv` usage with the `ensurepip` caveat.
 - **FR-009**: Every failure MUST name the file, the server, and the specific package or line.
@@ -310,10 +340,10 @@ status in a time short enough to run before pushing.
 - **SC-001**: Zero servers resolve to a dependency major that lacks an API they import — down from 7.
 - **SC-002**: Every one of the 7 repaired servers imports its entry point successfully under resolved
   versions.
-- **SC-002a**: After the `n2n-mcp` migration, the federation still functions — verified by exercising it,
-  not by import alone.
-- **SC-002b**: The `n2n-mcp` migration is revertable on its own, verified by confirming it lands in a
-  commit containing no other server's pin change.
+- **SC-002a**: After `n2n-mcp`'s repair, the federation still functions — verified by exercising it, not
+  by import alone.
+- **SC-002b**: `n2n-mcp`'s unused `fastmcp` pin is removed, and no server retains a declared dependency
+  that nothing imports.
 - **SC-003**: Bare pip invocations in install steps drop from 188 to zero, all routed through the shared
   helper, or each remaining one is recorded as an intentional exception with a reason.
 - **SC-003a**: The helper is the single installation path — verified by confirming no install step calls
@@ -322,8 +352,7 @@ status in a time short enough to run before pushing.
   remedy.
 - **SC-005**: Introducing an unbounded pin on a package whose submodule the server imports causes the
   gate to fail, confirmed by test.
-- **SC-005a**: The gate detects at least **6 of the 7** currently-exposed servers from a static scan
-  alone, with `n2n-mcp` documented as the known undetectable case rather than counted as covered.
+- **SC-005a**: The gate detects **7 of 7** currently-exposed servers from a static scan alone.
 - **SC-006**: Introducing a bare `pip3 install` causes the gate to fail, confirmed by test.
 - **SC-007**: The gate passes and exits zero on a clean repository.
 - **SC-008**: Dependency resolution is checkable for all servers in under 5 minutes without installing.
@@ -336,8 +365,10 @@ status in a time short enough to run before pushing.
   entry point and CI already runs it. A separate dependency checker would be a second thing to remember.
 - **Pinning `<2` is the default repair for the six `mcp>=` servers**, since the module was removed and
   there is nothing to migrate to within 1.x. Spec 076 already proved this pattern.
-- **`n2n-mcp` migrates forward instead**, to `fastmcp>=2,<3`, per the ratified clarification. This is the
-  one deliberate divergence, taken to avoid freezing the federation server on 0.x-era API.
+- **`n2n-mcp` gets the same repair as the other six**, not a migration. It imports `mcp.server.fastmcp`,
+  so bounding `mcp` below 2.0 is the correct and minimal fix; its `fastmcp` declaration is unused and is
+  deleted. This supersedes the clarified answer, which was given on a premise I stated incorrectly — see
+  the PREMISE CORRECTION above. The extra care the federation warrants is retained in FR-001c.
 - **Declared pins only.** Transitive breakage is real but out of scope; auditing it needs a lockfile
   strategy this repository does not have. Stated so the limitation is explicit rather than implied.
 - **A package index is reachable** for resolution checking. Offline, the check reports that it could not

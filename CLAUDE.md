@@ -126,7 +126,6 @@ Python 3.10+: Follow standard conventions
 ## Recent Changes
 - 076-multivendor-cli-driver: Added Python — **interpreter choice is a live decision, not a default** (see R7). + `nornir` 3.5.0, `napalm` 5.2.0, `netmiko` (>=4,<5 per `nornir-netmiko`),
 - 075-mcp-config-reconciliation: Added Python 3.10+ (all `scripts/*.py`), Bash (CI wiring, catalog is a Bash array) + None — Python standard library only, per the convention every existing
-- 073-push-notifications-sync: Added Dart 3.x / Flutter 3.x (extends `mobile/netclaw-mobile/`, SDK constraint `^3.12.2` per pubspec.yaml); Swift 5.0 (extends the `WatchApp Watch App` target from spec 072); Python 3.10+ (the one Border-side addition, `authorization.py`/`service.py`, matching specs 052-072) + `flutter_local_notifications` (new — local notification posting, Darwin/Android notification actions, iOS badge control); existing `firebase_messaging`/`firebase_core` (unchanged, remote-push path stays out of scope per Assumptions); existing `app_links` (extended, not replaced, per research D4); watchOS `AVSpeechSynthesizer` (system framework, no new dependency, watch-side only)
 
 
 <!-- MANUAL ADDITIONS START -->
