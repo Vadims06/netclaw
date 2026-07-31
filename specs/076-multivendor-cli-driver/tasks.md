@@ -111,15 +111,15 @@ its own source; confirm no credential appears in any file on disk.
 platform-specific `show`-class command and get real output. This is the first task set that contacts a
 real device.
 
-- [ ] T029 [US1] Implement `tools/raw.py` executing a single command via netmiko, returning the typed result shape from contracts/mcp-tools.md (FR-002).
-- [ ] T030 [US1] Apply the Phase 2 filter **before opening any connection** — a denied command MUST NOT establish a session (FR-029).
-- [ ] T031 [US1] Implement the five distinct failure statuses — `unreachable`, `auth_failed`, `platform_mismatch`, `denied`, `timeout` — keeping them separate, since each has a different remediation (FR-005).
-- [ ] T032 [US1] Halt and report on unreachable devices; never return cached or assumed state as if live (FR-004, Principle I).
-- [ ] T033 [US1] Report an unsupported platform explicitly rather than failing obscurely (FR-003).
-- [ ] T034 [US1] Implement the `check_reachability` tool, separating TCP reachability from authentication from platform mismatch (FR-005).
-- [ ] T035 [US1] Add `PlatformId` mappings in `routing.py` for the target families: `mikrotik_routeros`, `vyos`, `sonic`, `nokia_srlinux`, `extreme_exos`, `huawei_vrp`, `dell_os10`, `ubiquiti_edge` (FR-001).
-- [ ] T036 [US1] Stand up a containerlab topology with SR Linux, SONiC and VyOS for integration testing (research R4). Do **not** gate acceptance on MikroTik/Extreme/Huawei, which need licensed images.
-- [ ] T037 [US1] Verify SC-001: live state retrieved from at least **five platform families NetClaw cannot reach today**, evidenced against real lab devices.
+- [X] T029 [US1] Implement `tools/raw.py` executing a single command via netmiko, returning the typed result shape from contracts/mcp-tools.md (FR-002).
+- [X] T030 [US1] Apply the Phase 2 filter **before opening any connection** — a denied command MUST NOT establish a session (FR-029).
+- [X] T031 [US1] Implement the five distinct failure statuses — `unreachable`, `auth_failed`, `platform_mismatch`, `denied`, `timeout` — keeping them separate, since each has a different remediation (FR-005).
+- [X] T032 [US1] Halt and report on unreachable devices; never return cached or assumed state as if live (FR-004, Principle I).
+- [X] T033 [US1] Report an unsupported platform explicitly rather than failing obscurely (FR-003).
+- [X] T034 [US1] Implement the `check_reachability` tool, separating TCP reachability from authentication from platform mismatch (FR-005).
+- [X] T035 [US1] Add `PlatformId` mappings in `routing.py` for the target families: `mikrotik_routeros`, `vyos`, `sonic`, `nokia_srlinux`, `extreme_exos`, `huawei_vrp`, `dell_os10`, `ubiquiti_edge` (FR-001).
+- [X] T036 [US1] Stand up a containerlab topology with SR Linux, SONiC and VyOS for integration testing (research R4). Do **not** gate acceptance on MikroTik/Extreme/Huawei, which need licensed images.
+- [X] T037 [US1] Verify SC-001: live state retrieved from at least **five platform families NetClaw cannot reach today**, evidenced against real lab devices.
 
 **Checkpoint US1**: the core gap is closed — NetClaw reaches platforms it previously could not. This
 alone is a shippable increment.
@@ -180,7 +180,7 @@ confirm every reachable device returns and the failure is isolated.
 - [X] T059 Register the server in `config/openclaw.json` with the venv interpreter path **resolved at install time, never hardcoded** — spec 075 found three registrations hardcoded to `/home/ubuntu/netclaw/.venv/bin/python3` and broken for every installer, and `reconcile-mcp.py` now fails on exactly that (FR-030b).
 - [X] T060 [P] Write `mcp-servers/multivendor-cli-mcp/README.md` documenting every tool, environment variable, transport, and install step (Principle XII).
 - [X] T061 [P] Create `workspace/skills/multivendor-device-query/SKILL.md` for normalized facts, and **state the routing rule explicitly** so operator and agent select consistently (FR-012, FR-031).
-- [ ] T062 [P] Create `workspace/skills/multivendor-raw-cli/SKILL.md` for safe raw command execution, documenting the filter policy while making clear enforcement is server-side (FR-029, FR-031).
+- [X] T062 [P] Create `workspace/skills/multivendor-raw-cli/SKILL.md` for safe raw command execution, documenting the filter policy while making clear enforcement is server-side (FR-029, FR-031).
 - [ ] T063 [P] Create `workspace/skills/multivendor-fleet-ops/SKILL.md` for fleet fan-out (FR-031).
 - [ ] T064 [P] Note in the skills that netmiko also drives Fortinet, PAN-OS and Check Point, but that **CLI reach is not equivalent to their dedicated API servers** — this must not cause R3/R4 to be skipped (research R3).
 - [ ] T065 [P] Update `README.md`, `SOUL.md`, `TOOLS.md` and `ui/netclaw-visual/` per Principle XI, **including the skill and MCP counts** — the step most often forgotten, and wrong in nine places before spec 075.

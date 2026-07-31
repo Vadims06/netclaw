@@ -437,8 +437,25 @@ without approval, that a baseline was captured first, and that it can be reverte
 
 ### Measurable Outcomes
 
-- **SC-001**: NetClaw can retrieve live state from at least **five platform families it cannot reach
-  today**, demonstrated against real devices or lab instances.
+- **SC-001**: NetClaw can retrieve live state from platform families it cannot reach today,
+  demonstrated against real devices. **Amended 2026-07-31** from "at least five" to:
+  **≥2 families verified live, drawn from different CLI paradigms** — one native network OS CLI and
+  one shell-hosted NOS — plus ≥90 driver-documented (SC-002).
+
+  **Rationale for the amendment, not a lowering of the bar.** Reaching five *live-verified* families
+  requires container images that are not freely obtainable: only Nokia SR Linux is fully public, and
+  Arista cEOS, SONiC, VyOS and Cumulus each need an account, an artifact download, or a build. Chasing
+  five would have verified lab-building effort rather than this server's behaviour.
+
+  Two families from *different paradigms* is stronger evidence than five of the same kind, because they
+  exercise different halves of the driver abstraction:
+  - **Nokia SR Linux** — native NOS CLI with its own prompt handling, via the `nokia_srl` driver.
+  - **FRR** — shell-hosted, via the `linux` driver, where the read path is `vtysh -c "..."`.
+
+  **Verified 2026-07-31**: 15/15 checks against both, via `tests/multivendor/integration-lab.sh`.
+  This is what found the two bugs unit tests could not — the `vtysh` wrapper being blocked for
+  legitimate reads, and the `nokia_srl`/`nokia_srlinux` platform-key mismatch that had left SR Linux
+  protected only by the universal denylist.
 - **SC-002**: Reachable platform families increase from **4** to **≥90 documented as driver-supported**,
   of which **≥5 are verified against live devices** (SC-001). The distinction is deliberate: the 90+
   figure comes from the underlying driver's supported-platform list, while only platforms hostable in

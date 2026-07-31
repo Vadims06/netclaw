@@ -1,0 +1,21 @@
+# R1 verification lab inventory — TWO platform families, neither reachable by any
+# other NetClaw device server. Hostnames and platforms only; no credentials.
+srl1:
+  hostname: 172.20.20.11
+  platform: nokia_srl
+  groups: [lab, srlinux]
+  credential_ref: srlinux
+srl2:
+  hostname: 172.20.20.12
+  platform: nokia_srl
+  groups: [lab, srlinux]
+  credential_ref: srlinux
+frr-lab-01:
+  hostname: 127.0.0.1
+  platform: frr
+  groups: [lab, frr]
+  credential_ref: frrlab
+core-cml-01:
+  hostname: 10.10.20.48
+  platform: cisco_xe
+  groups: [core, cml]

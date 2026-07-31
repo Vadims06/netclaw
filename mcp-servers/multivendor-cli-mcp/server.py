@@ -48,6 +48,7 @@ import routing  # noqa: E402
 from credentials import CredentialError, resolve as resolve_credential  # noqa: E402
 from inventory import sources as inv  # noqa: E402
 from policy.filter import Mode, evaluate  # noqa: E402
+from tools import raw as raw_tools  # noqa: E402
 from policy.platform_deny import (  # noqa: E402
     PLATFORM_DENY,
     READ_ONLY_PREFIXES,
@@ -199,6 +200,31 @@ def check_device_readiness(device: str) -> dict:
         },
         "ready": cred_error is None,
     }
+
+
+@mcp.tool()
+def run_command(device: str, command: str, timeout_s: int | None = None) -> dict:
+    """Execute a read-only command on a device and return its output.
+
+    The command is filtered server-side BEFORE any connection is opened, so a
+    denied command never establishes a session. Failure statuses stay distinct —
+    unreachable, auth_failed, platform_mismatch, denied, timeout — because each
+    needs a different fix.
+
+    Refuses raw execution on platforms owned by pyATS or junos-mcp, naming the
+    correct server.
+    """
+    return raw_tools.run_command(device, command, timeout_s)
+
+
+@mcp.tool()
+def check_reachability(device: str) -> dict:
+    """Probe a device, separating unreachable from auth-failed from wrong-platform.
+
+    The right first call on a newly added device: those three failures look
+    identical in a generic error and need three different remedies.
+    """
+    return raw_tools.check_reachability(device)
 
 
 def main() -> None:

@@ -99,6 +99,48 @@ READ_ONLY_PREFIXES: frozenset[str] = frozenset({
 })
 
 
+# Platform identifiers vary between the netmiko driver name, the inventory
+# string an operator writes, and the vendor's own wording. Without normalisation
+# a device keyed `nokia_srl` silently misses the `nokia_srlinux` denylist and is
+# protected only by the universal baseline.
+#
+# That bug was real and shipped: SR Linux devices were not being checked against
+# `tools system configuration`, their actual config-destruction command. It
+# surfaced only when a live SR Linux node was tested, because nothing in the code
+# or the unit tests connected the two spellings.
+PLATFORM_ALIASES: dict[str, str] = {
+    "nokia_srl": "nokia_srlinux",
+    "srl": "nokia_srlinux",
+    "srlinux": "nokia_srlinux",
+    "nokia_sr_linux": "nokia_srlinux",
+    "sros": "nokia_sros",
+    "nokia_sr_os": "nokia_sros",
+    "frr": "linux",
+    "frrouting": "linux",
+    "cisco_iosxe": "cisco_xe",
+    "cisco_ios_xe": "cisco_xe",
+    "cisco_iosxr": "cisco_xr",
+    "cisco_ios_xr": "cisco_xr",
+    "junos": "juniper_junos",
+    "juniper": "juniper_junos",
+    "sonic": "dell_sonic",
+    "vyatta": "vyos",
+    "eos": "arista_eos",
+    "routeros": "mikrotik_routeros",
+    "mikrotik": "mikrotik_routeros",
+    "exos": "extreme_exos",
+    "vrp": "huawei_vrp",
+    "huawei": "huawei_vrp",
+    "edgeos": "ubiquiti_edge",
+}
+
+
+def canonical(platform: str | None) -> str:
+    """Normalise a platform identifier to its canonical deny-table key."""
+    p = (platform or "").strip().lower()
+    return PLATFORM_ALIASES.get(p, p)
+
+
 def deny_tokens_for(platform: str | None) -> frozenset[str]:
     """Effective denylist for a platform: universal plus platform-specific.
 
@@ -106,7 +148,7 @@ def deny_tokens_for(platform: str | None) -> frozenset[str]:
     empty set for an unrecognised platform would mean the long tail of supported
     devices — the ones this server exists for — got no protection at all.
     """
-    specific = PLATFORM_DENY.get(platform or "", frozenset())
+    specific = PLATFORM_DENY.get(canonical(platform), frozenset())
     return UNIVERSAL_DENY | specific
 
 
@@ -116,4 +158,4 @@ def is_modelled(platform: str | None) -> bool:
     Surfaced so callers can tell an operator that a device is protected only by
     the universal baseline — useful information, not a reason to refuse.
     """
-    return bool(platform) and platform in PLATFORM_DENY
+    return bool(platform) and canonical(platform) in PLATFORM_DENY

@@ -1,0 +1,9 @@
+frr-lab-01:
+  hostname: 127.0.0.1
+  platform: frr
+  groups: [lab]
+  credential_ref: frrlab
+core-cml-01:
+  hostname: 10.10.20.48
+  platform: cisco_xe
+  groups: [core]
