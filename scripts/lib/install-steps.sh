@@ -1970,32 +1970,25 @@ command -v palo-alto-mcp &> /dev/null || PANOS_MCP_CMD_DETECTED="python3 -m palo
 }
 
 # ── FortiManager MCP backend ────────────────────────────────────
-component_install_fortimanager() {
-log_step "Installing FortiManager MCP Server..."
-echo "  Source: https://github.com/jmpijll/fortimanager-mcp"
-echo "  ADOM inventory, policy packages, object search, install preview"
+component_install_fortinet() {
+log_step "Installing Fortinet MCP Server (FortiManager / FortiGate / FortiAnalyzer)..."
+echo "  Source: mcp-servers/fortinet-mcp (NetClaw-authored, spec 080 / roadmap R3)"
+echo "  Three planes: manager intent, device state, analyzer traffic. 21 tools, read-only by default."
 
-FORTIMANAGER_MCP_DIR="$MCP_DIR/fortimanager-mcp"
-if [ -d "$FORTIMANAGER_MCP_DIR" ]; then
-    log_info "FortiManager MCP already cloned, pulling latest..."
-    git -C "$FORTIMANAGER_MCP_DIR" pull --quiet 2>/dev/null || true
+# Vendored in-repo — nothing to clone. This replaces an earlier entry that cloned
+# jmpijll/fortimanager-mcp, a server that was never actually registered or
+# installable; the skill referencing it had no backing server at all (spec 080).
+FORTINET_MCP_DIR="$REPO_ROOT/mcp-servers/fortinet-mcp"
+
+if [ -d "$FORTINET_MCP_DIR" ]; then
+    netclaw_pip_install -r "$FORTINET_MCP_DIR/requirements.txt" 2>/dev/null || \
+        log_warn "Fortinet MCP dependency install failed (mcp, httpx)"
+    log_info "Fortinet MCP prepared: $FORTINET_MCP_DIR"
 else
-    git clone https://github.com/jmpijll/fortimanager-mcp.git "$FORTIMANAGER_MCP_DIR" 2>/dev/null || true
+    log_warn "Fortinet MCP directory missing: $FORTINET_MCP_DIR"
 fi
 
-if [ -d "$FORTIMANAGER_MCP_DIR" ]; then
-    if command -v uv &> /dev/null; then
-        (cd "$FORTIMANAGER_MCP_DIR" && uv sync) 2>/dev/null || log_warn "FortiManager MCP uv sync failed"
-    fi
-    (cd "$FORTIMANAGER_MCP_DIR" && netclaw_pip_install -e .) 2>/dev/null || \
-        (cd "$FORTIMANAGER_MCP_DIR" && netclaw_pip_install --break-system-packages -e .) 2>/dev/null || \
-        log_warn "FortiManager MCP editable install failed"
-    log_info "FortiManager MCP prepared: $FORTIMANAGER_MCP_DIR"
-else
-    log_warn "FortiManager MCP clone failed"
-fi
-
-FORTIMANAGER_MCP_CMD_DETECTED="python3 -m fortimanager_mcp"
+FORTINET_MCP_CMD_DETECTED="python3 $FORTINET_MCP_DIR/server.py"
 }
 
 # ── Step 45.5: Prisma SD-WAN MCP Server (Palo Alto Networks) ────

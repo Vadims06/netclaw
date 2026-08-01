@@ -89,6 +89,7 @@ mcp-servers/multivendor-cli-mcp/.venv/
 !mcp-servers/packet-buddy-mcp/
 !mcp-servers/tts-mcp/
 !mcp-servers/halo-mcp/
+!mcp-servers/fortinet-mcp/
 
 # Traces
 trace.json

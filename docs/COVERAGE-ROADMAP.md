@@ -97,7 +97,7 @@ and the IETF datatracker.
 |----|-------|--------|--------|
 | **R1** | Generic multivendor CLI driver (Nornir/Netmiko/NAPALM) | [076](../specs/076-multivendor-cli-driver/spec.md) | `DONE` — 94/94. ~90 platform families reachable; 2 verified live (SR Linux native CLI, FRR shell). Read-only default, server-side filter, 3-tier inventory, gated writes with real ServiceNow CR checking |
 | **R2** | Cisco PSIRT vulnerability intelligence | [078](../specs/078-cisco-psirt-vulnerability/spec.md) | `DONE` — 52/52. **Rescoped from four API families to one**: Bug/EoX/Case/Serial all return 403 under the API Console grant, CX Cloud 504. All 7 PSIRT OSTypes live-verified; `iosxr` is not an OSType (404). Full chain proven on live CML: pyATS read 17.16.1a → 26 advisories, 1 Critical |
-| **R3** | Fortinet (FortiOS / FortiManager / FortiAnalyzer) | — | `NOT STARTED` |
+| **R3** | Fortinet (FortiOS / FortiManager / FortiAnalyzer) | [080](../specs/080-fortinet-coverage/spec.md) | `DONE` — 21 tools, 3 planes, 2,486/5,000 token manifest. Device plane live-verified from Slack on FortiOS 7.6.7; manager/analyzer implemented, unverified. **Built, not adopted** — no candidate emits a plane field, and their manifests are 69–204 tools each |
 | **R4** | Palo Alto PAN-OS / Panorama NGFW | — | `NOT STARTED` |
 | **R5** | Juniper Mist (official) + Apstra | — | `NOT STARTED` |
 | **R6** | HPE Aruba Central / ClearPass / EdgeConnect / GreenLake | — | `NOT STARTED` |
@@ -288,24 +288,60 @@ so most of that tool surface would have been dead weight in the manifest. NetCla
 
 ## R3 — Fortinet (FortiOS / FortiManager / FortiAnalyzer)
 
-**Status:** `NOT STARTED`
+**Status:** `DONE` — spec [080](../specs/080-fortinet-coverage/spec.md). 21 tools across three planes,
+manifest **2,486 / 5,000 tokens**. Device plane **live-verified** end to end from Slack against a licensed
+FortiGate-VM (FortiOS 7.6.7); manager and analyzer planes implemented but **not exercised** — see
+[VERIFICATION.md](../specs/080-fortinet-coverage/VERIFICATION.md).
 
-Largest single-vendor absence. `fortimanager-ops` skill exists with no server behind it.
+**The premise was worse than "no server".** `fortimanager-ops` shipped `user-invocable: true`, declaring
+env vars and naming `jmpijll/fortimanager-mcp` — never vendored, never registered, not installable. Not a
+gap but a **claim**: an agent would route a firewall question to it and find out mid-investigation. The
+installer even cloned that repo, and an iN2N member ran against the phantom command.
 
-**Candidates**
-- `ivillagomez/fortigate-mcp` — read-only FortiGate + FortiAnalyzer; best default safety posture
-- `rstierli/fortimanager-mcp` — FortiManager JSON-RPC: policies, devices, scripts
-- `paoloamato2/fortinet-mcp-server` — entire FortiOS 7.6.6 REST API as 200+ typed tools
+**Build, not adopt** — four independent disqualifications, any one sufficient: no candidate emits the
+`plane` field; manifests are 106 / 69 / 204+ tools against a 5,000-token ceiling; only `ivillagomez`
+enforces read-only while `rstierli/fortimanager-mcp` exposes **package install ungated**; none has any
+concept of a change record. All four remain useful as MIT endpoint reference — `paoloamato2`'s five
+generic pass-throughs proved a small manifest can carry full coverage, and `rstierli`'s offset pagination
+avoided a real `tid`-expiry bug.
 
-All three are community, not Fortinet-endorsed.
+**Three planes, and they are not substitutes** — manager = intent, device = observed state, analyzer =
+observed traffic. FortiManager and FortiAnalyzer share one `/jsonrpc` client (the roadmap listed them as
+separate items; they are one transport). `fgt_compare_with_manager` reports `only_in_device` rules as
+candidate out-of-band changes — invisible from either plane alone.
 
 **Checklist**
-- [ ] Decide the entry point: device-level (FortiGate), manager-level (FortiManager), or both
-- [ ] If adopting the 200+ tool server, assess token cost of the tool manifest — this may need
-      a filtered/lazy tool surface (see feature 006 token optimization)
-- [ ] Start read-only; gate policy writes behind approval
-- [ ] Back-fill the existing `fortimanager-ops` skill against the real server
-- [ ] Skills: policy audit, VPN tunnel status, FortiAnalyzer log query
+- [x] Entry point decided — **all three planes**, one skill each per Principle VII
+- [x] Token cost assessed — built ~21 parameterised tools instead of adopting 380; measured, with a
+      build-failing ceiling test
+- [x] Read-only default; writes need **two** gates — human approval AND an approved ServiceNow CR, with
+      distinct refusal outcomes so they cannot be conflated
+- [x] `fortimanager-ops` back-filled (v2.0.0) against a server that actually ships
+- [x] Skills: policy audit, VPN tunnel status (phase 1/2 separate), FortiAnalyzer log query
+- [x] Stale iN2N member repaired; installer no longer clones the phantom repo
+
+**What it cost, and what that bought**
+
+Most of a day went to licensing, and three FortiGate VMs were destroyed before the cause was understood:
+a **VM licence is bound to a serial and the unit adopts it on apply** — applying one issued for a
+different serial does not fail cleanly, it sets the unit to `FGVM00UNLICENSED` and wipes the working
+evaluation licence. Two further findings worth keeping:
+
+- **An unregistered FortiGate blocks the entire management plane.** Every REST request returns 401
+  regardless of token validity, admin profile or trusthost — proven by widening trusthost to `0.0.0.0/0`
+  and packet-capturing the source. The GUI login-loops for the same reason. Only `License Status:
+  Invalid → Valid` changed the behaviour.
+- **FortiOS 8.0.0 GA has a web-GUI logout loop** on the 1 vCPU trial profile (`VM resource exceeds
+  license limit` → `httpsd` restarts). SSH and REST unaffected; 7.4/7.6 are fine.
+
+**A gap in `docs/ADDING-AN-MCP.md` this feature exposed:** an **iN2N member is a separate claw** with its
+own config, `.env`, workspace and Border-registered scope, and **the Border caches the member roster in
+memory**. Registering a server on the Border does nothing for members. That is four artifacts beyond the
+documented checklist plus a `netclaw-mesh` restart — the same class of gap spec 075 was created to close,
+and it made the first three live Slack attempts fail with `IN2N_ERR_NO_CAPABLE_MEMBER`.
+
+**Deferred:** an IPsec tunnel to exercise the populated phase-1/phase-2 shape; FortiManager-VM and
+FortiAnalyzer-VM (separate 15-day trials) to verify 12 of the 21 tools; a ServiceNow instance for gate 2.
 
 ---
 
@@ -827,6 +863,10 @@ easily got wrong.
 
 netmiko also drives Fortinet, PAN-OS and Check Point, so this server gives **CLI-level** reach to them.
 That is not FortiManager's policy packages or Panorama's device groups. R3 and R4 are still needed.
+
+**R3 confirmed this exactly.** Spec 080 shipped the Fortinet API and manager planes alongside — not
+replacing — this driver's CLI reach, and all three Fortinet skills state the boundary in both directions.
+R4 (Panorama) remains open on the same reasoning.
 
 ## Lab
 

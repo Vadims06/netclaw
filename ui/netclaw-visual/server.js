@@ -55,7 +55,7 @@ const INTEGRATION_CATALOG = [
   { id: 'protocol', name: 'Protocol Ops', category: 'Network Platforms', prefixes: ['protocol-'], color: '#577590', transport: 'stdio', toolEstimate: 10, description: 'Intent validation and active protocol participation.' },
   { id: 'catc', name: 'Catalyst Center', category: 'Controller Platforms', prefixes: ['catc-'], color: '#118ab2', transport: 'stdio', toolEstimate: 24, description: 'Controller inventory, client ops, and troubleshooting.' },
   { id: 'arista', name: 'Arista CVP', category: 'Controller Platforms', prefixes: ['arista-'], color: '#06b6d4', transport: 'stdio', toolEstimate: 8, description: 'CloudVision-backed workflow surface.' },
-  { id: 'fortimanager', name: 'FortiManager', category: 'Security', prefixes: ['fortimanager-'], color: '#d00000', transport: 'stdio', toolEstimate: 10, description: 'Firewall governance and package review.' },
+  { id: 'fortinet', name: 'Fortinet', category: 'Security', prefixes: ['fmg_', 'fgt_', 'faz_', 'fortinet_'], color: '#d00000', transport: 'stdio', toolEstimate: 21, description: 'Three planes: FortiManager policy intent, FortiGate observed state, FortiAnalyzer traffic. Read-only default, writes behind approval + change record.' },
   { id: 'paloalto', name: 'Palo Alto Panorama', category: 'Security', prefixes: ['paloalto-'], color: '#e76f51', transport: 'stdio', toolEstimate: 10, description: 'Panorama-managed firewall policy lookup.' },
   { id: 'fmc', name: 'Cisco FMC', category: 'Security', prefixes: ['fmc-'], color: '#bc4749', transport: 'http', toolEstimate: 8, description: 'Cisco Secure Firewall policy search.' },
   { id: 'nmap', name: 'Nmap', category: 'Security', prefixes: ['nmap-'], color: '#ff006e', transport: 'stdio', toolEstimate: 18, description: 'Scoped scanning and service detection.' },
@@ -241,10 +241,16 @@ const ENV_MAP = {
     files: [],
     notes: 'CloudVision Portal hostname and service account token.',
   },
-  fortimanager: {
-    env: ['FORTIMANAGER_URL', 'FORTIMANAGER_USERNAME', 'FORTIMANAGER_PASSWORD', 'FORTIMANAGER_MCP_CMD'],
-    files: [],
-    notes: 'FortiManager API credentials.',
+  fortinet: {
+    env: [
+      'FORTINET_MCP_CMD',
+      'FORTIMANAGER_HOST', 'FORTIMANAGER_API_TOKEN',
+      'FORTIGATE_HOST', 'FORTIGATE_API_TOKEN',
+      'FORTIANALYZER_HOST', 'FORTIANALYZER_API_TOKEN',
+      'FORTINET_VERIFY_SSL', 'FORTINET_ALLOW_WRITES',
+    ],
+    files: ['mcp-servers/fortinet-mcp/server.py'],
+    notes: 'Three planes, token auth per plane. Every response carries plane + scope and is GAIT-audited. Read-only unless FORTINET_ALLOW_WRITES=true, and writes still require human approval AND an approved ServiceNow change record.',
   },
   paloalto: {
     env: ['PANORAMA_URL', 'PANORAMA_API_KEY', 'PANOS_MCP_CMD'],
@@ -1488,7 +1494,7 @@ function resolveActivations(message, graph) {
     'topology': ['pyats'],
     'security': ['ise', 'nmap', 'nvd', 'fmc'],
     'audit': ['pyats', 'nvd', 'gait'],
-    'firewall': ['asa', 'fmc', 'paloalto', 'fortimanager', 'checkpoint'],
+    'firewall': ['asa', 'fmc', 'paloalto', 'fortinet', 'checkpoint'],
     'check point': ['checkpoint'],
     'checkpoint': ['checkpoint'],
     'threat emulation': ['checkpoint'],
