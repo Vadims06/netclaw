@@ -1043,6 +1043,23 @@
       "env": {
         "GLOBALPING_TOKEN": "${GLOBALPING_TOKEN}"
       }
+    },
+    "fortinet-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/fortinet-mcp/server.py"
+      ],
+      "env": {
+        "FORTIMANAGER_HOST": "${FORTIMANAGER_HOST}",
+        "FORTIMANAGER_API_TOKEN": "${FORTIMANAGER_API_TOKEN}",
+        "FORTIGATE_HOST": "${FORTIGATE_HOST}",
+        "FORTIGATE_API_TOKEN": "${FORTIGATE_API_TOKEN}",
+        "FORTIANALYZER_HOST": "${FORTIANALYZER_HOST}",
+        "FORTIANALYZER_API_TOKEN": "${FORTIANALYZER_API_TOKEN}",
+        "FORTINET_VERIFY_SSL": "${FORTINET_VERIFY_SSL}",
+        "FORTINET_ALLOW_WRITES": "${FORTINET_ALLOW_WRITES}"
+      }
     }
   }
 }

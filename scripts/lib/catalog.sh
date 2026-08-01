@@ -33,7 +33,7 @@ CATALOG=(
     "ise|Security|Cisco ISE|Identity, posture, TrustSec"
     "fmc|Security|Cisco FMC|Secure Firewall policy search, FTD targeting"
     "panorama|Security|Palo Alto Panorama|Device groups, templates, policy, commit validation"
-    "fortimanager|Security|FortiManager|ADOM inventory, policy packages, install preview"
+    "fortinet|Security|Fortinet (FortiManager/FortiGate/FortiAnalyzer)|Three planes: policy intent, device state, traffic logs. Read-only default, gated writes"
     "checkpoint|Security|Check Point|Policy, threat intel, gateway, SASE (15 servers, interactive)"
     "zscaler|Security|Zscaler|Zero Trust — ZIA, ZPA, ZDX (remote, 300+ tools)"
     "claroty|Security|Claroty xDome|OT/IoT/IoMT assets, alerts, vulns (bundled, 21 tools)"
@@ -142,12 +142,12 @@ drawio-rfc uml packet-buddy nmap gtrace globalping suzieq batfish protocol n2n t
 PROFILE_CISCO="pyats gait netbox servicenow aci ise catalyst-center meraki sdwan cml fmc \
 radkit te-community te-official nvd-cve cisco-psirt subnet-calc drawio-rfc uml packet-buddy"
 
-PROFILE_MULTIVENDOR="pyats junos arista-cvp aruba-cx f5 multivendor-cli netbox nautobot gait servicenow \
+PROFILE_MULTIVENDOR="pyats junos arista-cvp aruba-cx f5 fortinet multivendor-cli netbox nautobot gait servicenow \
 fwrule subnet-calc drawio-rfc uml packet-buddy"
 
 PROFILE_CLOUD="aws azure gcp cloudflare terraform vault github gait drawio-rfc uml subnet-calc"
 
-PROFILE_SECURITY="ise fmc panorama fortimanager checkpoint claroty zscaler nvd-cve cisco-psirt nmap \
+PROFILE_SECURITY="ise fmc panorama fortinet checkpoint claroty zscaler nvd-cve cisco-psirt nmap \
 fwrule gait servicenow"
 
 PROFILE_LABS="cml containerlab batfish protocol peering n2n in2n-production suzieq gait subnet-calc drawio-rfc uml"

@@ -321,3 +321,52 @@ everything else, plus cross-vendor normalized reads read-only. Writes are single
 
 Dedicated virtualenv: `napalm`/`netmiko` resolve `cryptography` 49.x while the system carries 46.x,
 which NCFED uses for X.509 issuance.
+
+## Fortinet (`fortinet-mcp`, NetClaw-native)
+
+**Spec 080 / roadmap R3.** Three planes, 21 tools, stdio, read-only by default.
+Replaces an earlier `fortimanager-ops` skill that named `jmpijll/fortimanager-mcp` —
+a server that was never vendored, registered, or installable.
+
+| Plane | Appliance | Answers | Transport |
+|---|---|---|---|
+| `manager` | FortiManager | policy **intent** — ADOMs, packages, objects, revisions | JSON-RPC `/jsonrpc` |
+| `device` | FortiGate | **observed state** — interfaces, routes, VPN, HA, VDOM | REST, bearer token |
+| `analyzer` | FortiAnalyzer | **observed traffic** — logs, policy activity | JSON-RPC `/jsonrpc` |
+
+FortiManager and FortiAnalyzer share one JSON-RPC client — same endpoint, same
+envelope, different methods.
+
+### Environment
+
+`FORTINET_MCP_CMD` · `FORTIMANAGER_HOST` / `FORTIMANAGER_API_TOKEN` ·
+`FORTIGATE_HOST` / `FORTIGATE_API_TOKEN` · `FORTIANALYZER_HOST` /
+`FORTIANALYZER_API_TOKEN` · `FORTINET_VERIFY_SSL` (default `true`) ·
+`FORTINET_ALLOW_WRITES` (default `false`)
+
+Each plane is independently optional; an unconfigured plane is not consulted and
+NetClaw says so rather than answering from another.
+
+### Behaviour worth knowing
+
+- Every response carries `plane` and `scope` **structurally** and is GAIT-audited —
+  enforced at a chokepoint, so a new tool cannot omit either.
+- **"No logs matched" is not "rule unused"** — returns `no_logs_in_window`, its own
+  outcome.
+- **VPN phase 1 and phase 2 are always separate fields.** Phase 1 up / phase 2 down
+  is a specific fault, not "half up".
+- `fgt_compare_with_manager` reports intent-vs-state divergence; `only_in_device`
+  entries are candidate out-of-band changes.
+- Writes need **two** gates: human approval **and** an approved ServiceNow CR.
+  Neither substitutes for the other.
+
+### Field notes (FortiOS 7.6.7, measured 2026-08-01)
+
+- `monitor/system/interface` returns a **dict keyed by interface name**, not a list.
+- An **unregistered** FortiGate returns 401 for every REST request regardless of
+  token validity or trusthost. Check `License Status: Valid` before suspecting
+  credentials.
+- FortiOS **8.0.0 GA** has a web-GUI logout loop on the 1 vCPU trial profile
+  (`VM resource exceeds license limit` → `httpsd` restart). SSH and REST unaffected;
+  7.4/7.6 do not exhibit it.
+- Evaluation licence caps: 1 vCPU, 2 GB RAM, 3 interfaces, 3 routes, 3 policies.
