@@ -3869,6 +3869,54 @@ fi
 DOCUMENT_MCP_CMD_DETECTED="python3 $DOCUMENT_MCP_DIR/server.py"
 }
 
+# ── Zabbix SNMP-poller NMS (spec 083 / roadmap R11) ─────────────
+component_install_zabbix() {
+log_step "Installing Zabbix NMS MCP Server..."
+echo "  Source: mcp-servers/zabbix-mcp (VENDORED third-party, GPL-3.0, pinned 0722f48)"
+echo "  Upstream: github.com/mpeirone/zabbix-mcp-server -- adopted unmodified"
+echo "  3 tools, read-only. Polled history: what an interface WAS doing, over time"
+
+ZABBIX_MCP_DIR="$REPO_ROOT/mcp-servers/zabbix-mcp"
+
+if [ -d "$ZABBIX_MCP_DIR" ]; then
+    # DEDICATED VIRTUALENV -- NOT OPTIONAL, DO NOT "SIMPLIFY" THIS AWAY.
+    # This server requires fastmcp 3.x. Five NetClaw servers pin fastmcp<3:
+    # netbox-mcp-server, CiscoFMC-MCP-server-community, Wikipedia_MCP, rag-mcp,
+    # ISE_MCP. A shared install breaks all five -- spec 076's cryptography
+    # incident verbatim, which is why multivendor-cli-mcp has its own venv too.
+    echo "  Creating a dedicated virtualenv (fastmcp 3.x conflicts with five other servers)"
+
+    # Never bare `python3 -m venv`: measured on this host it fails outright
+    # because ensurepip is unavailable (spec 077 hazard #3).
+    if command -v netclaw_venv_create >/dev/null 2>&1; then
+        netclaw_venv_create "$ZABBIX_MCP_DIR/.venv" || log_warn "Zabbix MCP venv creation failed"
+    elif command -v uv >/dev/null 2>&1; then
+        uv venv "$ZABBIX_MCP_DIR/.venv" >/dev/null 2>&1 || log_warn "Zabbix MCP venv creation failed (uv)"
+    else
+        log_warn "Neither netclaw_venv_create nor uv available -- cannot build the Zabbix venv."
+        log_warn "Do NOT fall back to 'python3 -m venv': ensurepip is unavailable on some hosts,"
+        log_warn "and installing into the system interpreter would break five other servers."
+    fi
+
+    if [ -x "$ZABBIX_MCP_DIR/.venv/bin/python" ]; then
+        # Install into the VENV interpreter, named explicitly. Deliberately NOT
+        # netclaw_pip_install: that targets the system interpreter, which is the exact
+        # thing this venv exists to protect (fastmcp 3.x vs five servers pinning <3).
+        # Naming --python satisfies the same rule netclaw_pip_install enforces --
+        # packages land in the interpreter the server actually runs under.
+        ( cd "$ZABBIX_MCP_DIR" && \
+          uv pip install -q --python "$ZABBIX_MCP_DIR/.venv/bin/python" -r requirements.txt ) 2>/dev/null || \
+            log_warn "Zabbix MCP dependency install failed (fastmcp, zabbix_utils)"
+        log_info "Zabbix MCP prepared: $ZABBIX_MCP_DIR (isolated venv)"
+        log_info "Read-only is FORCED in config -- the upstream launcher defaults it to false"
+    fi
+else
+    log_warn "Zabbix MCP directory missing: $ZABBIX_MCP_DIR"
+fi
+
+ZABBIX_MCP_CMD_DETECTED="$ZABBIX_MCP_DIR/.venv/bin/python -m zabbix_mcp_server.server"
+}
+
 component_install_globalping() {
 log_step "Enabling Globalping (remote MCP)..."
 echo "  Outside-in measurement from ~4,800 probes across ~1,390 ASNs:"

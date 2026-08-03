@@ -112,6 +112,8 @@ Auto-generated from all feature plans. Last updated: 2026-08-03
 - **None on disk.** Per-source in-memory TTL cache only (clarification Q3): RPKI 5 min, routing (081-bgp-registry-intel)
 - Python 3.10+, system interpreter. No dedicated venv — the four libraries are already (082-document-generation)
 - none. Files land in `workspace/output/document-mcp/` (gitignored, feature 046's convention). (082-document-generation)
+- Python 3.10+. The vendored server runs from **its own virtualenv**; NetClaw authors no (083-zabbix-nms)
+- none. The NMS holds the history. (083-zabbix-nms)
 
 - Python 3.10+ + FastMCP (MCP framework), grpcio + grpcio-tools (gRPC transport), pygnmi (gNMI client library), protobuf, cryptography (TLS handling) (003-gnmi-mcp-server)
 
@@ -131,9 +133,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.10+: Follow standard conventions
 
 ## Recent Changes
+- 083-zabbix-nms: Added Python 3.10+. The vendored server runs from **its own virtualenv**; NetClaw authors no
 - 082-document-generation: Added Python 3.10+, system interpreter. No dedicated venv — the four libraries are already
 - 081-bgp-registry-intel: Added Python 3.10+, system interpreter. No dedicated venv — two pure-HTTP packages move + `mcp>=1.2.0,<2` and `httpx>=0.27.0,<1`. Identical to specs 078 and 080. The `mcp`
-- 080-fortinet-coverage: Added Python 3.10+, system interpreter. Unlike spec 076 this needs **no dedicated venv** — + `mcp>=1.2.0,<2` and `httpx>=0.27.0,<1`. Two packages, identical to spec 078's
 
 
 <!-- MANUAL ADDITIONS START -->

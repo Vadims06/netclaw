@@ -92,6 +92,10 @@ mcp-servers/multivendor-cli-mcp/.venv/
 !mcp-servers/fortinet-mcp/
 !mcp-servers/bgp-intel-mcp/
 !mcp-servers/document-mcp/
+!mcp-servers/zabbix-mcp/
+# Re-ignore the dedicated venv: the negation above re-includes EVERYTHING under
+# zabbix-mcp, which would otherwise commit the whole virtualenv (spec 083).
+mcp-servers/zabbix-mcp/.venv/
 
 # Traces
 trace.json

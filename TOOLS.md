@@ -478,3 +478,69 @@ No API keys. Nothing to rotate.
 **writes** them, sharing the same four libraries with identical bounds.
 `servicenow-change-workflow` owns the CR lifecycle; this renders a document from one.
 `slack-report-delivery` / `webex-report-delivery` **send** documents; this only writes them.
+
+## Zabbix SNMP-Poller NMS (`zabbix-mcp`, vendored third-party GPL-3.0)
+
+**Spec 083 / roadmap R11.** 3 tools, stdio, read-only. **Manifest measured 589 / 5,000 tokens** — the
+smallest surface NetClaw has added for an entire product category.
+
+This is the **polled-history layer**. Everything else NetClaw sees arrives when something happens — syslog,
+traps, flows. This is the only source that can answer *what was it doing*, *is this normal*, *how long has
+it been down*.
+
+| Tool | Purpose |
+|---|---|
+| `zabbix_api(method, params)` | Generic JSON-RPC passthrough |
+| `zabbix_api_docs(method)` | Upstream method documentation |
+| `zabbix_api_list(object)` | Available methods for an object |
+
+### Adopted, not built — and it runs in its own venv
+
+`mpeirone/zabbix-mcp-server`, pinned `0722f48`, **unmodified**, GPL-3.0 retained verbatim. NetClaw invokes it
+over stdio as a separate program; that is not linkage.
+
+**It requires fastmcp 3.x while five NetClaw servers pin `<3`** (`netbox-mcp-server`,
+`CiscoFMC-MCP-server-community`, `Wikipedia_MCP`, `rag-mcp`, `ISE_MCP`). It therefore runs from a dedicated
+virtualenv — the same reason `multivendor-cli-mcp` has one. **Do not "simplify" that away.**
+
+### Environment
+
+`ZABBIX_MCP_CMD` · `ZABBIX_URL` · `ZABBIX_TOKEN` · `VERIFY_SSL` · `READ_ONLY` (forced true) ·
+`ZABBIX_API_BLACKLIST`
+
+### Two traps that return an empty array and a success status
+
+Both measured against live Zabbix 7.0.29. Both silent — no error, no warning.
+
+1. **`history.get` defaults its value type to unsigned (3), and 84 of 121 stock items are float (0).** Ask
+   with the default and you get `[]`. Always call `item.get` first and pass the item's real `value_type`.
+   Types **cannot be mixed** in one call — measured: 4 items, 2 returned each way, zero overlap.
+2. **Raw history ages out into hourly trends.** A question older than the history window returns nothing
+   from `history.get`. `item.get` reports per-item `history` and `trends`; read them and route.
+
+**Retention can also be switched off**: `history=0` means raw values are never stored; `trends=0` means no
+aggregates. Measured on a stock install: 10 items with `trends=0`, 5 with both zero. That is a
+*configuration fact*, not an absence.
+
+### Behaviour worth knowing
+
+- **Read-only is FORCED by NetClaw, not inherited.** The upstream library defaults it safe
+  (`utils.py:29` → True) but the shipped launcher inverts it (`start_server.py:139` → False). A
+  destructive-method deny-list is configured as a second layer and **holds even with read-only disabled** —
+  verified.
+- Read/write classification upstream is a **method-name prefix heuristic** (`get`, `version`, `check`,
+  `export`), not a curated list. That is why the deny-list exists.
+- **The two traps are enforced by the SKILLS, not by code.** This is a generic passthrough with no
+  chokepoint — the first NetClaw integration where a core distinction is guidance-level. Deliberate, and
+  recorded.
+- **No per-call GAIT audit.** The upstream has no audit concept and there is no platform-level MCP audit.
+  Acceptable only because this is strictly read-only — there is no operation to record.
+- Auth is API-token/bearer. The in-request credential property still works on 7.0 but is **removed in 7.2+**.
+
+### Boundaries
+
+`snmptrap-mcp` **receives** traps; this **polls** and keeps history. `ipfix-mcp` is flows, not counters.
+`prometheus`/`grafana` are pull-based stores for infrastructure you instrumented; this is the NMS for gear
+you did not. `auvik`/`thousandeyes`/`datadog` are SaaS with their own agents. `pyats`/`multivendor-cli`/
+`fortinet` read **current** device state; this answers **what it was over time**, and can answer for a
+device that is unreachable right now.
