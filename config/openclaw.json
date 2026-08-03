@@ -1100,6 +1100,20 @@
         "DOCUMENT_OUTPUT_DIR": "${DOCUMENT_OUTPUT_DIR}",
         "DOCUMENT_MAX_ROWS": "${DOCUMENT_MAX_ROWS}"
       }
+    },
+    "zabbix-mcp": {
+      "command": "mcp-servers/zabbix-mcp/.venv/bin/python",
+      "args": [
+        "-m",
+        "zabbix_mcp_server.server"
+      ],
+      "env": {
+        "ZABBIX_URL": "${ZABBIX_URL}",
+        "ZABBIX_TOKEN": "${ZABBIX_TOKEN}",
+        "READ_ONLY": "true",
+        "VERIFY_SSL": "${VERIFY_SSL}",
+        "ZABBIX_API_BLACKLIST": ".*\\.delete$,.*\\.create$,.*\\.update$,.*\\.massadd$,.*\\.massdelete$,.*\\.massupdate$,.*\\.import$,.*\\.acknowledge$,.*\\.copy$,.*\\.replacehostinterfaces$"
+      }
     }
   }
 }

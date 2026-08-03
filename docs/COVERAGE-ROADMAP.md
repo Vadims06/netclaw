@@ -115,7 +115,7 @@ and the IETF datatracker.
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R10** | ntopng — flow analytics platform | — | `NOT STARTED` |
-| **R11** | SNMP-poller NMS (Zabbix / LibreNMS / Netdata) | — | `NOT STARTED` |
+| **R11** | SNMP-poller NMS (Zabbix / LibreNMS / Netdata) | [083](../specs/083-zabbix-nms/spec.md) | `DONE` — **Zabbix only**, adopted not built (3 tools, 589/5,000 tokens). NetClaw's first polled-history source. Runs in a dedicated venv (fastmcp 3.x vs five servers pinning `<3`). Both silent-wrong-answer traps reproduced against live 7.0.29 |
 | **R12** | APM + log platforms (Dynatrace / New Relic / Elastic) | — | `NOT STARTED` |
 | **R13** | NSM / IDS (Zeek / Suricata / Arkime) + packet-buddy audit | — | `NOT STARTED` |
 
@@ -132,7 +132,7 @@ and the IETF datatracker.
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R18** | Document generation — docx / pptx / xlsx / pdf | 082 | `IN PROGRESS` |
+| **R18** | Document generation — docx / pptx / xlsx / pdf | [082](../specs/082-document-generation/spec.md) | `DONE` — 6 tools, 2 skills, 1,232/5,000 token manifest, 240 assertions. **All four formats live-verified from a real FortiGate and opened.** Built, not vendored — the upstream skills are demonstration-only, not Apache-2.0. Core discipline: **a document must never fabricate to fill a blank** |
 | **R19** | Google Workspace (official) | — | `NOT STARTED` |
 | **R20** | Notion + Linear (official) | — | `NOT STARTED` |
 | **R21** | GitOps + Azure DevOps (ArgoCD / Flux) | — | `NOT STARTED` |
@@ -533,16 +533,46 @@ flow-analytics platform.
 
 ## R11 — SNMP-poller NMS (Zabbix / LibreNMS / Netdata)
 
-**Status:** `NOT STARTED`
+**Status:** `DONE` — spec [083](../specs/083-zabbix-nms/spec.md)
 
-Prometheus, Grafana, Datadog, Splunk, Auvik, ThousandEyes are covered. There is **no
-SNMP-poller NMS at all** — and Zabbix/LibreNMS are what a large share of enterprises run.
+Prometheus, Grafana, Datadog, Splunk, Auvik, ThousandEyes are covered. There was **no
+SNMP-poller NMS at all** — and therefore no polled history anywhere in NetClaw.
 
 **Checklist**
-- [ ] Pick target(s). Suggested order: Zabbix (largest install base), then LibreNMS
-- [ ] Netdata offers an official Cloud MCP — assess as the low-effort entry point
-- [ ] Observium: assess, likely `DEFERRED`
-- [ ] Skills: interface utilization history, threshold/alert review, device availability
+- [x] Pick target(s) — **Zabbix only.** See the landscape below
+- [x] Netdata assessed → **not in this category** (agent/push, not SNMP-polling). **Correction to this
+      roadmap's earlier claim:** MCP is built into the **free open-source agent** (v2.6.0+,
+      `http://host:19999/mcp`), not only a paid "Cloud MCP". The Cloud endpoint is the paid
+      cross-infrastructure view. That makes Netdata a **separate near-zero-effort item**, not part of R11
+- [x] Observium assessed → **`DEFERRED`.** Its one MCP server (`kdesch5000/observium-mcp`, 10 tools) was
+      created and abandoned on the same day and **bypasses the Observium API entirely**, requiring direct
+      MySQL credentials plus filesystem access to the RRD directory
+- [x] Skills: interface utilization history, threshold/alert review, device availability — delivered as
+      `zabbix-metrics-history`, `zabbix-problem-review`, `zabbix-availability`
+
+**Landscape, measured by cloning and scanning — not read off READMEs**
+
+| Candidate | Tools | Licence | Outcome |
+|---|---|---|---|
+| `mpeirone/zabbix-mcp-server` | **3** (589 tokens) | GPL-3.0 | **adopted, unmodified** |
+| `mhajder/zabbix-mcp` | 53 | MIT | rejected — surface |
+| `mhajder/librenms-mcp` | 111 | MIT | **LibreNMS deferred** — busts the ceiling |
+| `initMAX/zabbix-mcp-server` | 237 | AGPL-3.0 | rejected — surface + copyleft |
+| 2 JS servers | — | one has **no licence** | abandoned 2025 |
+
+> **There is no official Zabbix LLC MCP server.** `mcpservers.org` labels initMAX "Official Zabbix MCP
+> Server" — **that label is wrong**; initMAX is a Zabbix Premium Partner. Zabbix's own AI direction is
+> WebMCP, a browser standard, not an adoptable server.
+
+**Decisions worth not re-litigating**
+- **Adopt, not build** — the first time on this roadmap. The 3-tool passthrough is essentially the design
+  NetClaw would have produced
+- **Dedicated virtualenv, mandatory** — needs fastmcp 3.x while `netbox-mcp-server`,
+  `CiscoFMC-MCP-server-community`, `Wikipedia_MCP`, `rag-mcp` and `ISE_MCP` all pin `<3`
+- **Strictly read-only, no write path.** Adopt-as-is leaves nowhere to insert NetClaw's two gates, so writes
+  were deferred rather than shipped ungated
+- **The distinctions are enforced by SKILL, not structure** — the first NetClaw integration where that is
+  true, and the accepted cost of adopting a generic passthrough
 
 ## R12 — APM + log platforms (Dynatrace / New Relic / Elastic)
 
@@ -647,7 +677,7 @@ files is an excellent analysis substrate for exports.
 
 ## R18 — Document generation (docx / pptx / xlsx / pdf)
 
-**Status:** `IN PROGRESS` — spec `082-document-generation` · **Best effort-to-value ratio on the roadmap**
+**Status:** `DONE` — spec [082](../specs/082-document-generation/spec.md), merged in PR #211 · **Best effort-to-value ratio on the roadmap**
 
 NetClaw can render Three.js topologies, drawio, markmap, UML, Blender and UE5 — but cannot
 produce a change-record `.docx`, an exec `.pptx`, an interface-audit `.xlsx`, or fill a PDF.
