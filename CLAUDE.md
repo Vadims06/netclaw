@@ -1,6 +1,6 @@
 # netclaw Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-08-01
+Auto-generated from all feature plans. Last updated: 2026-08-03
 
 ## Active Technologies
 - N/A (stateless server; subscription state held in-memory during runtime) (003-gnmi-mcp-server)
@@ -108,6 +108,8 @@ Auto-generated from all feature plans. Last updated: 2026-08-01
 - on-disk cache, one JSON file per `(ostype, version)` under `~/.openclaw/cisco-psirt/`. No (078-cisco-psirt-vulnerability)
 - Python 3.10+, system interpreter. Unlike spec 076 this needs **no dedicated venv** — + `mcp>=1.2.0,<2` and `httpx>=0.27.0,<1`. Two packages, identical to spec 078's (080-fortinet-coverage)
 - None. Stateless proxy to three appliance APIs. Change baselines (US3) write under a (080-fortinet-coverage)
+- Python 3.10+, system interpreter. No dedicated venv — two pure-HTTP packages move + `mcp>=1.2.0,<2` and `httpx>=0.27.0,<1`. Identical to specs 078 and 080. The `mcp` (081-bgp-registry-intel)
+- **None on disk.** Per-source in-memory TTL cache only (clarification Q3): RPKI 5 min, routing (081-bgp-registry-intel)
 
 - Python 3.10+ + FastMCP (MCP framework), grpcio + grpcio-tools (gRPC transport), pygnmi (gNMI client library), protobuf, cryptography (TLS handling) (003-gnmi-mcp-server)
 
@@ -127,9 +129,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.10+: Follow standard conventions
 
 ## Recent Changes
+- 081-bgp-registry-intel: Added Python 3.10+, system interpreter. No dedicated venv — two pure-HTTP packages move + `mcp>=1.2.0,<2` and `httpx>=0.27.0,<1`. Identical to specs 078 and 080. The `mcp`
 - 080-fortinet-coverage: Added Python 3.10+, system interpreter. Unlike spec 076 this needs **no dedicated venv** — + `mcp>=1.2.0,<2` and `httpx>=0.27.0,<1`. Two packages, identical to spec 078's
 - 078-cisco-psirt-vulnerability: Added on-disk cache, one JSON file per `(ostype, version)` under `~/.openclaw/cisco-psirt/`. No
-- 076-multivendor-cli-driver: Added Python — **interpreter choice is a live decision, not a default** (see R7). + `nornir` 3.5.0, `napalm` 5.2.0, `netmiko` (>=4,<5 per `nornir-netmiko`),
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -108,7 +108,7 @@ and the IETF datatracker.
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R8** | Globalping — outside-in probe measurement (remote MCP) | [079](../specs/079-globalping-probes/spec.md) | `DONE` — 36/36. NetClaw's first vantage point **outside** its own domain. 5 measurement tools from ~4,800 probes; zero install. Three-way distinction enforced: `no_probes_found` = never ran, 0-of-N = unreachable, internal = refused locally. **Budget is per probe, not per call** — my first research pass got this backwards and a controlled test corrected it |
-| **R9** | BGP & registry intelligence (RPKI / RDAP / PeeringDB / RIPE Atlas) | — | `NOT STARTED` |
+| **R9** | BGP & registry intelligence (RPKI / RDAP / PeeringDB / RIPE Atlas) | [081](../specs/081-bgp-registry-intel/spec.md) | `DONE` — **10/10 tools live-verified**, 1,376/5,000 token manifest. No credentials, no lab, no licence. Core discipline: **RPKI `not-found` is not `invalid`** — most of the internet is unsigned |
 
 ### Tier 3 — Monitoring and traffic layers
 
@@ -449,29 +449,72 @@ HTTP from thousands of global probes. Free. OAuth or API token. Zero install.
 - [x] Compose with ThousandEyes **and** gtrace, positioned by *direction of measurement* rather than
       feature list
 
-## R9 — BGP & registry intelligence
+## R9 — BGP & registry intelligence (RPKI / RDAP / PeeringDB / RIPE Atlas)
 
-**Status:** `NOT STARTED`
+**Status:** `DONE` — spec [081](../specs/081-bgp-registry-intel/spec.md). 10 tools, **all 10
+live-verified**, manifest 1,376/5,000 tokens. See
+[VERIFICATION.md](../specs/081-bgp-registry-intel/VERIFICATION.md).
 
-**Candidates**
-- `PeerCortex` — 34 tools consolidating PeeringDB, RIPEstat, RIPE Atlas, RouteViews,
-  RPKI validators; also ships a dashboard and REST API
-- `jrelph/ripe-atlas-mcp` — RIPE Atlas measurements (credit-based)
-- `dadepo/whois-mcp` — WHOIS/RDAP for domains, IPs, ASNs; AS-SET expansion; RIPE route-object
-  validation
-- Also seen: a 5-RIR RDAP + RPKI + BGP visibility + abuse-contact server
+**The other half of the external plane.** R8 (Globalping) *measures* toward a target; R9 *looks up* who owns
+a resource, whether an announcement is authorised, and where a network peers. Together they complete
+NetClaw's view outside its own administrative domain.
+
+**Chosen for this slot because it has no external dependency.** Every source is a public unauthenticated
+API — verified reachable *before* the spec was written, and again in Phase 0. That was a direct response to
+R3, which discovered its lab problem at implementation time and lost most of a day, and to R4, which is
+still waiting on a human-reviewed vendor trial. **This is the first item since R8 with no lab, licence,
+trial or credential on the critical path** — and the first NetClaw integration with no secret to leak.
+
+**The distinction, and it is the whole feature: RPKI `not-found` is not `invalid`.** Most of the internet
+has no ROA. Reporting unsigned space as a finding would manufacture false incidents at scale. Four states,
+all *observed* rather than read from documentation:
+
+| Query | `state` | `reason` | Finding? |
+|---|---|---|---|
+| `AS13335` + `1.1.1.0/24` | `valid` | — | no |
+| `AS13335` + `8.8.8.0/24` | `invalid` | `as` | **yes** |
+| `AS15169` + `8.8.8.128/25` | `invalid` | `length` | **yes** |
+| `AS3356` + `4.0.0.0/9` | `not_found` | — | no |
+
+Fourth in the series after R2's *"no advisories ≠ not vulnerable"*, R8's *"no probes ≠ outage"* and R3's
+*"no logs ≠ rule unused"*. `validation_unavailable` is a fifth outcome — **an unreachable validator is not
+unsigned space**, the same distinction one level down.
+
+**Build, not adopt.** `duksh/peerglass` covers similar ground with **42 tools across 9 phases** including
+DNS-censorship detection, TLS/CT-log inspection and satellite tracking — a charter NetClaw did not choose,
+and the wrong order of magnitude against a 5,000-token ceiling. It did independently arrive at three of this
+spec's clarified decisions (TTL caching 5 min–24 h, per-result attribution, read-only), which is reassuring
+convergent evidence.
+
+**Phase 0 improved the spec.** The spec assumed RIPEstat; `rpki-validator.ripe.net` proved better on three
+measured counts — RFC 6811 vocabulary natively (`not-found`, not `unknown`), `state` and `reason` as
+separate fields rather than fused into `invalid_asn`, and the VRPs that drove the verdict returned.
 
 **Checklist**
-- [ ] Decide consolidated (PeerCortex) vs composed (atlas + whois + rpki separately)
-- [ ] RIPE Atlas credit budget — measurements cost credits, unlike Globalping
-- [ ] Compose with the existing `protocol-mcp` / BGP daemon so hijack triage is possible:
-      *"this prefix appeared from an unexpected origin — is the ROA valid, who owns it,
-      who do I contact"*
-- [ ] Skills: prefix ownership, ROV/RPKI check, peering research, hijack triage, abuse contact
+- [x] RPKI origin validation — four states, VRPs included, validator named, never corroborated
+- [x] RDAP via IANA bootstrap → responsible RIR → `rdap.org` fallback, registry named on every result
+- [x] PeeringDB — self-reported caveat on every result
+- [x] RIPEstat routing status — collector basis stated, never called a leak
+- [x] RIPE Atlas **narrowed** to anchors + per-AS probe counts; general probe availability stays with R8
+- [x] Read-only throughout; no write path, therefore no gate to design
+- [x] 4 req/s per source, **true sliding window**, strictly serial. Self-imposed and documented as such
+
+**Two findings from implementation worth keeping**
+
+1. **The rate limiter was genuinely too weak, and a test caught it.** A minimum-250 ms-gap implementation
+   measured **4.53 req/s** because N requests spaced 250 ms apart put five inside one second. Replaced with
+   a true sliding window. A second failure at 4.89/s then turned out to be the *test* measuring the wrong
+   thing — `total/elapsed` is not "requests per window". The test caught a real bug; the fixed code caught a
+   bad test.
+2. **ARIN is not broken.** Phase 0 recorded a connection reset from `rdap.arin.net` on one `curl`; through
+   the implemented bootstrap path it returned 200. The reset was transient and the docs were corrected —
+   a single observation is not a property of a registry.
+
+**Deferred:** genuine RPKI corroboration needs a **non-Routinator** relying party (both reachable
+validators are RIPE NCC Routinator, so comparing them would be theatre); IRR/RPSL objects and BGP
+communities are a distinct data model and belong to their own item.
 
 ---
-
-# Tier 3 — Monitoring and traffic layers
 
 ## R10 — ntopng
 

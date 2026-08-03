@@ -370,3 +370,44 @@ NetClaw says so rather than answering from another.
   (`VM resource exceeds license limit` → `httpsd` restart). SSH and REST unaffected;
   7.4/7.6 do not exhibit it.
 - Evaluation licence caps: 1 vCPU, 2 GB RAM, 3 interfaces, 3 routes, 3 policies.
+
+## BGP & Registry Intelligence (`bgp-intel-mcp`, NetClaw-native)
+
+**Spec 081 / roadmap R9.** 10 tools, stdio, read-only, **no credentials**. The other half of the external
+plane: R8's Globalping *measures* toward a target; this *looks up* ownership, routing legitimacy and peering.
+
+| Source | Provides |
+|---|---|
+| `rpki-validator.ripe.net` | RPKI origin validation (primary — RFC 6811 vocabulary, returns VRPs) |
+| `stat.ripe.net` | RPKI fallback, AS overview, announced prefixes, visibility |
+| IANA bootstrap → RIR RDAP | Registry ownership, abuse contacts |
+| `peeringdb.com` | IXPs, facilities, peering policy |
+| `atlas.ripe.net` | Anchors, per-AS probe counts |
+
+### The four RPKI states
+
+| `state` | `reason` | Finding? | Meaning |
+|---|---|---|---|
+| `valid` | — | no | A ROA authorises this origin |
+| `invalid` | `as` | **yes** | A ROA covers it; **a different AS** is authorised |
+| `invalid` | `length` | **yes** | Correct AS; prefix more specific than `maxLength` |
+| `not_found` | — | **no** | **No ROA exists.** The normal case for most of the internet |
+
+`validation_unavailable` is a separate outcome — an unreachable validator is **not** `not_found`.
+
+### Environment
+
+`BGP_INTEL_MCP_CMD` · `BGP_INTEL_USER_AGENT` · `BGP_INTEL_MAX_RPS` (default 4) · `BGP_INTEL_AUDIT_LOG`
+
+No API keys. Every source is public and unauthenticated.
+
+### Behaviour worth knowing
+
+- Every response carries `source` + `retrieved_at` and is GAIT-audited — enforced at a chokepoint.
+- **`no_record` and `source_unavailable` are never conflated** — a dead API is not an empty registry.
+- Registry data is **allocation, not routing**; PeeringDB is **self-reported**; visibility is **RIPE's
+  collectors**, not global truth. Each is stated in the response `caveats`.
+- **4 req/s per source, true sliding window, strictly serial.** Self-imposed — neither RIPEstat nor
+  PeeringDB publishes rate-limit headers. Parallel fan-out prohibited, including inside `resource_report`.
+- Private/reserved/bogon input is **refused locally with no outbound request** — a disclosure control.
+- Manifest measured at **1,376 / 5,000 tokens**.

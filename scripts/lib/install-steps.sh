@@ -3826,6 +3826,25 @@ echo ""
 }
 
 # ── Globalping remote MCP (spec 079 / roadmap R8) ───────────────
+component_install_bgp_intel() {
+log_step "Installing BGP & Registry Intelligence MCP Server..."
+echo "  Source: mcp-servers/bgp-intel-mcp (NetClaw-authored, spec 081 / roadmap R9)"
+echo "  RPKI origin validation, RDAP ownership, PeeringDB peering, routing visibility"
+echo "  Public unauthenticated APIs — NO credentials required"
+
+BGP_INTEL_MCP_DIR="$REPO_ROOT/mcp-servers/bgp-intel-mcp"
+
+if [ -d "$BGP_INTEL_MCP_DIR" ]; then
+    netclaw_pip_install -r "$BGP_INTEL_MCP_DIR/requirements.txt" 2>/dev/null || \
+        log_warn "BGP-intel MCP dependency install failed (mcp, httpx)"
+    log_info "BGP-intel MCP prepared: $BGP_INTEL_MCP_DIR"
+else
+    log_warn "BGP-intel MCP directory missing: $BGP_INTEL_MCP_DIR"
+fi
+
+BGP_INTEL_MCP_CMD_DETECTED="python3 $BGP_INTEL_MCP_DIR/server.py"
+}
+
 component_install_globalping() {
 log_step "Enabling Globalping (remote MCP)..."
 echo "  Outside-in measurement from ~4,800 probes across ~1,390 ASNs:"
