@@ -34,6 +34,7 @@ run() {
 run "envelope    — plane/scope attribution (FR-005/009, SC-002a)" tests/fortinet/test_envelope.py
 run "audit       — GAIT trail (FR-023, Principle IV, SC-011)"     tests/fortinet/test_audit.py
 run "credentials — by-name-only disclosure (FR-029, SC-012)"      tests/fortinet/test_credentials.py
+run "device plane — admin vs link, VPN phase 1 vs 2 (FR-015/016)" tests/fortinet/test_device_plane.py
 
 echo
 echo "=============================================================="
