@@ -544,3 +544,58 @@ aggregates. Measured on a stock install: 10 items with `trends=0`, 5 with both z
 you did not. `auvik`/`thousandeyes`/`datadog` are SaaS with their own agents. `pyats`/`multivendor-cli`/
 `fortinet` read **current** device state; this answers **what it was over time**, and can answer for a
 device that is unreachable right now.
+
+## Kubernetes read-only (`k8s-mcp`, vendored third-party Apache-2.0)
+
+**Spec 084 / roadmap R14.** 7 tools, stdio, strictly read-only. **Manifest measured 1,643 / 5,000 tokens.**
+
+`kubeshark` sees packets inside a cluster; this reads the objects — pods, services, ingresses,
+EndpointSlices and **NetworkPolicies**.
+
+| Tool | Purpose |
+|---|---|
+| `resources_list` / `resources_get` | Any `apiVersion`+`kind` — NetworkPolicy, Service, Ingress, EndpointSlice, CRDs |
+| `pods_list` / `pods_list_in_namespace` / `pods_get` | Workload inventory |
+| `namespaces_list` | Establish which namespaces exist — needed to tell "no such namespace" from "empty" |
+| `events_list` | The why behind a pod status |
+
+### Adopted: `containers/kubernetes-mcp-server` v0.0.66
+
+**Apache-2.0** (identical to NetClaw's) and a **statically linked Go binary** — zero runtime deps, so it
+cannot collide with the `fastmcp<3` pins. Pinned and verified against a recorded SHA-256; not committed.
+
+**The DEFAULT config is 21 tools / 5,716 tokens and busts the ceiling.** Trimming to `core` + 6
+`disabled_tools` is what makes adoption possible.
+
+### The trap, reproduced
+
+Given a credential without cluster-wide list permission the server **does not error** — it rewrites the
+query to one namespace and returns it plainly:
+
+```
+raw kubectl  →  Forbidden: cannot list networkpolicies at the cluster scope
+this server  →  success, 1 policy        ← the cluster had 2
+```
+
+`resources.go:34-38` narrows on denial and **discards the permission error**, so an API blip looks the same
+as a 403. Mitigated by a **mandated cluster-wide-read ServiceAccount** (makes the branch unreachable —
+verified) plus a **skill preflight** (`can-i` before trusting any empty result).
+
+### Behaviour worth knowing
+
+- **No NetworkPolicy means all traffic is permitted.** Kubernetes is default-allow, so "no policies" is a
+  finding, not a neutral observation.
+- **An empty list has six causes**: insufficient permission · no such namespace · empty namespace ·
+  selector matched nothing · CRD not installed · cluster unreachable. A typo'd selector returns HTTP 200
+  with zero rows, identical to a genuine non-match — so the selector must be shown.
+- **Secrets denied at two layers** — server `denied_resources` *and* the ServiceAccount RBAC.
+- **The kubeconfig must be explicit and token-only.** A kubeconfig carrying a client certificate silently
+  ignores the token. Every candidate otherwise defaults to the ambient `current-context`, possibly
+  production.
+- **No per-call GAIT audit.** `--log-file` exists but at level 4 logs lifecycle only — no tool calls.
+- **Reachable is not permitted.** `kubeshark` shows traffic that flowed; this shows what is declared.
+
+### Boundaries
+
+`kubeshark-traffic` = observed traffic · `prometheus`/`grafana` = metrics ·
+`containerlab`/`gns3`/`cml` = building labs · this = the declared object model, read-only.

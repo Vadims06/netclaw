@@ -1101,6 +1101,18 @@
         "DOCUMENT_MAX_ROWS": "${DOCUMENT_MAX_ROWS}"
       }
     },
+    "k8s-mcp": {
+      "command": "mcp-servers/k8s-mcp/kubernetes-mcp-server",
+      "args": [
+        "--config",
+        "mcp-servers/k8s-mcp/config.toml",
+        "--kubeconfig",
+        "${K8S_KUBECONFIG}"
+      ],
+      "env": {
+        "K8S_KUBECONFIG": "${K8S_KUBECONFIG}"
+      }
+    },
     "zabbix-mcp": {
       "command": "mcp-servers/zabbix-mcp/.venv/bin/python",
       "args": [

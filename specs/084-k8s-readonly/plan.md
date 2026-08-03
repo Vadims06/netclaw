@@ -76,82 +76,82 @@ kubeconfig; no context-switching tool.
 
 ### Phase 1 — Vendor the binary and isolate (BLOCKING)
 
-- [ ] T001 Create `mcp-servers/k8s-mcp/` with `NOTICE.md` recording upstream, **Apache-2.0**, pinned **v0.0.66**, and that NetClaw does not modify it
-- [ ] T002 Record the pinned SHA-256 `692a7b283a96140311fd46f13b8373657b2e9bfe660a36bb6434e8c42d899dbc` in a `CHECKSUMS` file, with a comment stating **upstream publishes no checksums** so this is trust-on-first-use, not attestation (FR-027)
-- [ ] T003 Create `mcp-servers/k8s-mcp/config.toml`: `read_only = true`, `toolsets = ["core"]`, the six `disabled_tools`, and the `denied_resources` Secret block (FR-019, FR-020, FR-021)
-- [ ] T004 `.gitignore`: negate `mcp-servers/k8s-mcp/` but **re-ignore the downloaded binary** — it is 75 MB and must never be committed. Prove with `git check-ignore`
-- [ ] T005 Add `component_install_k8s()` to `scripts/lib/install-steps.sh`: download the pinned release, **verify the SHA-256 and refuse to install on mismatch**, `chmod +x`. Never bare `pip`/`python3 -m venv` (FR-031)
-- [ ] T006 Register `k8s-mcp` in `config/openclaw.json` pointing at the binary with `--config` and an explicit `--kubeconfig` from `${K8S_KUBECONFIG}` (FR-022)
-- [ ] T007 Verify no context-switching tool is exposed — the 7-tool surface contains none (FR-024, SC-016)
-- [ ] T007a Record that the server was **tested against a live cluster before adoption** (done in clarification: 7 tools, 1,643 tokens, Secret denied, narrowing reproduced) rather than after (FR-028)
-- [ ] T007b **Establish** whether the binary has any audit concept — `strings`/`--help` for audit/log flags — and record the finding rather than assuming it. Complexity Tracking asserts there is none; this proves it (FR-033)
-- [ ] T007c Record that the static Go binary is *why* no shared dependency version can move, as the reason it was chosen (FR-032)
+- [X] T001 Create `mcp-servers/k8s-mcp/` with `NOTICE.md` recording upstream, **Apache-2.0**, pinned **v0.0.66**, and that NetClaw does not modify it
+- [X] T002 Record the pinned SHA-256 `692a7b283a96140311fd46f13b8373657b2e9bfe660a36bb6434e8c42d899dbc` in a `CHECKSUMS` file, with a comment stating **upstream publishes no checksums** so this is trust-on-first-use, not attestation (FR-027)
+- [X] T003 Create `mcp-servers/k8s-mcp/config.toml`: `read_only = true`, `toolsets = ["core"]`, the six `disabled_tools`, and the `denied_resources` Secret block (FR-019, FR-020, FR-021)
+- [X] T004 `.gitignore`: negate `mcp-servers/k8s-mcp/` but **re-ignore the downloaded binary** — it is 75 MB and must never be committed. Prove with `git check-ignore`
+- [X] T005 Add `component_install_k8s()` to `scripts/lib/install-steps.sh`: download the pinned release, **verify the SHA-256 and refuse to install on mismatch**, `chmod +x`. Never bare `pip`/`python3 -m venv` (FR-031)
+- [X] T006 Register `k8s-mcp` in `config/openclaw.json` pointing at the binary with `--config` and an explicit `--kubeconfig` from `${K8S_KUBECONFIG}` (FR-022)
+- [X] T007 Verify no context-switching tool is exposed — the 7-tool surface contains none (FR-024, SC-016)
+- [X] T007a Record that the server was **tested against a live cluster before adoption** (done in clarification: 7 tools, 1,643 tokens, Secret denied, narrowing reproduced) rather than after (FR-028)
+- [X] T007b **Establish** whether the binary has any audit concept — `strings`/`--help` for audit/log flags — and record the finding rather than assuming it. Complexity Tracking asserts there is none; this proves it (FR-033)
+- [X] T007c Record that the static Go binary is *why* no shared dependency version can move, as the reason it was chosen (FR-032)
 
 ### Phase 2 — The read-only ServiceAccount (BLOCKING, this is layer 1)
 
-- [ ] T008 Document and script a **dedicated cluster-wide-read ServiceAccount**: ClusterRole with `get,list,watch` on pods, services, ingresses, networkpolicies, endpointslices, namespaces, events — and **no secrets** (FR-025)
-- [ ] T009 Document generating a token-only kubeconfig from it, and **why it must be token-only**: a kubeconfig carrying a client certificate silently overrides `--token`, which invalidated the first attempt at this feature's central test
-- [ ] T010 State in the docs that this credential is what makes the narrowing trap unreachable — `canIUse` returns true, so the branch never executes (verified)
+- [X] T008 Document and script a **dedicated cluster-wide-read ServiceAccount**: ClusterRole with `get,list,watch` on pods, services, ingresses, networkpolicies, endpointslices, namespaces, events — and **no secrets** (FR-025)
+- [X] T009 Document generating a token-only kubeconfig from it, and **why it must be token-only**: a kubeconfig carrying a client certificate silently overrides `--token`, which invalidated the first attempt at this feature's central test
+- [X] T010 State in the docs that this credential is what makes the narrowing trap unreachable — `canIUse` returns true, so the branch never executes (verified)
 
 ### Phase 3 — US1 skill: NetworkPolicy review (P1) 🎯 MVP
 
-- [ ] T011 [P] Create `workspace/skills/k8s-network-policy/SKILL.md` with the standard frontmatter
-- [ ] T012 Write the **preflight procedure** as numbered steps: confirm cluster-wide list permission *before* trusting any empty result (FR-001, FR-003)
-- [ ] T013 State the headline rule: **no NetworkPolicy means all traffic is permitted** — an absence is permissive, and reporting it neutrally invites the opposite conclusion (FR-008, SC-002)
-- [ ] T013a Require policy answers to carry **pod selectors, policy types and rules** — enough to reason about what is permitted, not merely that a policy exists (FR-009, SC-001)
-- [ ] T014 Require every answer to state the **scope actually queried** (FR-002, SC-005)
-- [ ] T014a Require the **cluster actually connected to** to be surfaced wherever it affects interpretation — an operator with several clusters must never have to guess which one an answer describes (FR-023)
-- [ ] T015 Write the **six absences** as a lookup table: no such namespace · empty namespace · selector matched nothing · permission insufficient · CRD not installed · cluster unreachable (FR-004, FR-005, FR-006, FR-007, SC-004)
-- [ ] T016 Require the **selector used** to appear in the answer so a typo is visible (FR-005, SC-006)
-- [ ] T017 State that a policy answer is not a complete picture unless cluster-wide scope was confirmed — other namespaces and cluster-scoped CRD policies also apply (FR-010)
-- [ ] T018 State **"traffic was observed" ≠ "traffic is permitted"** and the `kubeshark` boundary (FR-011, FR-038)
+- [X] T011 [P] Create `workspace/skills/k8s-network-policy/SKILL.md` with the standard frontmatter
+- [X] T012 Write the **preflight procedure** as numbered steps: confirm cluster-wide list permission *before* trusting any empty result (FR-001, FR-003)
+- [X] T013 State the headline rule: **no NetworkPolicy means all traffic is permitted** — an absence is permissive, and reporting it neutrally invites the opposite conclusion (FR-008, SC-002)
+- [X] T013a Require policy answers to carry **pod selectors, policy types and rules** — enough to reason about what is permitted, not merely that a policy exists (FR-009, SC-001)
+- [X] T014 Require every answer to state the **scope actually queried** (FR-002, SC-005)
+- [X] T014a Require the **cluster actually connected to** to be surfaced wherever it affects interpretation — an operator with several clusters must never have to guess which one an answer describes (FR-023)
+- [X] T015 Write the **six absences** as a lookup table: no such namespace · empty namespace · selector matched nothing · permission insufficient · CRD not installed · cluster unreachable (FR-004, FR-005, FR-006, FR-007, SC-004)
+- [X] T016 Require the **selector used** to appear in the answer so a typo is visible (FR-005, SC-006)
+- [X] T017 State that a policy answer is not a complete picture unless cluster-wide scope was confirmed — other namespaces and cluster-scoped CRD policies also apply (FR-010)
+- [X] T018 State **"traffic was observed" ≠ "traffic is permitted"** and the `kubeshark` boundary (FR-011, FR-038)
 
 ### Phase 4 — US2 skill: service path tracing (P1)
 
-- [ ] T019 [P] Create `workspace/skills/k8s-service-path/SKILL.md`
-- [ ] T020 Document the path: Service → selector → pods → EndpointSlices → readiness, and require each link to be marked **checked or not checked** (FR-012, FR-016, SC-012)
-- [ ] T021 Require **"the selector matches no pods"** as a distinct diagnosis from "no endpoints" (FR-013, SC-009)
-- [ ] T022 Require ready vs not-ready endpoints to be distinguished (FR-014, SC-010)
-- [ ] T023 Require an Ingress backend naming a non-existent Service to be called out (FR-015, SC-011)
+- [X] T019 [P] Create `workspace/skills/k8s-service-path/SKILL.md`
+- [X] T020 Document the path: Service → selector → pods → EndpointSlices → readiness, and require each link to be marked **checked or not checked** (FR-012, FR-016, SC-012)
+- [X] T021 Require **"the selector matches no pods"** as a distinct diagnosis from "no endpoints" (FR-013, SC-009)
+- [X] T022 Require ready vs not-ready endpoints to be distinguished (FR-014, SC-010)
+- [X] T023 Require an Ingress backend naming a non-existent Service to be called out (FR-015, SC-011)
 
 ### Phase 5 — US3 skill: workload inventory (P2)
 
-- [ ] T024 [P] Create `workspace/skills/k8s-workload-inventory/SKILL.md`
-- [ ] T025 Require namespace, node, phase and readiness; **non-running pods reported with a reason, never omitted** (FR-017, FR-018, SC-013)
-- [ ] T026 Require the answer to state whether it covered all namespaces or one (FR-002)
-- [ ] T027 Add all boundaries to all three skills (FR-038, FR-039, FR-040) and state read-only + no-mutation (FR-041)
+- [X] T024 [P] Create `workspace/skills/k8s-workload-inventory/SKILL.md`
+- [X] T025 Require namespace, node, phase and readiness; **non-running pods reported with a reason, never omitted** (FR-017, FR-018, SC-013)
+- [X] T026 Require the answer to state whether it covered all namespaces or one (FR-002)
+- [X] T027 Add all boundaries to all three skills (FR-038, FR-039, FR-040) and state read-only + no-mutation (FR-041)
 
 ### Phase 6 — Tests
 
-- [ ] T028 [P] `tests/k8s/_harness.py` following `tests/zabbix/_harness.py`
-- [ ] T029 [P] `tests/k8s/test_config_forced.py` — static: read-only forced in NetClaw's config; Secret denial present; six `disabled_tools`; deny-list non-vacuous; kubeconfig explicit not ambient (FR-019–022, SC-014, SC-017)
-- [ ] T030 [P] `tests/k8s/test_skill_procedure.py` — static: each skill has a numbered preflight; the no-policy-means-permitted rule; six absences; five boundaries; no unqualified absence claims (FR-006a-equivalents, SC-020)
-- [ ] T031 [P] `tests/k8s/test_live_k8s.py` — **live**: reproduce the narrowing side by side (restricted credential vs raw kubectl); prove the cluster-wide-read SA avoids it; Secret denial; non-existent vs empty namespace; typo'd selector; missing CRD; a real NetworkPolicy read with selectors/types/rules; a Service whose selector matches nothing; ready vs not-ready endpoints (SC-001, SC-002, SC-003, SC-004, SC-007, SC-008, SC-009, SC-010, SC-015, SC-022)
-- [ ] T032 [P] `tests/k8s/test_manifest_size.py` — manifest ≤ 5,000 and **exactly 7 tools**, so an upstream bump that inflates the surface fails loudly (FR-037, SC-018)
-- [ ] T033 `tests/k8s/run-tests.sh` wiring all four, static-only without a cluster
+- [X] T028 [P] `tests/k8s/_harness.py` following `tests/zabbix/_harness.py`
+- [X] T029 [P] `tests/k8s/test_config_forced.py` — static: read-only forced in NetClaw's config; Secret denial present; six `disabled_tools`; deny-list non-vacuous; kubeconfig explicit not ambient (FR-019–022, SC-014, SC-017)
+- [X] T030 [P] `tests/k8s/test_skill_procedure.py` — static: each skill has a numbered preflight; the no-policy-means-permitted rule; six absences; five boundaries; no unqualified absence claims (FR-006a-equivalents, SC-020)
+- [X] T031 [P] `tests/k8s/test_live_k8s.py` — **live**: reproduce the narrowing side by side (restricted credential vs raw kubectl); prove the cluster-wide-read SA avoids it; Secret denial; non-existent vs empty namespace; typo'd selector; missing CRD; a real NetworkPolicy read with selectors/types/rules; a Service whose selector matches nothing; ready vs not-ready endpoints (SC-001, SC-002, SC-003, SC-004, SC-007, SC-008, SC-009, SC-010, SC-015, SC-022)
+- [X] T032 [P] `tests/k8s/test_manifest_size.py` — manifest ≤ 5,000 and **exactly 7 tools**, so an upstream bump that inflates the surface fails loudly (FR-037, SC-018)
+- [X] T033 `tests/k8s/run-tests.sh` wiring all four, static-only without a cluster
 
 ### Phase 7 — Artifact coherence
 
-- [ ] T034 `catalog.sh` entry + `PROFILE_OBSERVABILITY` membership (FR-034)
-- [ ] T035 **Both** HUD entries in `ui/netclaw-visual/server.js`
-- [ ] T036 `.env.example` block: `K8S_MCP_CMD`, `K8S_KUBECONFIG`, with the read-only-SA rationale
-- [ ] T037 `TOOLS.md` section: measured 1,643 tokens, the narrowing finding, the two layers, five boundaries
-- [ ] T038 `mcp-servers/k8s-mcp/README.md` — NetClaw-authored, with the **measured candidate table** and why `rohitg00` and `Flux159` were rejected, and that no official server exists (FR-026, FR-029, FR-030, SC-021)
-- [ ] T039 `SOUL.md` capability section — the empty-list distinction, no-policy-is-permissive, reachable≠permitted (SC-020) + both count sites
-- [ ] T040 `README.md` MCP table row, skill rows, four count sites → **157 / 215**
-- [ ] T041 `docs/COVERAGE-ROADMAP.md` — R14 status, the measured candidate table, and the CNI-specific follow-on note
+- [X] T034 `catalog.sh` entry + `PROFILE_OBSERVABILITY` membership (FR-034)
+- [X] T035 **Both** HUD entries in `ui/netclaw-visual/server.js`
+- [X] T036 `.env.example` block: `K8S_MCP_CMD`, `K8S_KUBECONFIG`, with the read-only-SA rationale
+- [X] T037 `TOOLS.md` section: measured 1,643 tokens, the narrowing finding, the two layers, five boundaries
+- [X] T038 `mcp-servers/k8s-mcp/README.md` — NetClaw-authored, with the **measured candidate table** and why `rohitg00` and `Flux159` were rejected, and that no official server exists (FR-026, FR-029, FR-030, SC-021)
+- [X] T039 `SOUL.md` capability section — the empty-list distinction, no-policy-is-permissive, reachable≠permitted (SC-020) + both count sites
+- [X] T040 `README.md` MCP table row, skill rows, four count sites → **157 / 215**
+- [X] T041 `docs/COVERAGE-ROADMAP.md` — R14 status, the measured candidate table, and the CNI-specific follow-on note
 
 ### Phase 8 — Honest verification
 
-- [ ] T042 `bash tests/k8s/run-tests.sh` passes
-- [ ] T043 `reconcile-mcp.py` exit 0; `verify-inventory-counts.py` exit 0; `trace-skill.py` × 3 (FR-035, FR-036, SC-019)
-- [ ] T044 Regression: document, zabbix, bgp-intel, fortinet, reconcile suites still pass
-- [ ] T045 `VERIFICATION.md` — per-capability exercised-vs-executed table (FR-042, SC-023)
-- [ ] T046 In `VERIFICATION.md`: record that **FR-043's narrowing was reproduced**, with the side-by-side output (SC-022)
-- [ ] T047 In `VERIFICATION.md`: record the no-per-call-GAIT limitation, the trust-on-first-use checksum limitation, and the iN2N decision
-- [ ] T048 In `VERIFICATION.md`: state anything unverified or cut (FR-044)
-- [ ] T049 Secret-scan the diff; confirm no token or kubeconfig content committed
-- [ ] T050 GAIT session log
+- [X] T042 `bash tests/k8s/run-tests.sh` passes
+- [X] T043 `reconcile-mcp.py` exit 0; `verify-inventory-counts.py` exit 0; `trace-skill.py` × 3 (FR-035, FR-036, SC-019)
+- [X] T044 Regression: document, zabbix, bgp-intel, fortinet, reconcile suites still pass
+- [X] T045 `VERIFICATION.md` — per-capability exercised-vs-executed table (FR-042, SC-023)
+- [X] T046 In `VERIFICATION.md`: record that **FR-043's narrowing was reproduced**, with the side-by-side output (SC-022)
+- [X] T047 In `VERIFICATION.md`: record the no-per-call-GAIT limitation, the trust-on-first-use checksum limitation, and the iN2N decision
+- [X] T048 In `VERIFICATION.md`: state anything unverified or cut (FR-044)
+- [X] T049 Secret-scan the diff; confirm no token or kubeconfig content committed
+- [X] T050 GAIT session log
 
 ## Dependencies
 
