@@ -359,7 +359,9 @@
       ],
       "env": {
         "MANAGEMENT_HOST": "${CHKP_MGMT_HOST}",
-        "PORT": "${CHKP_MGMT_PORT:-443}",
+        "MANAGEMENT_PORT": "${CHKP_MGMT_PORT:-443}",
+        "S1C_URL": "${CHKP_S1C_URL}",
+        "CLOUD_INFRA_TOKEN": "${CHKP_S1C_API_KEY}",
         "API_KEY": "${CHKP_MGMT_API_KEY}",
         "USERNAME": "${CHKP_MGMT_USERNAME}",
         "PASSWORD": "${CHKP_MGMT_PASSWORD}",
@@ -374,7 +376,9 @@
       ],
       "env": {
         "MANAGEMENT_HOST": "${CHKP_MGMT_HOST}",
-        "PORT": "${CHKP_MGMT_PORT:-443}",
+        "MANAGEMENT_PORT": "${CHKP_MGMT_PORT:-443}",
+        "S1C_URL": "${CHKP_S1C_URL}",
+        "CLOUD_INFRA_TOKEN": "${CHKP_S1C_API_KEY}",
         "API_KEY": "${CHKP_MGMT_API_KEY}",
         "USERNAME": "${CHKP_MGMT_USERNAME}",
         "PASSWORD": "${CHKP_MGMT_PASSWORD}",
@@ -389,7 +393,9 @@
       ],
       "env": {
         "MANAGEMENT_HOST": "${CHKP_MGMT_HOST}",
-        "PORT": "${CHKP_MGMT_PORT:-443}",
+        "MANAGEMENT_PORT": "${CHKP_MGMT_PORT:-443}",
+        "S1C_URL": "${CHKP_S1C_URL}",
+        "CLOUD_INFRA_TOKEN": "${CHKP_S1C_API_KEY}",
         "API_KEY": "${CHKP_MGMT_API_KEY}",
         "USERNAME": "${CHKP_MGMT_USERNAME}",
         "PASSWORD": "${CHKP_MGMT_PASSWORD}",
@@ -404,7 +410,9 @@
       ],
       "env": {
         "MANAGEMENT_HOST": "${CHKP_MGMT_HOST}",
-        "PORT": "${CHKP_MGMT_PORT:-443}",
+        "MANAGEMENT_PORT": "${CHKP_MGMT_PORT:-443}",
+        "S1C_URL": "${CHKP_S1C_URL}",
+        "CLOUD_INFRA_TOKEN": "${CHKP_S1C_API_KEY}",
         "API_KEY": "${CHKP_MGMT_API_KEY}",
         "USERNAME": "${CHKP_MGMT_USERNAME}",
         "PASSWORD": "${CHKP_MGMT_PASSWORD}",
@@ -441,7 +449,9 @@
       ],
       "env": {
         "MANAGEMENT_HOST": "${CHKP_MGMT_HOST}",
-        "PORT": "${CHKP_MGMT_PORT:-443}",
+        "MANAGEMENT_PORT": "${CHKP_MGMT_PORT:-443}",
+        "S1C_URL": "${CHKP_S1C_URL}",
+        "CLOUD_INFRA_TOKEN": "${CHKP_S1C_API_KEY}",
         "API_KEY": "${CHKP_MGMT_API_KEY}",
         "USERNAME": "${CHKP_MGMT_USERNAME}",
         "PASSWORD": "${CHKP_MGMT_PASSWORD}",
@@ -456,7 +466,9 @@
       ],
       "env": {
         "MANAGEMENT_HOST": "${CHKP_MGMT_HOST}",
-        "PORT": "${CHKP_MGMT_PORT:-443}",
+        "MANAGEMENT_PORT": "${CHKP_MGMT_PORT:-443}",
+        "S1C_URL": "${CHKP_S1C_URL}",
+        "CLOUD_INFRA_TOKEN": "${CHKP_S1C_API_KEY}",
         "API_KEY": "${CHKP_MGMT_API_KEY}",
         "USERNAME": "${CHKP_MGMT_USERNAME}",
         "PASSWORD": "${CHKP_MGMT_PASSWORD}",
@@ -480,12 +492,7 @@
         "mcp-servers/checkpoint-mcp-servers/packages/gaia/dist/index.js"
       ],
       "env": {
-        "MANAGEMENT_HOST": "${CHKP_MGMT_HOST}",
-        "PORT": "${CHKP_MGMT_PORT:-443}",
-        "API_KEY": "${CHKP_MGMT_API_KEY}",
-        "USERNAME": "${CHKP_MGMT_USERNAME}",
-        "PASSWORD": "${CHKP_MGMT_PASSWORD}",
-        "DOMAIN": "${CHKP_MGMT_DOMAIN}",
+        "VERBOSE": "${CHKP_GAIA_VERBOSE:-false}",
         "TELEMETRY_DISABLED": "${CHKP_TELEMETRY_DISABLED:-true}"
       }
     },
@@ -495,6 +502,10 @@
         "mcp-servers/checkpoint-mcp-servers/packages/documentation-tool/dist/index.js"
       ],
       "env": {
+        "CLIENT_ID": "${CHKP_DOCS_CLIENT_ID}",
+        "SECRET_KEY": "${CHKP_DOCS_SECRET_KEY}",
+        "AUTH_URL": "${CHKP_DOCS_AUTH_URL}",
+        "REGION": "${CHKP_DOCS_REGION}",
         "TELEMETRY_DISABLED": "${CHKP_TELEMETRY_DISABLED:-true}"
       }
     },
@@ -504,7 +515,10 @@
         "mcp-servers/checkpoint-mcp-servers/packages/spark-management/dist/index.js"
       ],
       "env": {
-        "API_KEY": "${CHKP_SPARK_API_KEY}",
+        "CLIENT_ID": "${CHKP_SPARK_CLIENT_ID}",
+        "SECRET_KEY": "${CHKP_SPARK_SECRET_KEY}",
+        "INFINITY_PORTAL_URL": "${CHKP_SPARK_INFINITY_PORTAL_URL}",
+        "REGION": "${CHKP_SPARK_REGION}",
         "TELEMETRY_DISABLED": "${CHKP_TELEMETRY_DISABLED:-true}"
       }
     },
@@ -523,7 +537,9 @@
         "mcp-servers/checkpoint-mcp-servers/packages/argos-erm/dist/index.js"
       ],
       "env": {
-        "API_KEY": "${CHKP_ARGOS_API_KEY}",
+        "ARGOS_SERVER_URL": "${CHKP_ARGOS_SERVER_URL}",
+        "ARGOS_INTEGRATION_TOKEN": "${CHKP_ARGOS_INTEGRATION_TOKEN}",
+        "ARGOS_CUSTOMER_ID": "${CHKP_ARGOS_CUSTOMER_ID}",
         "TELEMETRY_DISABLED": "${CHKP_TELEMETRY_DISABLED:-true}"
       }
     },
@@ -534,7 +550,9 @@
       ],
       "env": {
         "MANAGEMENT_HOST": "${CHKP_MGMT_HOST}",
-        "PORT": "${CHKP_MGMT_PORT:-443}",
+        "MANAGEMENT_PORT": "${CHKP_MGMT_PORT:-443}",
+        "S1C_URL": "${CHKP_S1C_URL}",
+        "CLOUD_INFRA_TOKEN": "${CHKP_S1C_API_KEY}",
         "API_KEY": "${CHKP_MGMT_API_KEY}",
         "USERNAME": "${CHKP_MGMT_USERNAME}",
         "PASSWORD": "${CHKP_MGMT_PASSWORD}",
