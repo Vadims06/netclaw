@@ -411,3 +411,70 @@ No API keys. Every source is public and unauthenticated.
   PeeringDB publishes rate-limit headers. Parallel fan-out prohibited, including inside `resource_report`.
 - Private/reserved/bogon input is **refused locally with no outbound request** — a disclosure control.
 - Manifest measured at **1,376 / 5,000 tokens**.
+
+## Document Generation (`document-mcp`, NetClaw-native)
+
+**Spec 082 / roadmap R18.** 6 tools, stdio, **no credentials**. Writes files; touches no device and no
+ticket, so there is no approval gate here. This is the deliverable layer — every other NetClaw capability
+produces findings, this turns a finding into something you can attach to a change record.
+
+| Format | Tool | Built from |
+|---|---|---|
+| `.docx` | `docx_write` | Ordered blocks: heading, paragraph, figure, table, keyvalue, image, pagebreak |
+| `.xlsx` | `xlsx_write` | Sheets of tagged rows, plus `failed_rows` for devices that could not be reached |
+| `.pptx` | `pptx_write` | Slides: bullets, figure, image |
+| `.pdf` | `pdf_inspect_form` / `pdf_fill_form` | An existing fillable form's **named** fields |
+| — | `list_documents` | Finding something generated earlier |
+
+### The one rule
+
+**A document must never fabricate to fill a blank.** Tool output is ephemeral; a document is emailed, filed
+and read months later by someone who was not there, and it carries the authority of its formatting. So every
+value is one of three tagged shapes — `{"v":…, "src":…}`, `{"unavailable": reason}`, `{"failed": reason}` —
+and a bare scalar or a value with no `src` is **refused**. There is no way to express "missing" as a blank.
+
+### Environment
+
+`DOCUMENT_MCP_CMD` · `DOCUMENT_OUTPUT_DIR` (default `workspace/output/document-mcp/`) ·
+`DOCUMENT_MAX_ROWS` (50000) · `DOCUMENT_MAX_BLOCKS` (5000) · `DOCUMENT_MAX_SLIDES` (200) ·
+`DOCUMENT_AUDIT_LOG`
+
+No API keys. Nothing to rotate.
+
+### Behaviour worth knowing
+
+- **Provenance is visible, never hidden.** Source column per table row, per-figure parenthetical in prose, a
+  visible source box on every slide, and a Sources section in every file. Word comments, document metadata
+  and speaker notes are written *additively* but never count — they are collapsed by default, stripped on
+  paste, and absent in print.
+- **`python-docx` has no footnote API** (measured), so `.docx` attribution is inline. More visible than a
+  footnote, not less.
+- **openpyxl writes a leading `=` as a live formula.** Measured: `ws["A1"] = "=1+1"` produces
+  `<c r="A1"><f>1+1</f>…`. Every string cell is forced to `inlineStr`, so a FortiGate interface description
+  or a ServiceNow short-description cannot put executing content into an auditor's spreadsheet.
+- **Admin and operational state must be separate columns.** A merged `status` column is refused — the
+  distinction spec 080's completion established.
+- **Failed devices are rows, not omissions.** A shorter spreadsheet reads as a smaller estate. The banner
+  reports attempted / returned / failed.
+- **Sources that disagree are both rendered** with their origins and a caveat. NetClaw does not pick a
+  winner.
+- **Office templates are refused, not ignored** — scratch-only, because a template's empty field is the
+  strongest fabrication pressure in the feature. PDF forms are supported precisely because their fields are
+  explicitly named and machine-readable.
+- **A filled PDF carries no Sources section** — it is the customer's document. For that one format
+  provenance lives in the response and the GAIT record. Stated rather than papered over.
+- **Files are never overwritten.** `O_EXCL` create with a collision suffix, so a regenerated report cannot
+  replace one already attached to a ticket. An unwritable output directory is a reported failure with no
+  temp-directory fallback.
+- **`ok` means complete.** Any gap forces `written_with_gaps`; a caller cannot report a gapped document as
+  clean.
+- Every call, **including refusals**, is GAIT-audited at the chokepoint.
+- Manifest measured at **1,232 / 5,000 tokens**.
+
+### Boundaries
+
+`drawio-diagram` / `markmap-viz` / `uml-diagram` / `threejs-network-viz` produce **diagrams** — this
+**embeds** them and never redraws. `rag-mcp` (feature 062) **reads** these formats for ingestion; this
+**writes** them, sharing the same four libraries with identical bounds.
+`servicenow-change-workflow` owns the CR lifecycle; this renders a document from one.
+`slack-report-delivery` / `webex-report-delivery` **send** documents; this only writes them.

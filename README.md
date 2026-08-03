@@ -4,7 +4,7 @@
 
 # NetClaw
 
-A CCIE-level AI network engineering coworker. Built on [OpenClaw](https://github.com/openclaw/openclaw) with Anthropic Claude, 207 skills, and 154 MCP integrations for complete network automation with ITSM gating, source-of-truth reconciliation, immutable audit trails, gNMI streaming telemetry, NetFlow/IPFIX flow telemetry, Canvas/A2UI inline network visualizations, packet capture analysis, GitHub config-as-code, GitLab DevOps (issues, merge requests, pipelines, repositories, wikis), Jenkins CI/CD (job monitoring, build triggering, log analysis, SCM tracking), Chrome DevTools browser automation (visualization render QA, controller GUI gap-filling, undocumented API discovery, headless or watchable-headed), Computer Use full-desktop automation (legacy desktop-only tools with no browser or API path, virtual XFCE desktop with VNC/noVNC Watch Mode), Cisco CML lab simulation, ContainerLab containerized network labs, Cisco NSO orchestration, Cisco SD-WAN vManage monitoring, Grafana observability (dashboards, Prometheus, Loki, alerting, incidents), Prometheus direct PromQL monitoring, Kubeshark Kubernetes traffic analysis, Cisco Meraki Dashboard management, Cisco ThousandEyes network intelligence, AWS and Azure cloud networking, Cisco Secure Firewall policy auditing, Check Point Security (15 MCPs: policy, threat intel, gateway, SASE, malware), Itential network orchestration, Juniper JunOS device automation, Arista CloudVision Portal monitoring, F5 BIG-IP pyATS iControl REST coverage, Infoblox DDI, Palo Alto Panorama, FortiManager, Batfish offline configuration analysis, UML diagram generation, EVPN/VXLAN fabric workflows, live BGP/OSPF control-plane participation, nmap network scanning, gtrace path analysis and IP enrichment, Slack-native operations, Cisco WebEx-native operations, Microsoft 365 integration, Twilio voice/SMS, Twitter/X integration, Claroty OT/IoT asset management, Forward Networks digital twin, Ollama local LLM routing, an offline agentic RAG document knowledge base (cited answers from user-uploaded vendor guides and standards), layered Memory MCP, and MemPalace persistent AI memory.
+A CCIE-level AI network engineering coworker. Built on [OpenClaw](https://github.com/openclaw/openclaw) with Anthropic Claude, 209 skills, and 155 MCP integrations for complete network automation with ITSM gating, source-of-truth reconciliation, immutable audit trails, gNMI streaming telemetry, NetFlow/IPFIX flow telemetry, Canvas/A2UI inline network visualizations, packet capture analysis, GitHub config-as-code, GitLab DevOps (issues, merge requests, pipelines, repositories, wikis), Jenkins CI/CD (job monitoring, build triggering, log analysis, SCM tracking), Chrome DevTools browser automation (visualization render QA, controller GUI gap-filling, undocumented API discovery, headless or watchable-headed), Computer Use full-desktop automation (legacy desktop-only tools with no browser or API path, virtual XFCE desktop with VNC/noVNC Watch Mode), Cisco CML lab simulation, ContainerLab containerized network labs, Cisco NSO orchestration, Cisco SD-WAN vManage monitoring, Grafana observability (dashboards, Prometheus, Loki, alerting, incidents), Prometheus direct PromQL monitoring, Kubeshark Kubernetes traffic analysis, Cisco Meraki Dashboard management, Cisco ThousandEyes network intelligence, AWS and Azure cloud networking, Cisco Secure Firewall policy auditing, Check Point Security (15 MCPs: policy, threat intel, gateway, SASE, malware), Itential network orchestration, Juniper JunOS device automation, Arista CloudVision Portal monitoring, F5 BIG-IP pyATS iControl REST coverage, Infoblox DDI, Palo Alto Panorama, FortiManager, Batfish offline configuration analysis, UML diagram generation, EVPN/VXLAN fabric workflows, live BGP/OSPF control-plane participation, nmap network scanning, gtrace path analysis and IP enrichment, Slack-native operations, Cisco WebEx-native operations, Microsoft 365 integration, Twilio voice/SMS, Twitter/X integration, Claroty OT/IoT asset management, Forward Networks digital twin, Ollama local LLM routing, an offline agentic RAG document knowledge base (cited answers from user-uploaded vendor guides and standards), layered Memory MCP, and MemPalace persistent AI memory.
 
 ## Resources
 
@@ -239,7 +239,7 @@ claw
   <img src="ui/netclaw-visual/logos/netclawvisualhud.png" alt="NetClaw Visual HUD — 3D Network Operations Dashboard" width="800">
 </p>
 
-NetClaw includes a Three.js 3D operations dashboard that computes its integration and skill inventory live from the codebase (currently 154 MCP integrations and 207 skills) each time it's opened, alongside your device fleet and live BGP peering topology — so the dashboard never drifts out of sync with what's actually installed. Chat with NetClaw directly from the browser, watch integrations light up as tools execute, and inspect every node in the graph. The Canvas/A2UI visualization skill renders inline topology maps, health dashboards, alert cards, change timelines, config diffs, path traces, and health scorecards directly in the chat interface.
+NetClaw includes a Three.js 3D operations dashboard that computes its integration and skill inventory live from the codebase (currently 155 MCP integrations and 209 skills) each time it's opened, alongside your device fleet and live BGP peering topology — so the dashboard never drifts out of sync with what's actually installed. Chat with NetClaw directly from the browser, watch integrations light up as tools execute, and inspect every node in the graph. The Canvas/A2UI visualization skill renders inline topology maps, health dashboards, alert cards, change timelines, config diffs, path traces, and health scorecards directly in the chat interface.
 
 ```bash
 cd ui/netclaw-visual
@@ -518,7 +518,7 @@ NetClaw ships with the full set of OpenClaw workspace markdown files. These are 
 
 ---
 
-## MCP Servers (154)
+## MCP Servers (155)
 
 > Adding one? Follow **[docs/ADDING-AN-MCP.md](docs/ADDING-AN-MCP.md)** and run
 > `python3 scripts/reconcile-mcp.py` before pushing — CI enforces it.
@@ -628,6 +628,9 @@ NetClaw ships with the full set of OpenClaw workspace markdown files. These are 
 | 116 | Multivendor CLI Driver | Built-in (`multivendor-cli-mcp`) | stdio (Python, dedicated venv) | Nornir/NAPALM/Netmiko reach to ~90 platform families no other NetClaw server covers — MikroTik RouterOS, VyOS, SONiC, Nokia SR Linux, Extreme, Huawei, Dell, Ubiquiti EdgeOS. Read-only by default; writes are single-pathed per platform (refuses config change on Cisco/Junos and names the owning server). Runs from its own virtualenv because napalm/netmiko resolve cryptography 49.x while NCFED's X.509 stack needs the system 46.x (10 tools: 8 read + 2 gated writes) |
 | 117 | Cisco PSIRT Advisories | Built-in (`cisco-psirt-mcp`) | stdio (Python) | Cisco PSIRT openVuln API via OAuth2 — is the version a device is actually running affected by a published advisory? Covers IOS, IOS-XE, NX-OS, ASA, FTD, FMC, ACI, with severity/CVSS/CVE per advisory. Read-only and device-free (versions come from pyATS or multivendor-cli). Five typed outcomes keep "Cisco published nothing" distinct from "the question was never asked" — an empty list is never reported as *not vulnerable*. De-duplicates by version and caches 6h to live inside the 5/sec + 30/min budget. IOS-XR is not an OSType on this API (404) and is refused rather than attempted (6 tools) |
 | 118 | Globalping | [jsDelivr Globalping](https://www.globalping.io) | Remote HTTP (official MCP) | Outside-in network measurement from ~4,800 probes across ~1,390 autonomous systems — ping, traceroute, DNS, MTR and HTTP run *toward* a public target. NetClaw's only vantage point outside its own administrative domain, so it can finally answer "is it us or the internet?". Zero install (hosted endpoint, bearer token). Public endpoints only — private/internal targets are refused locally before any call goes out. Budget 500 probe-measurements/hour, charged per probe (5 measurement tools + budget/probe-availability queries) |
+| 119 | Fortinet | Built-in (`fortinet-mcp`) | stdio (Python) | Three planes behind one server — FortiManager policy *intent* (ADOMs, packages, objects, revisions, install preview), FortiGate observed *state* (interfaces, routes, policies, VPN), FortiAnalyzer observed *traffic* (logs, policy activity). Every response carries which plane answered and its scope, so "no logs in the window" is never reported as "the rule is unused". Read-only unless `FORTINET_ALLOW_WRITES=true`, and a write still needs human approval AND an approved change record — two independent gates (21 tools) |
+| 120 | BGP & Registry Intelligence | Built-in (`bgp-intel-mcp`) | stdio (Python) | RPKI origin validation, RDAP registry ownership and abuse contacts, PeeringDB interconnection, RIPEstat routing visibility, RIPE Atlas anchors. Five public unauthenticated sources — **no credentials anywhere**. The other half of the external plane: Globalping *measures* toward a target, this *looks up* who owns it and whether an announcement is authorised. RPKI `not-found` means no ROA exists and is **not** a finding — most of the internet is unsigned. Self-imposed 4 req/s sliding window against volunteer-funded infrastructure (10 tools) |
+| 121 | Document Generation | Built-in (`document-mcp`) | stdio (Python) | The deliverable layer: change-record `.docx`, interface-audit `.xlsx`, executive `.pptx`, and filling existing PDF forms — from real NetClaw data, not typed by hand. No credentials; writes files and touches no device and no ticket. Every value must arrive tagged with its source, so a missing figure renders as `NOT AVAILABLE — <reason>` and never as a blank cell; a value without a source is refused. Per-element provenance and a Sources section in every file, stamped at one chokepoint and GAIT-audited. Office templates are refused (scratch-only); output is timestamped and never overwritten (6 tools) |
 ### Additional Server Notes
 
 All MCP servers communicate via stdio (JSON-RPC 2.0) through `scripts/mcp-call.py`, except where noted below (HTTP/remote endpoints).
@@ -664,7 +667,7 @@ All MCP servers communicate via stdio (JSON-RPC 2.0) through `scripts/mcp-call.p
 
 ---
 
-## Skills (207)
+## Skills (209)
 
 ### pyATS Device Skills (9)
 
@@ -852,13 +855,15 @@ All MCP servers communicate via stdio (JSON-RPC 2.0) through `scripts/mcp-call.p
 | **aap-eda** | Event-Driven Ansible operations (12 tools): activation lifecycle management (list, create, enable, disable, restart, delete), rulebook listing and inspection, decision environment management, event stream monitoring. Reactive automation triggered by external events flowing into EDA rulebooks. |
 | **aap-lint** | ansible-lint playbook and role validation (9 tools): lint playbook content with configurable profiles (min/basic/moderate/safety/shared/production), lint individual files and role directories, list available rules and tags, syntax validation, best practice checking with severity categorization, project-wide analysis with per-file issue reporting, version info. Quality gate for Ansible content before AAP deployment. |
 
-### Enterprise Platform Skills (3)
+### Enterprise Platform Skills (5)
 
 | Skill | What It Does |
 |-------|-------------|
 | **infoblox-ddi** | Infoblox DNS, DHCP, and IPAM operations: zone and record lookup, DHCP scope and lease review, IP utilization checks, and pre-change address validation. |
 | **paloalto-panorama** | Panorama-managed firewall governance: device groups, templates, security policy and NAT search, object review, and commit validation. |
 | **fortimanager-ops** | FortiManager policy operations: ADOM inventory, package and rule review, revision history, and install-preview checks. |
+| **fortigate-ops** | FortiGate observed state: system status, interfaces (administrative vs operational state kept separate), routing table, policy list, and IPsec tunnel health with phase 1 and phase 2 reported independently. |
+| **fortianalyzer-ops** | FortiAnalyzer traffic evidence: log queries over an explicit time window, per-policy activity, and managed-device inventory. An empty window is reported as "no logs in this window", never as "the rule is unused". |
 
 ### Cisco RADKit Skills (1)
 
@@ -1194,6 +1199,13 @@ Both `browser-gui-inspect` and `desktop-gui-inspect` support Watch Mode — just
 | **twitter-heartbeat** | Autonomous periodic tweeting and mention monitoring to maintain NetClaw's Twitter/X presence with CCIE-level content |
 | **twitter-respond** | Generate and post replies to Twitter/X mentions and conversations |
 | **twitter-share** | Manual tweet posting with content guardrails and human approval flow |
+
+### Document Generation Skills (2)
+
+| Skill | Purpose |
+|-------|---------|
+| **document-generation** | The `document-mcp` tool surface — `.docx`/`.xlsx`/`.pptx` from tagged values, PDF form inspection and filling, and the no-fabrication discipline. A value with no source is refused; a missing value renders as `NOT AVAILABLE`, never as a blank |
+| **network-report-documents** | The four NetClaw compositions — change record from a real ServiceNow CR plus device state, interface/config audit workbook, executive summary deck with an embedded diagram, and filling a required PDF form |
 
 ### Visualization Skills (2)
 

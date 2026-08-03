@@ -1089,6 +1089,17 @@
         "BGP_INTEL_USER_AGENT": "${BGP_INTEL_USER_AGENT}",
         "BGP_INTEL_MAX_RPS": "${BGP_INTEL_MAX_RPS}"
       }
+    },
+    "document-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/document-mcp/server.py"
+      ],
+      "env": {
+        "DOCUMENT_OUTPUT_DIR": "${DOCUMENT_OUTPUT_DIR}",
+        "DOCUMENT_MAX_ROWS": "${DOCUMENT_MAX_ROWS}"
+      }
     }
   }
 }
