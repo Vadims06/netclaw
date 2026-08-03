@@ -93,6 +93,10 @@ mcp-servers/multivendor-cli-mcp/.venv/
 !mcp-servers/bgp-intel-mcp/
 !mcp-servers/document-mcp/
 !mcp-servers/zabbix-mcp/
+!mcp-servers/k8s-mcp/
+# Re-ignore the downloaded upstream binary: 75 MB, fetched at install and
+# verified against CHECKSUMS. The negation above would otherwise commit it (spec 084).
+mcp-servers/k8s-mcp/kubernetes-mcp-server
 # Re-ignore the dedicated venv: the negation above re-includes EVERYTHING under
 # zabbix-mcp, which would otherwise commit the whole virtualenv (spec 083).
 mcp-servers/zabbix-mcp/.venv/
