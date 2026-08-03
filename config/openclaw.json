@@ -1060,6 +1060,17 @@
         "FORTINET_VERIFY_SSL": "${FORTINET_VERIFY_SSL}",
         "FORTINET_ALLOW_WRITES": "${FORTINET_ALLOW_WRITES}"
       }
+    },
+    "bgp-intel-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/bgp-intel-mcp/server.py"
+      ],
+      "env": {
+        "BGP_INTEL_USER_AGENT": "${BGP_INTEL_USER_AGENT}",
+        "BGP_INTEL_MAX_RPS": "${BGP_INTEL_MAX_RPS}"
+      }
     }
   }
 }

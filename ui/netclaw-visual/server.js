@@ -66,6 +66,7 @@ const INTEGRATION_CATALOG = [
   { id: 'thousandeyes', name: 'ThousandEyes', category: 'Observability', prefixes: ['te-'], color: '#ffb703', transport: 'http', toolEstimate: 29, description: 'Synthetic and path-aware external monitoring.' },
   { id: 'kubeshark', name: 'Kubeshark', category: 'Observability', prefixes: ['kubeshark-'], color: '#ffcb77', transport: 'http', toolEstimate: 6, description: 'Kubernetes packet and flow visibility.' },
   { id: 'gtrace', name: 'gtrace', category: 'Observability', prefixes: ['gtrace-'], color: '#bde0fe', transport: 'stdio', toolEstimate: 6, description: 'Path tracing and IP enrichment.' },
+  { id: 'bgp-intel', name: 'BGP & Registry Intel', category: 'Observability', prefixes: ['rpki_', 'registry_', 'routing_', 'peering_', 'atlas_', 'resource_'], color: '#8ac926', transport: 'stdio', toolEstimate: 10, description: 'RPKI origin validation, RDAP ownership, PeeringDB peering, routing visibility. Public APIs, no credentials. not-found is NOT invalid.' },
   { id: 'globalping', name: 'Globalping', category: 'Observability', prefixes: ['globalping-'], color: '#00b4d8', transport: 'http', toolEstimate: 12, description: 'Outside-in measurement from ~4,800 probes across ~1,390 ASNs — ping, traceroute, DNS, MTR and HTTP toward a public target. The only vantage point NetClaw has outside its own administrative domain. Public endpoints only; "no probes matched" is not "the service is down".' },
   { id: 'suzieq', name: 'SuzieQ', category: 'Observability', prefixes: ['suzieq-'], color: '#a8dadc', transport: 'stdio', toolEstimate: 5, description: 'Network state queries, assertions, summaries, and path tracing.' },
   { id: 'aws', name: 'AWS', category: 'Cloud', prefixes: ['aws-'], color: '#f77f00', transport: 'http', toolEstimate: 55, description: 'Networking, monitoring, security, cost, and diagram generation in AWS.' },
@@ -240,6 +241,11 @@ const ENV_MAP = {
     env: ['CVP', 'CVPTOKEN'],
     files: [],
     notes: 'CloudVision Portal hostname and service account token.',
+  },
+  'bgp-intel': {
+    env: ['BGP_INTEL_MCP_CMD', 'BGP_INTEL_USER_AGENT', 'BGP_INTEL_MAX_RPS', 'BGP_INTEL_AUDIT_LOG'],
+    files: ['mcp-servers/bgp-intel-mcp/server.py'],
+    notes: 'No credentials required — all five sources are public unauthenticated APIs. Read-only. Self-imposed 4 req/s serial ceiling against volunteer-funded infrastructure (RIPE NCC, PeeringDB). Every response carries its source and is GAIT-audited. RPKI not-found means no ROA exists and is NOT a finding.',
   },
   fortinet: {
     env: [

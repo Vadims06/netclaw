@@ -61,6 +61,7 @@ CATALOG=(
     "suzieq|Observability|SuzieQ|Network state queries, assertions, path tracing (bundled)"
     "kubeshark|Observability|Kubeshark|K8s L4/L7 traffic analysis, TLS decryption (remote)"
     "gtrace|Observability|gtrace|Traceroute (MPLS/ECMP/NAT), MTR, GlobalPing, ASN, geo (6 tools)"
+    "bgp-intel|Observability|BGP & Registry Intelligence|RPKI origin validation, RDAP ownership, PeeringDB peering, routing visibility (public APIs, no credentials)"
     "globalping|Observability|Globalping|Outside-in measurement from ~4800 global probes — ping, traceroute, DNS, MTR, HTTP (remote, no install)"
     "telemetry-receivers|Observability|Telemetry Receivers|SNMP trap, syslog, IPFIX/NetFlow receivers over UDP (3 servers)"
     "auvik|Observability|Auvik|Read-only network monitoring — inventory, alerts, lifecycle, performance (bundled, 20 tools)"
@@ -136,7 +137,7 @@ catalog_has() {
 # ── profiles ─────────────────────────────────────────────────────
 PROFILE_MINIMAL="pyats gait subnet-calc drawio-rfc"
 
-PROFILE_RECOMMENDED="pyats gait netbox servicenow nvd-cve subnet-calc wikipedia markmap \
+PROFILE_RECOMMENDED="bgp-intel pyats gait netbox servicenow nvd-cve subnet-calc wikipedia markmap \
 drawio-rfc uml packet-buddy nmap gtrace globalping suzieq batfish protocol n2n tts chrome-devtools rag-mcp"
 
 PROFILE_CISCO="pyats gait netbox servicenow aci ise catalyst-center meraki sdwan cml fmc \
@@ -147,7 +148,7 @@ fwrule subnet-calc drawio-rfc uml packet-buddy"
 
 PROFILE_CLOUD="aws azure gcp cloudflare terraform vault github gait drawio-rfc uml subnet-calc"
 
-PROFILE_SECURITY="ise fmc panorama fortinet checkpoint claroty zscaler nvd-cve cisco-psirt nmap \
+PROFILE_SECURITY="ise fmc panorama fortinet bgp-intel checkpoint claroty zscaler nvd-cve cisco-psirt nmap \
 fwrule gait servicenow"
 
 PROFILE_LABS="cml containerlab batfish protocol peering n2n in2n-production suzieq gait subnet-calc drawio-rfc uml"
