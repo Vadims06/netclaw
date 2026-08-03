@@ -121,37 +121,98 @@ async def system_status(client: FortiOSClient, vdom: str | None = None) -> dict[
 
 
 async def list_interfaces(client: FortiOSClient, vdom: str | None = None) -> dict[str, Any]:
-    """Interfaces with link state, per VDOM (FR-015/FR-018)."""
+    """Interfaces with **administrative and operational state reported separately**.
+
+    FR-015/FR-018.
+
+    ADMIN STATUS IS NOT LINK STATE, and conflating them was a real defect in the
+    first version of this tool — found by NetClaw itself during live testing, which
+    observed that only link state was exposed and said so unprompted.
+
+        admin_status  from cmdb/system/interface  — is the interface ENABLED?
+        link          from monitor/system/interface — is the carrier UP?
+
+    An interface that is administratively **down** with a live carrier reports
+    `link: true` and looks perfectly healthy if you only read the monitor endpoint.
+    That is the same class of error as this feature's manager-vs-device distinction,
+    one level down, and in our own code.
+
+    `role` and `allowaccess` come from the same config read and matter for policy
+    work: an interface's zone/role determines which rules can reference it.
+    """
     tool = "fgt_list_interfaces"
     try:
-        raw = await client.get("monitor/system/interface", vdom=vdom)
+        runtime = await client.get("monitor/system/interface", vdom=vdom)
+        # Config read. If it fails we still report runtime state, but say that
+        # admin status is unknown rather than implying the interface is enabled.
+        try:
+            config = await client.get("cmdb/system/interface", vdom=vdom)
+        except RestError:
+            config = None
     except RestError as exc:
         if exc.outcome is Outcome.PLANE_UNREACHABLE:
             return unreachable(Plane.DEVICE, client.source, str(exc), tool=tool)
         return emit(Plane.DEVICE, source=client.source, outcome=exc.outcome,
                     message=str(exc), tool=tool)
 
-    # Measured: this endpoint returns a dict keyed by interface name, not a list.
-    entries = raw.values() if isinstance(raw, dict) else (raw or [])
-    interfaces = [
-        {
-            "name": i.get("name"),
-            "alias": i.get("alias") or None,
-            "ip": i.get("ip"),
-            "mask": i.get("mask"),
-            "link": i.get("link"),
-            "speed": i.get("speed"),
-            "mac": i.get("mac"),
-            "rx_errors": i.get("rx_errors"),
-            "tx_errors": i.get("tx_errors"),
-        }
-        for i in entries
-    ]
+    # Measured: monitor returns a DICT KEYED BY INTERFACE NAME, cmdb returns a LIST.
+    entries = runtime.values() if isinstance(runtime, dict) else (runtime or [])
+    cfg_by_name = {
+        c.get("name"): c for c in (config or []) if isinstance(c, dict) and c.get("name")
+    }
+
+    interfaces = []
+    for i in entries:
+        name = i.get("name")
+        cfg = cfg_by_name.get(name) or {}
+        admin = cfg.get("status")
+        interfaces.append(
+            {
+                "name": name,
+                "alias": i.get("alias") or cfg.get("alias") or None,
+                # Administrative intent — is this interface enabled at all?
+                "admin_status": admin,
+                # Operational reality — is the carrier up?
+                "link": i.get("link"),
+                # The combination worth naming: enabled in config, no carrier.
+                "admin_up_link_down": (admin == "up" and i.get("link") is False),
+                "ip": i.get("ip"),
+                "mask": i.get("mask"),
+                "type": cfg.get("type"),
+                "role": cfg.get("role"),
+                "allowaccess": cfg.get("allowaccess"),
+                "speed": i.get("speed"),
+                "mac": i.get("mac"),
+                "rx_errors": i.get("rx_errors"),
+                "tx_errors": i.get("tx_errors"),
+            }
+        )
+
+    notes = []
+    if config is None:
+        notes.append(
+            "Interface configuration could not be read, so admin_status, role and "
+            "allowaccess are unknown — NOT assumed enabled. Only operational link "
+            "state is reported here."
+        )
+    else:
+        notes.append(
+            "admin_status is administrative intent (config); link is operational "
+            "carrier state. An interface can be admin-down with link up, or "
+            "admin-up with no carrier — they are different facts."
+        )
+    admin_down = [i["name"] for i in interfaces if i.get("admin_status") == "down"]
+    if admin_down:
+        notes.append(
+            f"Administratively disabled: {', '.join(admin_down)}. These will not "
+            "pass traffic regardless of link state."
+        )
+
     return emit(
         Plane.DEVICE, source=client.source, scope=_scope(client, vdom),
         data={"interfaces": interfaces, "count": len(interfaces)},
         outcome=Outcome.OK if interfaces else Outcome.EMPTY_RESULT,
-        tool=tool,
+        notes=notes, tool=tool,
     )
 
 

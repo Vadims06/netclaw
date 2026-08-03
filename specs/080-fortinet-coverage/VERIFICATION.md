@@ -26,7 +26,7 @@ run.
 | Capability | Status | Evidence |
 |---|---|---|
 | `fgt_system_status` | ✅ live | 200; hostname/serial/version returned |
-| `fgt_list_interfaces` | ✅ live | 200; 2 interfaces, real counters |
+| `fgt_list_interfaces` | ✅ live | 200; 2 interfaces. **Extended 2026-08-03** to report `admin_status` (config) separately from `link` (carrier) — the conflation NetClaw reported itself |
 | `fgt_get_routes` | ✅ live | 200; 2 routes (static default + connected) |
 | `fgt_get_policies` | ✅ live | 200; `empty_result` on an empty ruleset |
 | `fgt_vpn_tunnels` | ⚠️ **partial** | Endpoint verified 200; **no tunnel configured**, so only the empty path ran |
@@ -35,10 +35,23 @@ run.
 | GAIT audit emission | ✅ live | 5 records written during the live run |
 | Empty ≠ error | ✅ live | `empty_result` distinguished from `plane_unreachable` |
 
-**FR-016 caveat, stated plainly:** phase 1 / phase 2 separation is **implemented and
-unit-tested, but not exercised against a real tunnel.** The licence caps the device
-at 3 interfaces, and no IPsec peer existed. The populated shape is coded from the
-FortiOS field layout, not observed. **Treat as unverified until a tunnel exists.**
+**FR-016 caveat, and an attempt that failed instructively (2026-08-03):** phase 1 /
+phase 2 separation is **implemented and unit-tested, but cannot be exercised on an
+evaluation-licensed FortiGate.**
+
+Defining a phase1-interface with an unreachable peer — intended to produce a real
+populated tunnel structure with phase 1 down — **wedged the REST API**. `httpsd`
+stopped answering (HTTP 000) while SSH, ping and `get system status` all stayed
+healthy, so the damage was invisible from the CLI. The eval licence caps the unit at
+3 interfaces and an IPsec tunnel creates a virtual one; the API did not recover
+until the phase1 was deleted, at which point it returned 200 immediately.
+
+**Conclusion: this is not verifiable on the eval tier**, and the attempt is
+recorded so nobody repeats it. Coverage is instead provided by
+`tests/fortinet/test_device_plane.py`, which proves phase-1-up/phase-2-down is
+representable, that per-selector detail survives, and that no collapsed `status`
+field exists. The populated *field mapping* remains coded from the FortiOS layout
+rather than observed — genuinely unverified, and stated as such.
 
 ### Manager plane — NOT VERIFIED
 
@@ -95,7 +108,9 @@ exists so nobody mistakes the second group for the first.
 1. **FortiManager-VM** (15-day trial, separate entitlement) → 8 manager tools plus
    `fgt_compare_with_manager`, the P1 story.
 2. **FortiAnalyzer-VM** (15-day trial, 6 GB/day) → 4 analyzer tools.
-3. **One IPsec tunnel** on the FortiGate → the populated phase-1/phase-2 shape.
+3. ~~One IPsec tunnel on the FortiGate~~ — **not possible on the eval tier.** Attempted 2026-08-03 and it
+   wedged the REST API (see the FR-016 note above). Needs a licensed unit with headroom above the
+   3-interface cap, or a second FortiGate to peer with.
 4. **A ServiceNow instance** → the real CR lookup in gate 2.
 
 ## The bug the tests could not have caught

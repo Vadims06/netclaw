@@ -1845,8 +1845,23 @@ class FederationService:
             if self.risk.role() == "member":
                 prompt = (f"Execute the '{skill}' skill for the following request "
                           f"and return only the result:\n\n{input_text}")
+                # Session key is per TASK, not per skill. Keying on the skill name
+                # alone (`in2n-{skill}`) had two faults, found while testing
+                # spec 080's Fortinet skills:
+                #
+                #   1. Concurrent delegations of the SAME skill contended on one
+                #      session JSONL and deadlocked — three parallel
+                #      `fortigate-ops` calls hung; serial re-runs were clean.
+                #   2. Worse: two UNRELATED Border requests to the same skill
+                #      shared a conversation, so one requester's context could
+                #      bleed into another's answer.
+                #
+                # A delegated skill invocation is a discrete request/response —
+                # there is no multi-turn conversation with a member — so per-task
+                # isolation costs nothing and removes both faults. Trade-off: one
+                # session file per delegation rather than per skill.
                 output, tokens = await run_agent_turn(
-                    prompt, session_key=f"in2n-{skill}",
+                    prompt, session_key=f"in2n-{skill}-{task_id}",
                     timeout_s=self.invoker.skill_timeout, local=True, model=member_model)
             else:
                 output, tokens = await self.invoker._exec_skill_gateway(skill, input_text)
