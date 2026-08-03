@@ -132,7 +132,7 @@ and the IETF datatracker.
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R18** | Document generation — docx / pptx / xlsx / pdf | — | `NOT STARTED` |
+| **R18** | Document generation — docx / pptx / xlsx / pdf | 082 | `IN PROGRESS` |
 | **R19** | Google Workspace (official) | — | `NOT STARTED` |
 | **R20** | Notion + Linear (official) | — | `NOT STARTED` |
 | **R21** | GitOps + Azure DevOps (ArgoCD / Flux) | — | `NOT STARTED` |
@@ -647,25 +647,52 @@ files is an excellent analysis substrate for exports.
 
 ## R18 — Document generation (docx / pptx / xlsx / pdf)
 
-**Status:** `NOT STARTED` · **Best effort-to-value ratio on the roadmap**
+**Status:** `IN PROGRESS` — spec `082-document-generation` · **Best effort-to-value ratio on the roadmap**
 
 NetClaw can render Three.js topologies, drawio, markmap, UML, Blender and UE5 — but cannot
 produce a change-record `.docx`, an exec `.pptx`, an interface-audit `.xlsx`, or fill a PDF.
 Its output lands in front of enterprise humans.
 
-**Source:** `anthropics/skills` — `skills/docx`, `skills/pptx`, `skills/xlsx`, `skills/pdf`,
-official and source-available.
+**Source (reference only — see the licence finding):** `anthropics/skills` — `skills/docx`,
+`skills/pptx`, `skills/xlsx`, `skills/pdf`.
 
-**Checklist**
-- [ ] Vendor the four official skills; note their license terms
-- [ ] Confirm Python deps (`python-docx`, `openpyxl`, `python-pptx`, PDF tooling) — several are
-      already present for `rag-mcp` (feature 062)
+> **⚠️ Correction, measured 2026-08-03 — "vendor the four official skills" cannot be done.**
+> This section originally called R18 a vendor-first item. It is not. The four `anthropics/skills`
+> document skills are **source-available and "provided for demonstration and educational purposes
+> only"** — *not* Apache-2.0. (The repo's **example** skills are Apache-2.0; the document skills
+> specifically are not.) NetClaw ships Apache-2.0 skills, so vendoring them is **not licence-
+> compatible**, and spec 082 additionally rules out any installer or runtime fetch for them.
+>
+> R18 is therefore **build-rather-than-adopt for a licensing reason** — a different situation from
+> R1/R3/R9, where the community options were technically inadequate. Upstream remains valuable as
+> **reference for which capabilities matter** (tracked changes, find-and-replace, PDF form filling
+> and merge/split, template-vs-scratch modes); reading it to decide *what* to build is legitimate,
+> copying it is not.
+
+**Checklist** *(revised by spec 082's clarification session)*
+- [x] ~~Vendor the four official skills~~ — **struck on licence grounds.** Record the terms
+      explicitly, cite upstream as capability reference, and ship **no vendored copy, no installer,
+      no runtime fetch**
+- [x] Confirm Python deps — **all four already installed** via `rag-mcp` (feature 062):
+      `python-docx` 1.2.0, `openpyxl` 3.1.5, `python-pptx` 1.0.2, PyMuPDF 1.28.0. Note that rag-mcp
+      declares them **unpinned**, a latent spec-077 hazard (PyMuPDF is imported as `fitz`); spec 082
+      adds upper bounds in both places without moving any installed version
 - [ ] Define the output location convention (persistent workspace output dir, timestamped,
       never overwritten — matching feature 046)
 - [ ] NetClaw-specific wrapper skills: change record, incident report, interface/config audit
       workbook, exec summary deck
 - [ ] Compose with existing report-delivery skills (`slack-report-delivery`,
-      `webex-report-delivery`) so generated documents can actually be sent
+      `webex-report-delivery`) so generated documents can actually be sent — **note:** spec 082 puts
+      *sending* out of scope (Principle XIV); it writes files, the delivery skills send them
+
+**Scope decisions from spec 082** (so they are not re-litigated):
+- One MCP server owns all document writing, stamping generation time, attribution and per-element
+  provenance at a single chokepoint; skills own the compositions and contain no writing logic
+- Provenance must be **visible** — source column per spreadsheet row, per-figure source in documents
+  and decks, plus a sources section in every file. Cell comments and document metadata do **not**
+  satisfy it
+- `.docx`/`.xlsx`/`.pptx` are built **from scratch**; corporate-template population is a follow-on.
+  PDF form filling stays, because a PDF form's fields are explicitly named and machine-readable
 
 ## R19 — Google Workspace (official)
 
@@ -792,7 +819,8 @@ R0 is mandatory and first. After that, the value-ordered sequence:
 
 1. **R0** — config reconciliation *(foundation; blocks all)*
 2. **R1** — Nornir/Netmiko *(~100 platforms, one server)*
-3. **R18** — document generation *(free, official, closes the deliverable gap)*
+3. **R18** — document generation *(closes the deliverable gap; libraries already installed, but
+   **built rather than vendored** — the upstream skills are demonstration-only, not Apache-2.0)*
 4. **R8** — Globalping *(remote MCP, zero install, opens the external plane)*
 5. **R2** — Cisco Support APIs *(closes PSIRT/EoL/bug in the deepest vendor)*
 6. **R3** — Fortinet *(largest single-vendor absence)*

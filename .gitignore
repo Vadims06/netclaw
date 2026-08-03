@@ -91,6 +91,7 @@ mcp-servers/multivendor-cli-mcp/.venv/
 !mcp-servers/halo-mcp/
 !mcp-servers/fortinet-mcp/
 !mcp-servers/bgp-intel-mcp/
+!mcp-servers/document-mcp/
 
 # Traces
 trace.json

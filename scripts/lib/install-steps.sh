@@ -3845,6 +3845,30 @@ fi
 BGP_INTEL_MCP_CMD_DETECTED="python3 $BGP_INTEL_MCP_DIR/server.py"
 }
 
+# ── Document generation MCP (spec 082 / roadmap R18) ────────────
+component_install_document() {
+log_step "Installing Document Generation MCP Server..."
+echo "  Source: mcp-servers/document-mcp (NetClaw-authored, spec 082 / roadmap R18)"
+echo "  Change-record .docx, audit .xlsx, exec .pptx, PDF form filling"
+echo "  NO credentials required — writes files, touches no device and no ticket"
+
+DOCUMENT_MCP_DIR="$REPO_ROOT/mcp-servers/document-mcp"
+
+if [ -d "$DOCUMENT_MCP_DIR" ]; then
+    # These four libraries are almost certainly already present: rag-mcp (feature 062)
+    # installs them to READ these formats. This server WRITES them. Bounds are identical
+    # in both declarations so one shared install satisfies both.
+    netclaw_pip_install -r "$DOCUMENT_MCP_DIR/requirements.txt" 2>/dev/null || \
+        log_warn "Document MCP dependency install failed (mcp, python-docx, openpyxl, python-pptx, pymupdf)"
+    log_info "Document MCP prepared: $DOCUMENT_MCP_DIR"
+    log_info "Output lands in workspace/output/document-mcp/ — timestamped, never overwritten"
+else
+    log_warn "Document MCP directory missing: $DOCUMENT_MCP_DIR"
+fi
+
+DOCUMENT_MCP_CMD_DETECTED="python3 $DOCUMENT_MCP_DIR/server.py"
+}
+
 component_install_globalping() {
 log_step "Enabling Globalping (remote MCP)..."
 echo "  Outside-in measurement from ~4,800 probes across ~1,390 ASNs:"
