@@ -61,6 +61,7 @@ CATALOG=(
     "suzieq|Observability|SuzieQ|Network state queries, assertions, path tracing (bundled)"
     "kubeshark|Observability|Kubeshark|K8s L4/L7 traffic analysis, TLS decryption (remote)"
     "gtrace|Observability|gtrace|Traceroute (MPLS/ECMP/NAT), MTR, GlobalPing, ASN, geo (6 tools)"
+    "k8s|Observability|Kubernetes (read-only)|Pods, services, ingresses, EndpointSlices and NetworkPolicies. Strictly read-only, Secrets denied. An empty list is not evidence of absence — the server narrows silently on insufficient RBAC"
     "zabbix|Observability|Zabbix SNMP-Poller NMS|Polled metric history, problems and device availability from a self-hosted Zabbix. Read-only. Answers what something WAS doing over time — the layer NetClaw had no source for"
     "bgp-intel|Observability|BGP & Registry Intelligence|RPKI origin validation, RDAP ownership, PeeringDB peering, routing visibility (public APIs, no credentials)"
     "globalping|Observability|Globalping|Outside-in measurement from ~4800 global probes — ping, traceroute, DNS, MTR, HTTP (remote, no install)"
@@ -156,7 +157,7 @@ fwrule gait servicenow"
 PROFILE_LABS="cml containerlab batfish protocol peering n2n in2n-production suzieq gait subnet-calc drawio-rfc uml"
 
 PROFILE_OBSERVABILITY="grafana prometheus datadog splunk pagerduty te-community te-official \
-suzieq kubeshark gtrace globalping auvik gait zabbix"
+suzieq kubeshark gtrace globalping auvik gait zabbix k8s"
 
 profile_components() {
     case "$1" in

@@ -123,7 +123,7 @@ and the IETF datatracker.
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R14** | Kubernetes (pods/services/ingress/NetworkPolicy + Helm) | — | `NOT STARTED` |
+| **R14** | Kubernetes (pods/services/ingress/NetworkPolicy) | [084](../specs/084-k8s-readonly/spec.md) | `DONE` — **read-only**, adopted `containers/kubernetes-mcp-server` (Apache-2.0 Go binary, pinned + checksummed). 7 tools / 1,643 tokens; the upstream **default busts the ceiling**. Helm and all writes deliberately out of scope. The upstream's silent RBAC narrowing was **reproduced live** and is mitigated by a mandated cluster-wide-read SA plus a skill preflight |
 | **R15** | Redfish / BMC out-of-band (iDRAC / iLO / XClarity) | — | `NOT STARTED` |
 | **R16** | VMware vSphere / NSX (build, not adopt) | — | `NOT STARTED` |
 | **R17** | Database query layer (Postgres / ClickHouse / DuckDB / SQLite) | — | `NOT STARTED` |
@@ -607,23 +607,43 @@ The network-security-monitoring layer is entirely absent.
 
 ## R14 — Kubernetes
 
-**Status:** `NOT STARTED`
+**Status:** `DONE` — spec [084](../specs/084-k8s-readonly/spec.md)
 
-`kubeshark` gives traffic visibility but NetClaw cannot read a pod, service, ingress, or
-NetworkPolicy. Hard floor for any container-networking work.
-
-**Candidates**
-- `Flux159/mcp-server-kubernetes` — includes Helm operations and write tools
-  (`kubectl_apply`, `kubectl_scale`, `kubectl_patch`, `kubectl_rollout`)
-- `rohitg00/kubectl-mcp-server` — in the CNCF Landscape
-- Red Hat's Kubernetes/OpenShift MCP server
+`kubeshark` gave traffic visibility; NetClaw could not read a pod, service, ingress or NetworkPolicy.
 
 **Checklist**
-- [ ] Pick a server; strongly prefer starting read-only given the write tool surface
-- [ ] kubeconfig / context handling and RBAC scoping
-- [ ] Skills: NetworkPolicy review, service/ingress path tracing, CNI health
-- [ ] Compose with `kubeshark` so config and traffic views join up
-- [ ] Assess Cilium/Calico CNI-specific tooling as a follow-on
+- [x] Pick a server; **start read-only** — done, and read-only turned out to be what makes adoption
+      *possible*: the upstream default is 21 tools / 5,716 tokens and busts the manifest ceiling
+- [x] kubeconfig / context handling and RBAC scoping — an **explicit, token-only** kubeconfig for a
+      dedicated cluster-wide-read ServiceAccount. Never the ambient `current-context`, which may be
+      production
+- [x] Skills: NetworkPolicy review, service/ingress path tracing — delivered. **CNI health** partially:
+      the objects are readable, vendor semantics are not (see follow-on)
+- [x] Compose with `kubeshark` — the boundary is stated in all three skills: observed traffic vs declared
+      configuration, and *reachable is not permitted*
+- [ ] **Cilium/Calico CNI-specific tooling** — follow-on. Their CRDs are readable as objects through the
+      generic resource tools; their *semantics* are not interpreted
+
+**Landscape, measured by building and running each candidate**
+
+| Candidate | Tools | Licence | Outcome |
+|---|---|---|---|
+| `containers/kubernetes-mcp-server` (Red Hat) | **7** trimmed / 21 default | Apache-2.0 | **adopted** |
+| `Flux159/mcp-server-kubernetes` | 8 read-only / 23 default | MIT | fallback — see caution |
+| `patrickdappollonio/mcp-kubernetes-ro` | 10 | MIT | good design, 23★, single maintainer |
+| `rohitg00/kubectl-mcp-server` | **313** | MIT | **rejected twice over** |
+
+> **`rohitg00` is disqualified twice**: 313 tools *and* it pins `fastmcp>=3.0.0b1` — spec 083's blocker
+> reproduced exactly.
+>
+> **`Flux159` carries GHSA-cr22-wjx7-2w6m (High)** — read-only filtering was *bypassable*: tools hidden
+> from `tools/list` were still callable. That is the exact mechanism one would depend on to fit the ceiling.
+>
+> **There is no official Kubernetes or CNCF MCP server.** `org:kubernetes mcp` → 0 repos; `org:cncf mcp` → 0.
+
+**The finding worth carrying forward:** the Kubernetes API is *honest* — it returns a correct 403 on an
+unauthorised cluster-wide list. The adopted server converts that into a plausible one-namespace answer with
+no error (`resources.go:34-38`, permission error discarded). Reproduced live in NetClaw's own test suite.
 
 ## R15 — Redfish / BMC out-of-band
 
