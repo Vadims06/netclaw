@@ -39,6 +39,11 @@ py() {
     if [ "$out" = "PASS" ]; then ok "$desc"; else bad "$desc -- got: ${out##*$'\n'}"; fi
 }
 
+# Does importing server.py work here? It needs the `mcp` package. CI installs nothing by
+# design (spec 075 SC-013), so tests that import the server skip rather than fail -- while the
+# posture and pinning assertions, which are pure stdlib, always run.
+if (cd "$SRV" && python3 -c 'import mcp' 2>/dev/null); then HAVE_MCP=1; else HAVE_MCP=0; fi
+
 echo "=== Chokepoint: a finding cannot travel without its posture ==="
 
 py "an alert verdict without Suricata posture is refused" '
@@ -146,17 +151,24 @@ print("PASS" if ":latest" not in src else "found :latest")'
 echo
 echo "=== Tool surface stays under the manifest ceiling ==="
 
-py "6 tools, manifest under 2000 tokens" '
+if [ "$HAVE_MCP" = "1" ]; then
+    py "6 tools, manifest under 2000 tokens" '
 import asyncio, json, server
 tools = asyncio.run(server.mcp.list_tools())
 tot = sum(len(json.dumps({"name": t.name, "description": t.description,
                           "inputSchema": t.inputSchema})) // 4 for t in tools)
 print("PASS" if len(tools) == 6 and tot < 2000 else f"{len(tools)} tools, {tot} tokens")'
+else
+    skip "tool-surface measurement (the mcp package is not installed here)"
+fi
 
 echo
 echo "=== Live analysis against the committed fixture (needs docker) ==="
 
-if ! docker info >/dev/null 2>&1; then
+if [ "$HAVE_MCP" != "1" ]; then
+    skip "Zeek/Suricata analysis (the mcp package is not installed here)"
+    skip "checksum trap reproduction (the mcp package is not installed here)"
+elif ! docker info >/dev/null 2>&1; then
     skip "Zeek/Suricata analysis (docker not reachable)"
     skip "checksum trap reproduction (docker not reachable)"
 else
