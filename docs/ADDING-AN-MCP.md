@@ -100,6 +100,7 @@ To check one surface while iterating:
 scripts/reconcile-mcp.py --surface catalog
 scripts/reconcile-mcp.py --surface portability
 scripts/reconcile-mcp.py --surface startup      # actually launches your server
+scripts/reconcile-mcp.py --surface packages     # npx/uvx packages your skill invokes
 ```
 
 The `startup` surface (spec 088) launches every registered stdio server and reports the ones that
@@ -150,6 +151,7 @@ history they all passed while seven registered servers could not start.
 [ ] SOUL.md updated INCLUDING counts
 [ ] SKILL.md created (if adding a skill)
 [ ] check-server-startup.py --only <key> reports no finding (timeout is success)
+[ ] If a skill invokes a package via npx/uvx: python3 scripts/check-package-references.py --refresh
 [ ] .env.example updated (names only)
 [ ] TOOLS.md updated
 [ ] mcp-servers/<name>/README.md created
