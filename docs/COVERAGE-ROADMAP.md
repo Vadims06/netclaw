@@ -114,7 +114,7 @@ and the IETF datatracker.
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R10** | ntopng — flow analytics platform | — | `NOT STARTED` |
+| **R10** | ntopng — flow analytics platform | — | **`DEFERRED`** — investigated 2026-08-04. **The premise is false for the free edition**: ClickHouse flow history is hard-gated to Enterprise M+ (€699.95), verified in ntop's own `Prefs.cpp:3381`. Community's 12 MCP tools also require an **admin** token and bust the ceiling once the 5,338-token `instructions` payload is counted |
 | **R11** | SNMP-poller NMS (Zabbix / LibreNMS / Netdata) | [083](../specs/083-zabbix-nms/spec.md) | `DONE` — **Zabbix only**, adopted not built (3 tools, 589/5,000 tokens). NetClaw's first polled-history source. Runs in a dedicated venv (fastmcp 3.x vs five servers pinning `<3`). Both silent-wrong-answer traps reproduced against live 7.0.29 |
 | **R12** | APM + log platforms (Dynatrace / New Relic / Elastic) | — | `NOT STARTED` |
 | **R13** | NSM / IDS (Zeek / Suricata / Arkime) + packet-buddy audit | — | `NOT STARTED` |
@@ -126,7 +126,7 @@ and the IETF datatracker.
 | **R14** | Kubernetes (pods/services/ingress/NetworkPolicy) | [084](../specs/084-k8s-readonly/spec.md) | `DONE` — **read-only**, adopted `containers/kubernetes-mcp-server` (Apache-2.0 Go binary, pinned + checksummed). 7 tools / 1,643 tokens; the upstream **default busts the ceiling**. Helm and all writes deliberately out of scope. The upstream's silent RBAC narrowing was **reproduced live** and is mitigated by a mandated cluster-wide-read SA plus a skill preflight |
 | **R15** | Redfish / BMC out-of-band (iDRAC / iLO / XClarity) | — | `NOT STARTED` |
 | **R16** | VMware vSphere / NSX (build, not adopt) | — | `NOT STARTED` |
-| **R17** | Database query layer (Postgres / ClickHouse / DuckDB / SQLite) | — | `NOT STARTED` |
+| **R17** | Database query layer (Postgres / ClickHouse / DuckDB / SQLite) | — | `NOT STARTED` — **but see the note**: its ClickHouse rationale depended on R10, which is now `DEFERRED`, and there is currently **no exported network data to query** |
 
 ### Tier 5 — Productivity and human deliverables
 
@@ -518,18 +518,91 @@ communities are a distinct data model and belong to their own item.
 
 ## R10 — ntopng
 
-**Status:** `NOT STARTED`
+**Status:** **`DEFERRED`** — investigated 2026-08-04, not built. Five independent blockers.
 
-Official ntop MCP server (documented in ntopng 6.7). Queries ClickHouse flow history, live host
-stats, alerts. NetClaw has its own `ipfix-mcp` receiver plus kubeshark/packet-buddy, but no real
-flow-analytics platform.
+The original entry read: *"Official ntop MCP server (documented in ntopng 6.7). Queries ClickHouse flow
+history, live host stats, alerts."* The MCP server is real. **The ClickHouse premise is not, on any edition
+a lab would run.**
 
-**Checklist**
-- [ ] Stand up ntopng (or point at an existing instance) with ClickHouse flow storage
-- [ ] Adopt the official MCP server
-- [ ] Define the boundary against `ipfix-mcp` — receiver vs analytics platform
-- [ ] Skills: top talkers, flow investigation, alert triage, host behavior baseline
-- [ ] Note the ClickHouse dependency ties into R17
+### Blocker 1 — ClickHouse flow history is Enterprise M+ (€699.95)
+
+Not a docs ambiguity. A compile-time gate in ntop's own source, `src/Prefs.cpp:3381`:
+
+```cpp
+bool Prefs::do_dump_flows_on_clickhouse() {
+  return (ntop->getPro()->is_enterprise_m_edition() ||
+          ntop->getPro()->is_nedge_enterprise_edition())
+    && dump_flows_on_clickhouse;
+}
+```
+
+Startup validation refuses it outright: *"-F clickhouse is available only on Enterprise"*. The licensing
+table agrees — *"High performance flow export to ClickHouse and explorer"* is ✗ Community, ✗ Pro,
+✓ Enterprise M+. Even plain "export expired flows to database" is Pro+.
+
+**Worse, it fails open.** With the ClickHouse client absent or the licence missing, ntopng logs a warning,
+silently sets `dump_flows_on_clickhouse = false`, and **starts healthy**. MCP works. Storage was never
+enabled. That is precisely the silent-misconfiguration failure this project rejects candidates over.
+
+### Blocker 2 — the manifest busts the ceiling once you count `instructions`
+
+Measured against a live unlicensed 6.7-dev instance: **12 tools, 2,157-token manifest** — which passes.
+But `initialize` returns an `instructions` payload of **21,351 characters ≈ 5,338 tokens** — a full agent
+system prompt. Real cost **≈ 7,400 tokens**, over the 5,000 ceiling on its own.
+
+The payload also instructs the model to *"always wrap timestamp columns in formatDateTime(...)"* when
+*"querying data from clickhouse db"* — on an edition where **no ClickHouse tool exists**, inviting
+hallucinated SQL.
+
+### Blocker 3 — it requires an ADMIN token, and the docs are wrong about it
+
+`scripts/lua/rest/v2/exec/llm/mcp.lua` returns **403 Forbidden: administrator role required** unless
+`isAdministrator()`. The documentation claims read-only keys suffice. They do not — a read-only token gets
+no MCP access at all.
+
+Every NetClaw integration adopted so far runs read-only by construction. This one cannot: handing an agent
+an ntopng **admin** token to read live host stats is a posture regression, and one of the 12 tools is a
+write (`add_active_monitoring_script`).
+
+Compounding it: the **official compose ships `--disable-login`**, under which `isUserAdministrator()`
+returns true unconditionally — copying it exposes an **unauthenticated, write-capable MCP endpoint**.
+
+### Blocker 4 — an empty answer is uninterpretable
+
+Six of the twelve tools return a success string for no-data. Measured:
+
+| Call | Response | `isError` |
+|---|---|---|
+| `get_host_info`, host with no flows | `"No data found for host …"` | **false** |
+| `get_live_flows_for_host`, unknown host | `"No active flows found for …"` | **false** |
+| `get_country_stats` | bare CSV header, zero rows | **false** |
+
+And the interface a query ran against is **neither selectable nor visible**: `ifid` is documented but the
+C++ only honours it from a POST body MCP never sends, so the interface resolves from a **Redis per-user
+preference set in the web UI**. In a multi-interface lab *"No active flows found"* usually means *"you
+queried the wrong interface"* — with no way to choose one and no way to learn which answered.
+
+Nothing distinguishes **not collecting** from **no traffic**.
+
+### Blocker 5 — no native NetFlow/IPFIX collector, in any edition
+
+ntopng ingests flows only over **ZMQ from nProbe**. nProbe is **separately licensed** (€299.95); its
+unlicensed demo degrades after ~5 minutes. Community *can* accept a ZMQ collector interface (verified
+unlicensed) and *can* sniff an interface directly — but the FRR/FortiGate NetFlow export this item was
+meant to consume needs either paid nProbe or `netflow2ng` (MIT, **v9 only**, self-described Home/SOHO).
+
+### The alternatives are dead ends
+
+`marcoeg/mcp-server-ntopng` (20 tools) and `marcoeg/mcp-ntopng` (6 tools) both query ClickHouse directly —
+inheriting the same Enterprise M+ requirement — are **17 months stale** (last commits March 2025), and pin
+`fastmcp>=0.4.1` **unbounded**, resolving to 3.x and reproducing spec 083's blocker exactly.
+
+### What would change this
+
+A licensed Enterprise M+ ntopng, or a decision to accept live-state-only monitoring with an admin token.
+Neither is a lab proposition. **If ntopng is ever revisited, the honest scope is 12 read-only-ish live-state
+tools on the 6.7-dev image — no flow history, no ClickHouse, no alert tooling — and the `instructions`
+payload must be suppressible first.**
 
 ## R11 — SNMP-poller NMS (Zabbix / LibreNMS / Netdata)
 
@@ -678,18 +751,34 @@ in NSX.
 
 ## R17 — Database query layer
 
-**Status:** `NOT STARTED`
+**Status:** `NOT STARTED` · **⚠️ premise weakened — read this before starting**
 
 SuzieQ, ntopng, Arkime, and NetBox all sit on databases worth querying directly. DuckDB over
 files is an excellent analysis substrate for exports.
 
+> **Surveyed 2026-08-04: there is currently nothing to query.** Measured on the development host:
+> `*.parquet` anywhere = **0 files**; SuzieQ parquet = **0**; `workspace/output/` holds documents and
+> diagrams only; DuckDB and ClickHouse are **not installed**.
+>
+> And the **ClickHouse half of the rationale is gone**: ClickHouse arrives with ntopng, which is now
+> **`DEFERRED`** because ClickHouse flow storage is Enterprise M+ only.
+>
+> Excluding the memory and RAG stores (below), what remains is `federation.db` (~700 KB) and the GAIT
+> JSONL logs. Real, but thin — and *"ad-hoc analysis over exported network data"* has no data behind it.
+>
+> **Sequencing conclusion: R17 should follow whichever item first produces bulk exports** — R13
+> (Zeek/Suricata logs) is now the most likely candidate, since R10 is deferred. Building the query layer
+> first would ship a query engine with nothing to point at.
+
 **Checklist**
 - [ ] Decide scope: read-only analyst access, not a general write surface
-- [ ] Prioritize DuckDB (file/export analysis) and ClickHouse (ntopng, R10) over generic Postgres
+- [ ] Prioritize DuckDB (file/export analysis) — **ClickHouse is no longer a near-term target** (R10 deferred)
 - [ ] Strict read-only enforcement and query timeouts
-- [ ] **Must not** expose `~/.openclaw/memory/` or `~/.openclaw/rag/rag.db` — feature 062
-      FR-030 keeps those isolated
-- [ ] Skill: ad-hoc analysis over exported network data
+- [ ] **Must not** expose `~/.openclaw/memory/` or `~/.openclaw/rag/rag.db`. *Precision on the citation:*
+      spec 062's FR-030 binds **`rag-mcp`** not to read the Memory store; it is not literally a ban on other
+      features reading `rag.db`. This roadmap imposes the wider constraint, on 062's isolation principle —
+      a generic SQL surface over either store would be a backdoor. Honour it either way
+- [ ] Skill: ad-hoc analysis over exported network data — **once such data exists**
 
 ---
 
@@ -894,6 +983,12 @@ R0 is mandatory and first. After that, the value-ordered sequence:
 3. **R18** — document generation *(closes the deliverable gap; libraries already installed, but
    **built rather than vendored** — the upstream skills are demonstration-only, not Apache-2.0)*
 4. **R8** — Globalping *(remote MCP, zero install, opens the external plane)*
+
+> **Sequencing note added 2026-08-04.** Two items were investigated and *not* built, both because their
+> premise did not survive contact with reality. Recorded here so the order below is read with that in mind:
+> **R10 is `DEFERRED`** (ClickHouse flow history is Enterprise M+ only), and **R17's premise is weakened**
+> (no exported data exists yet, and its ClickHouse rationale depended on R10). R17 should follow whichever
+> item first produces bulk exports — most likely **R13** now.
 5. **R2** — Cisco Support APIs *(closes PSIRT/EoL/bug in the deepest vendor)*
 6. **R3** — Fortinet *(largest single-vendor absence)*
 
