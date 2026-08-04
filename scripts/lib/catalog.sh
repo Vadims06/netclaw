@@ -27,6 +27,7 @@ CATALOG=(
     "itential|Fabric & Orchestration|Itential IAP|Config mgmt, compliance, workflows, golden config (65+ tools)"
     "meraki|Fabric & Orchestration|Cisco Meraki|Official remote MCP — 494 read-only Dashboard capabilities via 2 tools"
     "nsm|Observability & Telemetry|Zeek + Suricata NSM|Offline PCAP analysis — session metadata and IDS alerting (6 tools)"
+    "analysis|Observability & Telemetry|DuckDB Analysis|Read-only SQL over exported network data, sandboxed (3 tools)"
     "sdwan|Fabric & Orchestration|Cisco SD-WAN|vManage read-only monitoring (12 tools)"
     "prisma-sdwan|Fabric & Orchestration|Prisma SD-WAN|Palo Alto SASE — sites, topology, alarms (15+ tools)"
     "aap|Fabric & Orchestration|Ansible Automation Platform|Controller, EDA, ansible-lint, Red Hat docs (4 servers)"

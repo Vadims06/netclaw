@@ -1186,6 +1186,26 @@ fi
 echo ""
 }
 
+# ── Step 28.6: DuckDB analysis surface (spec 092, roadmap R17) ──
+component_install_analysis() {
+log_step "Installing DuckDB Analysis MCP Server..."
+echo "  NetClaw-authored: mcp-servers/analysis-mcp (3 tools)"
+echo "  Read-only SQL over exported network data — Zeek logs, Suricata eve.json, reports."
+
+netclaw_pip_install -r "$NETCLAW_DIR/mcp-servers/analysis-mcp/requirements.txt" || \
+    log_error "analysis-mcp dependencies install FAILED — the server will not start"
+
+# The sandbox loads only allowlisted roots and then closes DuckDB's filesystem and network
+# access permanently (enable_external_access=false + lock_configuration=true). NetClaw's
+# memory, RAG, federation and GAIT stores are never readable from it -- a generic SQL
+# surface over those would be a backdoor, not an analysis tool (roadmap R17).
+mkdir -p "$HOME/.openclaw/analysis"
+log_info "Analyst scratch root: $HOME/.openclaw/analysis (place your own exports here)"
+log_info "Reads Zeek/Suricata output from nsm-mcp; run nsm_analyze first to have data"
+
+echo ""
+}
+
 # ── Step 28.5: Zeek + Suricata NSM (spec 091, roadmap R13) ──────
 component_install_nsm() {
 log_step "Installing Zeek + Suricata NSM MCP Server..."

@@ -129,7 +129,7 @@ and the IETF datatracker.
 | **R14** | Kubernetes (pods/services/ingress/NetworkPolicy) | [084](../specs/084-k8s-readonly/spec.md) | `DONE` — **read-only**, adopted `containers/kubernetes-mcp-server` (Apache-2.0 Go binary, pinned + checksummed). 7 tools / 1,643 tokens; the upstream **default busts the ceiling**. Helm and all writes deliberately out of scope. The upstream's silent RBAC narrowing was **reproduced live** and is mitigated by a mandated cluster-wide-read SA plus a skill preflight |
 | **R15** | Redfish / BMC out-of-band (iDRAC / iLO / XClarity) | — | `NOT STARTED` |
 | **R16** | VMware vSphere / NSX (build, not adopt) | — | `NOT STARTED` |
-| **R17** | Database query layer (Postgres / ClickHouse / DuckDB / SQLite) | — | `NOT STARTED` — **but see the note**: its ClickHouse rationale depended on R10, which is now `DEFERRED`, and there is currently **no exported network data to query** |
+| **R17** | Database query layer (Postgres / ClickHouse / DuckDB / SQLite) | [092](../specs/092-duckdb-analysis/spec.md) | `DONE` — **DuckDB only**, read-only, 3 tools, 32 assertions. Unblocked exactly as this roadmap predicted: R13 produced the Zeek/Suricata exports first. Containment is **DuckDB's own**, not a regex — datasets are materialised, then `enable_external_access=false` + `lock_configuration=true` close every filesystem and network path irreversibly, so memory/RAG/federation/GAIT are unreachable by construction (8 escape attempts verified to raise). ClickHouse still out: its rationale died with R10 |
 
 ### Tier 5 — Productivity and human deliverables
 

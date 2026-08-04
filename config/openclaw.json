@@ -1153,6 +1153,18 @@
         "NSM_HOME": "${NSM_HOME:-~/.openclaw/nsm}",
         "NSM_TIMEOUT": "${NSM_TIMEOUT:-600}"
       }
+    },
+    "analysis-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/analysis-mcp/server.py"
+      ],
+      "env": {
+        "ANALYSIS_QUERY_TIMEOUT": "${ANALYSIS_QUERY_TIMEOUT:-30}",
+        "ANALYSIS_MAX_RESULT_ROWS": "${ANALYSIS_MAX_RESULT_ROWS:-500}",
+        "ANALYSIS_EXTRA_ROOTS": "${ANALYSIS_EXTRA_ROOTS:-}"
+      }
     }
   }
 }
