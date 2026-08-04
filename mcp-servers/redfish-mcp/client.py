@@ -18,13 +18,21 @@ import logging
 import os
 from typing import Any
 
-import httpx
+# Guarded so the pure-logic parts of this module -- endpoint refusal and the TLS disclosure --
+# work where httpx is absent (CI installs nothing, spec 075 SC-013). Only get() needs the
+# library, and it raises a clear BmcUnreachable if asked to run without it. Spec 092 learned
+# this the same way: a top-level import made stdlib-only assertions fail instead of skip.
+try:
+    import httpx
+except ModuleNotFoundError:  # pragma: no cover - exercised by the CI path
+    httpx = None
 
 # httpx logs every request at INFO. On a STDIO transport anything written to stdout corrupts
 # the JSON-RPC stream, and the handler FastMCP installs is not guaranteed to keep it off there.
 # Silencing at the source is the only reliable fix; measured, these lines were being emitted.
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
+if httpx is not None:
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 # BMCs ship self-signed certificates almost universally, and an operator cannot fix that from
 # here. Verification is therefore OFF by default but the choice is reported in every response's
@@ -54,7 +62,11 @@ class RedfishClient:
         self.user = username or os.environ.get("REDFISH_USERNAME") or ""
         self.password = password or os.environ.get("REDFISH_PASSWORD") or ""
 
-    def _client(self) -> httpx.Client:
+    def _client(self):
+        if httpx is None:
+            raise BmcUnreachable(
+                "the httpx package is not installed; install "
+                "mcp-servers/redfish-mcp/requirements.txt")
         auth = (self.user, self.password) if self.user else None
         return httpx.Client(base_url=self.base, auth=auth, timeout=TIMEOUT,
                             verify=VERIFY_TLS, follow_redirects=True)
@@ -66,7 +78,11 @@ class RedfishClient:
         try:
             with self._client() as c:
                 resp = c.get(path)
-        except httpx.HTTPError as exc:
+        except BmcUnreachable:
+            raise
+        except Exception as exc:
+            # Broad rather than httpx.HTTPError so this still reports honestly when httpx is
+            # absent and the class cannot be named.
             raise BmcUnreachable(f"{type(exc).__name__}: {exc}") from exc
 
         if resp.status_code in (401, 403):
