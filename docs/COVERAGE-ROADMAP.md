@@ -120,7 +120,7 @@ and the IETF datatracker.
 | **R10** | ntopng — flow analytics platform | — | **`DEFERRED`** — investigated 2026-08-04. **The premise is false for the free edition**: ClickHouse flow history is hard-gated to Enterprise M+ (€699.95), verified in ntop's own `Prefs.cpp:3381`. Community's 12 MCP tools also require an **admin** token and bust the ceiling once the 5,338-token `instructions` payload is counted |
 | **R11** | SNMP-poller NMS (Zabbix / LibreNMS / Netdata) | [083](../specs/083-zabbix-nms/spec.md) | `DONE` — **Zabbix only**, adopted not built (3 tools, 589/5,000 tokens). NetClaw's first polled-history source. Runs in a dedicated venv (fastmcp 3.x vs five servers pinning `<3`). Both silent-wrong-answer traps reproduced against live 7.0.29 |
 | **R12** | APM + log platforms (Dynatrace / New Relic / Elastic) | — | `NOT STARTED` |
-| **R13** | NSM / IDS (Zeek / Suricata / Arkime) + packet-buddy audit | — | `NOT STARTED` |
+| **R13** | NSM / IDS (Zeek / Suricata / Arkime) + packet-buddy audit | [091](../specs/091-nsm-zeek-suricata/spec.md) | `DONE` — **built**, read-only offline PCAP analysis. Zeek 8.2.1 + Suricata 8.0.6 from digest-pinned containers, 6 tools / 934 tokens, 19 assertions. **Arkime rejected** (mandatory OpenSearch + ~12–16 GB = a platform, not a tool). Two silent wrong answers reproduced live and structurally blocked: stock Suricata loads **0 signatures** and reports 0 alerts behind two non-fatal warnings (52,205 after update); Zeek **discards invalid-checksum packets by default**, losing `http.log` entirely and miscounting `conn.log` (3 rows vs 2) — which affects NetClaw's **own** capture skills' output |
 
 ### Tier 4 — The layer beneath the network
 
