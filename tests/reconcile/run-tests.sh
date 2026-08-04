@@ -257,6 +257,57 @@ json.dump(cfg, open(os.path.join(root, "config/openclaw.json"), "w"))
 EOF
 assert_exit 0 "a remote server is skipped, not failed" run_startup
 
+# ── Meraki capability-ID surface (spec 089) ───────────────────────────────────
+# The five Meraki skills cited 80 method names and 54 DID NOT EXIST in the Meraki
+# API. The docs surface passed throughout, because it compares counts and never
+# asks whether a documented call is real. These tests pin that down.
+echo
+echo "--- meraki capability-id surface ---"
+MER="$TMP/meraki"
+mkdir -p "$MER/scripts" "$MER/workspace/skills/meraki-probe" \
+         "$MER/specs/089-meraki-official/contracts"
+cp "$REPO_ROOT/scripts/check-meraki-capability-ids.py" "$MER/scripts/"
+cp "$REPO_ROOT/specs/089-meraki-official/contracts/meraki-capability-ids.json" \
+   "$MER/specs/089-meraki-official/contracts/"
+run_meraki() { python3 "$MER/scripts/check-meraki-capability-ids.py" "$@"; }
+
+# A real reachable GET must pass.
+printf 'Call `getNetworkWirelessSsids` for the SSID list.\n' \
+    >"$MER/workspace/skills/meraki-probe/SKILL.md"
+assert_exit 0 "a real reachable capability ID passes" run_meraki
+
+# An invented ID must fail -- this is the 54-name failure mode.
+printf 'Call `getWirelessSSIDs` for the SSID list.\n' \
+    >"$MER/workspace/skills/meraki-probe/SKILL.md"
+assert_exit 1 "an invented capability ID fails" run_meraki
+assert_mentions "DOES NOT EXIST" "the finding says the ID cannot succeed anywhere" run_meraki
+assert_mentions "getWirelessSSIDs" "the finding names the invented ID" run_meraki
+
+# A mutating verb cited WITHOUT marking it unreachable must fail.
+printf 'Use `updateNetwork` to rename the network.\n' \
+    >"$MER/workspace/skills/meraki-probe/SKILL.md"
+assert_exit 1 "an unmarked mutating ID fails" run_meraki
+
+# The same verb cited AS A NEGATIVE EXAMPLE must pass -- otherwise the check pushes
+# authors toward vaguer docs, which is worse than the problem it solves.
+printf '`updateNetwork` returns Capability not found: writes are absent upstream.\n' \
+    >"$MER/workspace/skills/meraki-probe/SKILL.md"
+assert_exit 0 "a mutating ID marked unreachable is allowed" run_meraki
+
+# Deprecated GETs are filtered upstream, so citing one unmarked is also a finding.
+printf 'Call `getOrganizationDevicesStatuses` for device status.\n' \
+    >"$MER/workspace/skills/meraki-probe/SKILL.md"
+assert_exit 1 "an unmarked deprecated ID fails" run_meraki
+assert_mentions "deprecated" "the finding distinguishes deprecated from nonexistent" run_meraki
+
+# --warn-only reports without failing, matching every other surface.
+printf 'Call `getWirelessSSIDs` now.\n' >"$MER/workspace/skills/meraki-probe/SKILL.md"
+assert_exit 0 "--warn-only exits 0 despite meraki-id findings" run_meraki --warn-only
+
+# The real repository skills must be clean.
+assert_exit 0 "the shipped Meraki skills cite only real capability IDs" \
+    python3 "$REPO_ROOT/scripts/check-meraki-capability-ids.py"
+
 echo
 echo "=== Summary ==="
 printf '  passed: %d\n  failed: %d\n' "$PASS" "$FAIL"

@@ -55,6 +55,12 @@ SURFACES = {
     # hard-fail is the follow-up, and the reason it is not hard-fail today is written
     # down rather than left as a mystery.
     "startup": ("check-server-startup.py", "registered servers can actually start"),
+    # Added by spec 089. Vendor-specific, deliberately: the five Meraki skills cited 80
+    # method names of which 54 DID NOT EXIST in the Meraki API, and the docs surface passed
+    # throughout because it compares counts, never the truth of a documented call. Validates
+    # skill text against Cisco's own OpenAPI spec, vendored offline. Same lesson as 088 --
+    # declarations checked against each other cannot catch one that is uniformly wrong.
+    "meraki-ids": ("check-meraki-capability-ids.py", "Meraki capability IDs cited in skills"),
     # Added by spec 077 (R0a): dependency breakage that only affects FRESH
     # installs — unbounded pins on packages whose submodules are imported, bare
     # pip invocations, and ensurepip-dependent venv creation.
@@ -92,7 +98,8 @@ def run_surface(name, warn_only):
         # Only pass the flag to scripts that accept it; the two older verifiers
         # predate it. Probing --help would be slower and no more reliable than
         # simply not forwarding it, since this wrapper enforces warn-only itself.
-        if script in ("check-mcp-portability.py", "check-dependency-pins.py"):
+        if script in ("check-mcp-portability.py", "check-dependency-pins.py",
+                      "check-meraki-capability-ids.py"):
             cmd.append("--warn-only")
 
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -116,7 +123,7 @@ def extract_findings(output):
             findings.append(stripped[2:])
         elif stripped.startswith(("portability:", "unlocatable:", "flagged:", "note:",
                                   "ERROR:", "pins:", "bare-pip:", "venv:",
-                                  "startup:")):
+                                  "startup:", "meraki-ids:")):
             findings.append(stripped)
         elif line.startswith("  ") and (
             "claims" in stripped or "no matching" in stripped or "no recorded state" in stripped

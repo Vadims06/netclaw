@@ -1149,43 +1149,41 @@ fi
 echo ""
 }
 
-# ── Step 29: Cisco Meraki Magic MCP Server ──────────────────────
+# ── Step 29: Cisco Meraki — official remote MCP (spec 089) ──────
 component_install_meraki() {
-log_step "Installing Cisco Meraki Magic MCP Server..."
-echo "  Source: https://github.com/CiscoDevNet/meraki-magic-mcp-community"
-echo "  Cisco Meraki Dashboard — ~804 API endpoints: orgs, networks, devices, wireless, switching, security, cameras"
+log_step "Enabling Cisco Meraki (official remote MCP)..."
+echo "  Source: Cisco's official server at https://mcp.meraki.com/mcp"
+echo "  494 read-only Meraki Dashboard capabilities behind 2 tools:"
+echo "  semantic_search (discover) + execute_api (invoke)."
 
-MERAKI_MCP_DIR="$MCP_DIR/meraki-magic-mcp-community"
-if [ -d "$MERAKI_MCP_DIR" ]; then
-    log_info "Meraki Magic MCP already cloned, pulling latest..."
-    git -C "$MERAKI_MCP_DIR" pull --quiet 2>/dev/null || true
-else
-    git clone https://github.com/CiscoDevNet/meraki-magic-mcp-community.git "$MERAKI_MCP_DIR" 2>/dev/null
+# Nothing to clone or pip install: this is Cisco's hosted endpoint (spec 089 FR-001).
+# It replaced the community meraki-magic-mcp, which needed the `meraki` SDK and could
+# not start at all on a PEP 668 host -- one of the seven found by spec 088.
+log_info "Registered at https://mcp.meraki.com/mcp (no local install required)"
+
+# Read-only is enforced upstream by catalogue omission, not by prompt text: only
+# non-deprecated GET operations are built into the capability set, so all 431 mutating
+# operations return "Capability not found". Verified live against 10 mutating verbs.
+log_info "Read-only: writes are structurally absent upstream, not merely discouraged"
+
+if [ -z "${MERAKI_DASHBOARD_API_KEY:-}" ]; then
+    log_info "Set MERAKI_DASHBOARD_API_KEY in .env to enable it."
+    log_info "  Use a READ-ONLY dashboard key. Generate: Dashboard > My Profile > API access."
 fi
 
-if [ -d "$MERAKI_MCP_DIR" ]; then
-    # Check Python version (Meraki Magic MCP requires 3.13+)
-    PY_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo "0")
-    if [ "$PY_MINOR" -ge 13 ]; then
-        log_info "Python 3.$PY_MINOR detected (3.13+ required for Meraki Magic MCP)"
-        if [ -f "$MERAKI_MCP_DIR/requirements.txt" ]; then
-            netclaw_pip_install -r "$MERAKI_MCP_DIR/requirements.txt" 2>/dev/null || \
-                netclaw_pip_install --break-system-packages -r "$MERAKI_MCP_DIR/requirements.txt" 2>/dev/null || \
-                log_warn "Meraki Magic MCP dependencies install failed"
-        fi
-        log_info "Meraki Magic MCP installed (stdio transport via FastMCP)"
-        log_info "  Dynamic MCP: meraki-mcp-dynamic.py (~804 API endpoints)"
-        log_info "  Manual MCP:  meraki-mcp.py (40 curated endpoints)"
-    else
-        log_warn "Python 3.13+ recommended for Meraki Magic MCP (found 3.$PY_MINOR)"
-        log_info "Installing core dependencies (meraki, fastmcp, pydantic)..."
-        netclaw_pip_install meraki fastmcp pydantic python-dotenv 2>/dev/null || \
-            netclaw_pip_install --break-system-packages meraki fastmcp pydantic python-dotenv 2>/dev/null || \
-            log_warn "Meraki core deps install failed"
-        log_info "Meraki Magic MCP installed (some features may require Python 3.13+)"
-    fi
-else
-    log_warn "Meraki Magic MCP clone failed"
+# DefenseClaw silently 403s outbound calls to unregistered domains -- this has cost this
+# project a full day twice already (see docs/DEFENSECLAW.md). Register the host.
+if command -v defenseclaw >/dev/null 2>&1; then
+    log_info "DefenseClaw detected — registering mcp.meraki.com as an outbound provider"
+    defenseclaw setup provider add mcp.meraki.com >/dev/null 2>&1 || \
+        log_warn "Could not register mcp.meraki.com with DefenseClaw; outbound calls may be 403'd"
+fi
+
+# The old community clone is left on disk if present: removing an operator's local tree is
+# not the installer's call. It is unregistered, so nothing routes to it.
+if [ -d "$MCP_DIR/meraki-magic-mcp-community" ]; then
+    log_info "Superseded clone still present at $MCP_DIR/meraki-magic-mcp-community"
+    log_info "  It is no longer registered; remove it at your convenience."
 fi
 
 echo ""

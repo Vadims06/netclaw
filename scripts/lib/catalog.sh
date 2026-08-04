@@ -25,7 +25,7 @@ CATALOG=(
     "aci|Fabric & Orchestration|Cisco ACI|APIC fabric management"
     "nso|Fabric & Orchestration|Cisco NSO|Device config, sync, services via RESTCONF (Python 3.12+)"
     "itential|Fabric & Orchestration|Itential IAP|Config mgmt, compliance, workflows, golden config (65+ tools)"
-    "meraki|Fabric & Orchestration|Cisco Meraki|Dashboard API (~804 endpoints)"
+    "meraki|Fabric & Orchestration|Cisco Meraki|Official remote MCP — 494 read-only Dashboard capabilities via 2 tools"
     "sdwan|Fabric & Orchestration|Cisco SD-WAN|vManage read-only monitoring (12 tools)"
     "prisma-sdwan|Fabric & Orchestration|Prisma SD-WAN|Palo Alto SASE — sites, topology, alarms (15+ tools)"
     "aap|Fabric & Orchestration|Ansible Automation Platform|Controller, EDA, ansible-lint, Red Hat docs (4 servers)"

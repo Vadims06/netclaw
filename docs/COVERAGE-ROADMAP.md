@@ -102,6 +102,8 @@ and the IETF datatracker.
 | **R5** | Juniper Mist (official) + Apstra | — | `NOT STARTED` |
 | **R6** | HPE Aruba Central / ClearPass / EdgeConnect / GreenLake | — | `NOT STARTED` |
 | **R7** | Cisco Nexus Dashboard / Intersight / UCS | — | `NOT STARTED` |
+| — | Cisco Catalyst Center (official) — operator request, not an R item | [087](../specs/087-catalyst-center-official/spec.md) | `DONE` — 514 read ops via 8 dispatchers + find/describe, 1,821/5,000 tokens. Built a client over Cisco's catalogue because the official server's 515 tools bust the ceiling |
+| — | Cisco Meraki (official) — operator request, not an R item | [089](../specs/089-meraki-official/spec.md) | `DONE` — **adopted, zero code**: Cisco's remote MCP, 2 tools, 494 read-only capabilities, 1,561/5,000 tokens. Read-only is structural (431 mutating ops absent from the catalogue; 10/10 verified). Retired the dead community `meraki-magic-mcp`, taking spec 088's startup findings 7 → 6. **Found that 54 of 80 method names the old skills documented did not exist in the Meraki API** — now guarded by a sixth reconcile surface |
 
 ### Tier 2 — The internet / external plane
 
