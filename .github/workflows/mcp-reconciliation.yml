@@ -66,6 +66,7 @@ jobs:
             --surface dependencies \
             --surface docs \
             --surface meraki-ids \
+            --surface packages \
             --surface portability
 
       # The startup surface is deliberately NOT a gate here, and this is not the

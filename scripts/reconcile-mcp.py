@@ -61,6 +61,13 @@ SURFACES = {
     # skill text against Cisco's own OpenAPI spec, vendored offline. Same lesson as 088 --
     # declarations checked against each other cannot catch one that is uniformly wrong.
     "meraki-ids": ("check-meraki-capability-ids.py", "Meraki capability IDs cited in skills"),
+    # Added by spec 093. Skills invoke packages on demand via npx/uvx; those references are
+    # neither counted by the docs surface nor launched by the startup surface, so nothing
+    # verified they exist. @anthropic-ai/microsoft-graph-mcp did not -- 404 on npm -- and three
+    # skills documented 14 tool names against it. Offline against a vendored manifest, with a
+    # separate --refresh mode that hits the registries, because this gate has no network by
+    # design (SC-013) and spec 090 already learned what ignoring that costs.
+    "packages": ("check-package-references.py", "npx/uvx packages skills invoke exist"),
     # Added by spec 077 (R0a): dependency breakage that only affects FRESH
     # installs — unbounded pins on packages whose submodules are imported, bare
     # pip invocations, and ensurepip-dependent venv creation.
@@ -100,7 +107,7 @@ def run_surface(name, warn_only):
         # predate it. Probing --help would be slower and no more reliable than
         # simply not forwarding it, since this wrapper enforces warn-only itself.
         if script in ("check-mcp-portability.py", "check-dependency-pins.py",
-                      "check-meraki-capability-ids.py"):
+                      "check-meraki-capability-ids.py", "check-package-references.py"):
             cmd.append("--warn-only")
 
     proc = subprocess.run(cmd, capture_output=True, text=True)
@@ -124,7 +131,7 @@ def extract_findings(output):
             findings.append(stripped[2:])
         elif stripped.startswith(("portability:", "unlocatable:", "flagged:", "note:",
                                   "ERROR:", "pins:", "bare-pip:", "venv:",
-                                  "startup:", "meraki-ids:")):
+                                  "startup:", "meraki-ids:", "packages:")):
             findings.append(stripped)
         elif line.startswith("  ") and (
             "claims" in stripped or "no matching" in stripped or "no recorded state" in stripped

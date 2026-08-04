@@ -139,7 +139,7 @@ and the IETF datatracker.
 | **R19** | Google Workspace (official) | — | `NOT STARTED` |
 | **R20** | Notion + Linear (official) | — | `NOT STARTED` |
 | **R21** | GitOps + Azure DevOps (ArgoCD / Flux) | — | `NOT STARTED` |
-| **R22** | Diagram MCPs — Excalidraw + draw.io | — | `NOT STARTED` |
+| **R22** | Diagram MCPs — Excalidraw + draw.io | [093](../specs/093-package-reference-check/spec.md) | **`CLOSED — already satisfied`** — audited 2026-08-04 after the operator questioned the premise, and they were right. `drawio-diagram` already ships native `.drawio` files with CLI export to PNG/SVG/PDF; `uml-diagram` covers **27+ types via Kroki** (Mermaid, D2, Graphviz, C4, BPMN, ER, sequence); plus `markmap-viz`, `aws-architecture-diagram`, `canvas-network-viz`, `threejs-network-viz`, `ue5-network-viz`, `blender-3d-viz`. Excalidraw adds a hand-drawn **aesthetic**, not a capability. The audit did find a real defect — see 093 |
 
 ### Strategic (not tooling)
 

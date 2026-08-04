@@ -441,6 +441,74 @@ else
     printf '  skip junos data-file assertion (junos-mcp-server not cloned)\n'
 fi
 
+# ── Package-reference surface (spec 093) ──────────────────────────────────────
+# Three skills invoked `npx -y @anthropic-ai/microsoft-graph-mcp`, which 404s on npm, and
+# documented 14 tool names against it. Neither the docs surface (counts) nor the startup
+# surface (registered servers) can see an on-demand npx reference, so nothing caught it.
+echo
+echo "--- package-reference surface ---"
+PKG="$TMP/pkg"
+mkdir -p "$PKG/scripts" "$PKG/workspace/skills/probe-skill" \
+         "$PKG/specs/093-package-reference-check/contracts"
+cp "$REPO_ROOT/scripts/check-package-references.py" "$PKG/scripts/"
+run_pkg() { python3 "$PKG/scripts/check-package-references.py" "$@"; }
+MAN="$PKG/specs/093-package-reference-check/contracts/verified-packages.json"
+cat >"$MAN" <<'JSON'
+{"packages": {
+  "npm:real-mcp-thing": {"registry":"npm","name":"real-mcp-thing","exists":true,"http_status":200},
+  "npm:@ghost/not-real-mcp": {"registry":"npm","name":"@ghost/not-real-mcp","exists":false,"http_status":404}
+}}
+JSON
+
+# A verified-existing package passes.
+printf 'Run `npx -y real-mcp-thing` to start it.\n' \
+    >"$PKG/workspace/skills/probe-skill/SKILL.md"
+assert_exit 0 "a verified existing package passes" run_pkg
+
+# A package the registry said does not exist must fail, naming skill and package.
+printf 'Run `npx -y @ghost/not-real-mcp` to start it.\n' \
+    >"$PKG/workspace/skills/probe-skill/SKILL.md"
+assert_exit 1 "a package that does not exist fails" run_pkg
+assert_mentions "DOES NOT EXIST" "the finding says the package cannot work" run_pkg
+assert_mentions "probe-skill" "the finding names the skill that invokes it" run_pkg
+
+# An unverified reference is a finding, not a pass: unverified is indistinguishable from
+# fictional, and defaulting to "probably fine" is how the msgraph 404 survived.
+printf 'Run `npx -y some-unknown-mcp-pkg` to start it.\n' \
+    >"$PKG/workspace/skills/probe-skill/SKILL.md"
+assert_exit 1 "an unverified package reference fails rather than passing silently" run_pkg
+assert_mentions "never been verified" "the finding distinguishes unverified from nonexistent" run_pkg
+
+# A version/tag suffix must be stripped -- missing this dropped chrome-devtools-mcp@latest
+# out of the manifest entirely, the exact quiet failure this check exists to prevent.
+printf 'Run `npx -y real-mcp-thing@latest` now.\n' \
+    >"$PKG/workspace/skills/probe-skill/SKILL.md"
+assert_exit 0 "a pinned @version suffix resolves to the same package" run_pkg
+
+# Prose must not be mistaken for a package. Skills contain "npx with Azure AD credentials:".
+printf 'Use npx with Azure AD credentials:\nAlso npx skills add opsmill/infrahub-skills\n' \
+    >"$PKG/workspace/skills/probe-skill/SKILL.md"
+assert_exit 0 "prose after npx is not treated as a package" run_pkg
+
+# A reference marked as broken is history, not an invocation -- otherwise the check punishes
+# a skill for recording why it changed. Same allowance as the meraki-ids surface.
+printf 'Until spec 093 this invoked `npx -y @ghost/not-real-mcp`, which 404s on npm.\n' \
+    >"$PKG/workspace/skills/probe-skill/SKILL.md"
+assert_exit 0 "a reference marked as nonexistent is allowed as history" run_pkg
+
+# --warn-only reports without failing, matching every other surface.
+printf 'Run `npx -y @ghost/not-real-mcp` now.\n' \
+    >"$PKG/workspace/skills/probe-skill/SKILL.md"
+assert_exit 0 "--warn-only exits 0 despite package findings" run_pkg --warn-only
+
+# A missing manifest is cannot-run (exit 2), not a silent pass.
+rm "$MAN"
+assert_exit 2 "a missing manifest yields exit 2, not a false pass" run_pkg
+
+# The real repository must be clean.
+assert_exit 0 "every package the shipped skills invoke is verified to exist" \
+    python3 "$REPO_ROOT/scripts/check-package-references.py"
+
 echo
 echo "=== Summary ==="
 printf '  passed: %d\n  failed: %d\n' "$PASS" "$FAIL"

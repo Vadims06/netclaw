@@ -360,18 +360,6 @@ Visio diagram generation:
 3. Upload to SharePoint
 4. Create sharing link for team
 
-### msgraph-teams
-Teams channel notifications:
-- Health alerts
-- Security alerts
-- Change updates
-- Report delivery
-- Diagram sharing
-
-Follow same severity-based channel mapping as Slack.
-
----
-
 ## GitHub Skills
 
 ### github-ops
@@ -1532,7 +1520,7 @@ The skills above are documented with full step-by-step operational procedures. T
 | `meraki-switch-ops` | Cisco Meraki Switching — port configuration, VLANs, port status, ACLs, QoS rules, port cycling. Use when configuring Meraki switch ports, creating VLANs, che... | `workspace/skills/meraki-switch-ops/SKILL.md` |
 | `meraki-wireless-ops` | Cisco Meraki Wireless — SSID management, RF profiles, channel utilization, signal quality, client connectivity events. Use when managing Meraki SSIDs, troubl... | `workspace/skills/meraki-wireless-ops/SKILL.md` |
 | `msgraph-files` | Manage files on OneDrive and SharePoint via Microsoft Graph API - upload, download, list, search, and organize network documentation and artifacts. Use when ... | `workspace/skills/msgraph-files/SKILL.md` |
-| `msgraph-teams` | Send notifications and reports to Microsoft Teams channels via Graph API - alert delivery, report posting, incident updates, and diagram sharing. Use when po... | `workspace/skills/msgraph-teams/SKILL.md` |
+| `` | Send notifications and reports to Microsoft Teams channels via Graph API - alert delivery, report posting, incident updates, and diagram sharing. Use when po... | `workspace/skills//SKILL.md` |
 | `msgraph-visio` | Generate and manage Visio network diagrams on SharePoint via Microsoft Graph API - create topology diagrams from CDP/LLDP discovery, update existing diagrams... | `workspace/skills/msgraph-visio/SKILL.md` |
 | `nmap-network-scan` | Host discovery and port scanning using nmap — ICMP/ARP host discovery, SYN/TCP/UDP port scanning with scope enforcement and audit logging. Use when discoveri... | `workspace/skills/nmap-network-scan/SKILL.md` |
 | `nmap-scan-management` | Custom nmap scans with arbitrary flags, plus scan history retrieval and management. Use when running nmap with custom flags, reviewing past scan results, com... | `workspace/skills/nmap-scan-management/SKILL.md` |

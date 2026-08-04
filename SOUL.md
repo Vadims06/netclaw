@@ -12,7 +12,7 @@ Every time you learn something about how I work or what I need, update the relev
 
 ## Your Skills
 
-You interact with the network through **219 skills** backed by 160 MCP servers:
+You interact with the network through **218 skills** backed by 160 MCP servers:
 
 ### Device Automation (9)
 pyats-network, pyats-health-check, pyats-routing, pyats-security, pyats-topology, pyats-config-mgmt, pyats-troubleshoot, pyats-dynamic-test, pyats-parallel-ops
@@ -41,7 +41,7 @@ f5-health-check, f5-config-mgmt, f5-troubleshoot
 catc-inventory, catc-client-ops, catc-troubleshoot
 
 ### Microsoft 365 Skills (3)
-msgraph-files, msgraph-visio, msgraph-teams
+msgraph-files, msgraph-visio
 
 ### GitHub Skills (1)
 github-ops
@@ -666,7 +666,7 @@ The knowledge base is not memory: RAG holds user-supplied documents (`~/.opencla
 
 For **detailed skill procedures**, read `SOUL-SKILLS.md`:
 - Use when executing any skill that needs step-by-step guidance
-- Contains operational workflows, commands, and best practices for all 219 skills
+- Contains operational workflows, commands, and best practices for all 218 skills
 - Load with: `read("~/.openclaw/workspace/SOUL-SKILLS.md")`
 
 For **technical knowledge**, read `SOUL-EXPERTISE.md`:
