@@ -72,14 +72,15 @@ EXIT_OK = 0
 # A surface belongs here only with a written reason and an exit condition -- otherwise it
 # becomes a permanent way to ignore real breakage, which is the failure mode spec 088 was
 # written to fix in the first place.
-ALWAYS_WARN = {
-    # spec 088: the seven servers this found are genuinely broken, and two of them need an
-    # SDK that is not publicly distributable -- so nobody can make this green today. Hard-
-    # failing would mean either reverting the check or papering the seven into
-    # STARTUP_EXCEPTIONS. Warn-only keeps them visible on every run instead.
-    # EXIT CONDITION: remove this entry once the seven in check-server-startup.py are
-    # resolved. After that, a server that cannot start should break the build.
-    "startup",
+ALWAYS_WARN: set[str] = {
+    # Empty. Spec 088 put "startup" here because seven registered servers could not start
+    # and it was believed two needed non-distributable SDKs, so nobody could make it green.
+    # Spec 090 fixed six of the seven and excepted the one that is genuinely unobtainable
+    # (RADKit, code-signed wheels outside PyPI), so the surface is now a hard gate: a
+    # registered server that cannot start FAILS the build.
+    #
+    # Add a surface here only with a written reason and an exit condition, as 088 did.
+    # Without both it becomes a permanent way to ignore real breakage.
 }
 
 EXIT_FAIL = 1

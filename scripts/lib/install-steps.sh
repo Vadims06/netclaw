@@ -539,14 +539,27 @@ if [ -d "$JUNOS_MCP_DIR" ]; then
     if [ "$PY_MINOR" -ge 10 ]; then
         log_info "Python 3.$PY_MINOR detected (3.10+ required for JunOS MCP)"
         if [ -f "$JUNOS_MCP_DIR/requirements.txt" ]; then
-            netclaw_pip_install -r "$JUNOS_MCP_DIR/requirements.txt" 2>/dev/null || \
-                netclaw_pip_install --break-system-packages -r "$JUNOS_MCP_DIR/requirements.txt" 2>/dev/null || \
-                log_warn "JunOS MCP dependencies install failed"
+            # Spec 090: netclaw_pip_install handles PEP 668 itself now, so the inline
+            # --break-system-packages retry is gone -- and stderr is no longer discarded.
+            # The old `2>/dev/null || log_warn` turned a total install failure into one
+            # warning line, which is how this server sat dead while the installer said OK.
+            netclaw_pip_install -r "$JUNOS_MCP_DIR/requirements.txt" || \
+                log_error "JunOS MCP dependencies install FAILED — the server will not start"
         fi
-        # Also try pip install . for the entry point
-        cd "$JUNOS_MCP_DIR" && netclaw_pip_install . 2>/dev/null || \
-            netclaw_pip_install --break-system-packages . 2>/dev/null || true
-        cd "$NETCLAW_DIR"
+        # Also install the package itself for its entry point. Failure here is tolerable:
+        # the server runs from jmcp.py directly, so the entry point is a convenience.
+        (cd "$JUNOS_MCP_DIR" && netclaw_pip_install .) || \
+            log_info "JunOS MCP entry-point install skipped (running from jmcp.py directly)"
+
+        # jmcp.py exits at startup if its device-mapping file is absent, and the repo ships
+        # only devices-template.json -- which contains placeholder credentials and a device
+        # whose ip is literally "ip". Seed an EMPTY inventory instead: the server then starts
+        # and reports 0 devices, which is honest, rather than dying or advertising fake ones.
+        if [ ! -f "$JUNOS_MCP_DIR/devices.json" ]; then
+            printf '{}\n' > "$JUNOS_MCP_DIR/devices.json"
+            log_info "Seeded an empty devices.json — add real devices before use"
+            log_info "  Shape: see $JUNOS_MCP_DIR/devices-template.json"
+        fi
         log_info "JunOS MCP installed (stdio transport via PyEZ/NETCONF)"
     else
         log_warn "Python 3.10+ required for JunOS MCP (found 3.$PY_MINOR)"
@@ -574,9 +587,43 @@ else
 fi
 
 if [ -d "$CVP_MCP_DIR" ]; then
-    # CVP MCP uses uv run --with fastmcp at runtime; just ensure uv is available
+    # Spec 090: upstream hardcodes logging.basicConfig(filename='/home/admin/app.log'), a
+    # foreign home directory that exists on no NetClaw host -- so the server raised
+    # FileNotFoundError before starting. Same defect class spec 075 was written for.
+    #
+    # Patched here rather than in the tree because this directory is a gitignored runtime
+    # clone: an edit to the working copy is lost on the next fresh install. Idempotent, and
+    # re-applied after every `git pull` above -- the same durable-patch shape the Slack
+    # fetch-interceptor issue taught us to use for vendored code.
+    CVP_SERVER="$CVP_MCP_DIR/mcp_server_rest.py"
+    if [ -f "$CVP_SERVER" ] && grep -q "filename='/home/admin/app.log'" "$CVP_SERVER"; then
+        python3 - "$CVP_SERVER" <<'CVPPATCH'
+import os, sys
+p = sys.argv[1]
+src = open(p, encoding="utf-8").read()
+old = "    filename='/home/admin/app.log',                # Log file name\n"
+new = ("    filename=os.environ.get('CVP_LOG_FILE',\n"
+       "        os.path.join(os.path.expanduser('~'), '.openclaw', 'logs',\n"
+       "                     'arista-cvp-mcp.log')),  # patched by NetClaw spec 090\n")
+if old in src:
+    src = src.replace(old, new, 1)
+    # basicConfig cannot create the directory itself.
+    src = src.replace("logging.basicConfig(",
+        "os.makedirs(os.path.dirname(os.environ.get('CVP_LOG_FILE',\n"
+        "    os.path.join(os.path.expanduser('~'), '.openclaw', 'logs', 'x'))),\n"
+        "    exist_ok=True)\nlogging.basicConfig(", 1)
+    open(p, "w", encoding="utf-8").write(src)
+    print("patched")
+CVPPATCH
+        log_info "Patched CVP MCP's hardcoded /home/admin/app.log log path"
+    fi
+
+    # The registration passes --with urllib3 --with python-dotenv alongside fastmcp: the
+    # server imports both, and `uv run` sees only what --with provides, never the system
+    # site-packages. urllib3 being installed host-wide is irrelevant here, which is why the
+    # obvious reading of the original ModuleNotFoundError was wrong.
     if command -v uv &> /dev/null; then
-        log_info "CVP MCP ready (uv available — deps resolved at runtime via 'uv run --with fastmcp')"
+        log_info "CVP MCP ready (uv resolves fastmcp + urllib3 + python-dotenv at runtime)"
     else
         log_warn "CVP MCP cloned but 'uv' not found — install uv for runtime dependency resolution"
         log_info "  Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh"
@@ -671,8 +718,7 @@ if [ -d "$NAUTOBOT_MCP_DIR" ]; then
     if [ "$PY_MINOR" -ge 13 ]; then
         log_info "Python 3.$PY_MINOR detected (3.13+ required for Nautobot MCP)"
         if [ -f "$NAUTOBOT_MCP_DIR/pyproject.toml" ]; then
-            cd "$NAUTOBOT_MCP_DIR" && netclaw_pip_install -e . 2>/dev/null || \
-                netclaw_pip_install --break-system-packages -e . 2>/dev/null || \
+            cd "$NAUTOBOT_MCP_DIR" && netclaw_pip_install -e . || \
                 log_warn "Nautobot MCP editable install failed"
             cd "$NETCLAW_DIR"
         fi
@@ -680,8 +726,7 @@ if [ -d "$NAUTOBOT_MCP_DIR" ]; then
     else
         log_warn "Python 3.13+ required for Nautobot MCP (found 3.$PY_MINOR)"
         log_info "Installing core dependencies..."
-        netclaw_pip_install "mcp>=1.10.1" httpx "pydantic>=2.11.0" pydantic-settings python-dotenv 2>/dev/null || \
-            netclaw_pip_install --break-system-packages "mcp>=1.10.1" httpx "pydantic>=2.11.0" pydantic-settings python-dotenv 2>/dev/null || \
+        netclaw_pip_install "mcp>=1.10.1" httpx "pydantic>=2.11.0" pydantic-settings python-dotenv || \
             log_warn "Nautobot core deps install failed"
         log_info "Nautobot MCP installed (some features may require Python 3.13+)"
     fi
@@ -701,8 +746,7 @@ echo "  Infrahub infrastructure source of truth — nodes, search, GraphQL, and 
 PY_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo "0")
 if [ "$PY_MINOR" -ge 13 ]; then
     log_info "Python 3.$PY_MINOR detected (3.13+ required for Infrahub MCP)"
-    netclaw_pip_install infrahub-mcp 2>/dev/null || \
-        netclaw_pip_install --break-system-packages infrahub-mcp 2>/dev/null || {
+    netclaw_pip_install infrahub-mcp || {
         log_warn "pip install infrahub-mcp failed — trying from source..."
         INFRAHUB_MCP_DIR="$MCP_DIR/infrahub-mcp"
         if [ -d "$INFRAHUB_MCP_DIR" ]; then
@@ -731,8 +775,7 @@ echo "  Itential Automation Platform — config mgmt, compliance, workflows, gol
 PY_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)' 2>/dev/null || echo "0")
 if [ "$PY_MINOR" -ge 10 ]; then
     log_info "Python 3.$PY_MINOR detected (3.10+ required for Itential MCP)"
-    netclaw_pip_install itential-mcp 2>/dev/null || \
-        netclaw_pip_install --break-system-packages itential-mcp 2>/dev/null || {
+    netclaw_pip_install itential-mcp || {
         log_warn "pip install itential-mcp failed — trying from source..."
         ITENTIAL_MCP_DIR="$MCP_DIR/itential-mcp"
         if [ -d "$ITENTIAL_MCP_DIR" ]; then
@@ -741,8 +784,7 @@ if [ "$PY_MINOR" -ge 10 ]; then
             git clone https://github.com/itential/itential-mcp.git "$ITENTIAL_MCP_DIR" 2>/dev/null
         fi
         if [ -d "$ITENTIAL_MCP_DIR" ]; then
-            cd "$ITENTIAL_MCP_DIR" && netclaw_pip_install -e . 2>/dev/null || \
-                netclaw_pip_install --break-system-packages -e . 2>/dev/null || \
+            cd "$ITENTIAL_MCP_DIR" && netclaw_pip_install -e . || \
                 log_warn "Itential MCP source install failed"
             cd "$NETCLAW_DIR"
         fi
@@ -1054,9 +1096,7 @@ if [ "$PY_MINOR" -ge 12 ]; then
     log_info "Python 3.$PY_MINOR detected (3.12+ required for CML MCP)"
 
     log_info "Installing CML MCP via pip..."
-    netclaw_pip_install cml-mcp 2>/dev/null || {
-        log_warn "pip install cml-mcp failed — trying with --break-system-packages"
-        netclaw_pip_install --break-system-packages cml-mcp 2>/dev/null || \
+    netclaw_pip_install cml-mcp || {
             log_warn "CML MCP install failed. Install manually: pip3 install cml-mcp"
     }
 
@@ -1099,9 +1139,7 @@ if [ "$PY_MINOR" -ge 12 ]; then
     log_info "Python 3.$PY_MINOR detected (3.12+ required for NSO MCP)"
 
     log_info "Installing NSO MCP via pip..."
-    netclaw_pip_install cisco-nso-mcp-server 2>/dev/null || {
-        log_warn "pip install cisco-nso-mcp-server failed — trying with --break-system-packages"
-        netclaw_pip_install --break-system-packages cisco-nso-mcp-server 2>/dev/null || \
+    netclaw_pip_install cisco-nso-mcp-server || {
             log_warn "NSO MCP install failed. Install manually: pip3 install cisco-nso-mcp-server"
     }
 
@@ -1137,8 +1175,7 @@ fi
 
 if [ -d "$FMC_MCP_DIR" ]; then
     if [ -f "$FMC_MCP_DIR/requirements.txt" ]; then
-        netclaw_pip_install -r "$FMC_MCP_DIR/requirements.txt" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -r "$FMC_MCP_DIR/requirements.txt" 2>/dev/null || \
+        netclaw_pip_install -r "$FMC_MCP_DIR/requirements.txt" || \
             log_warn "FMC MCP dependencies install failed"
     fi
     log_info "Cisco FMC MCP installed (HTTP transport on port 8000)"
@@ -1208,16 +1245,14 @@ if [ -d "$TE_COMMUNITY_MCP_DIR" ]; then
     if [ "$PY_MINOR" -ge 12 ]; then
         log_info "Python 3.$PY_MINOR detected (3.12+ required for ThousandEyes Community MCP)"
         if [ -f "$TE_COMMUNITY_MCP_DIR/requirements.txt" ]; then
-            netclaw_pip_install -r "$TE_COMMUNITY_MCP_DIR/requirements.txt" 2>/dev/null || \
-                netclaw_pip_install --break-system-packages -r "$TE_COMMUNITY_MCP_DIR/requirements.txt" 2>/dev/null || \
+            netclaw_pip_install -r "$TE_COMMUNITY_MCP_DIR/requirements.txt" || \
                 log_warn "ThousandEyes Community MCP dependencies install failed"
         fi
         log_info "ThousandEyes Community MCP installed (stdio transport)"
     else
         log_warn "Python 3.12+ required for ThousandEyes Community MCP (found 3.$PY_MINOR)"
         log_info "Installing core dependencies..."
-        netclaw_pip_install httpx "mcp>=1.13" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages httpx "mcp>=1.13" 2>/dev/null || \
+        netclaw_pip_install httpx "mcp>=1.13" || \
             log_warn "ThousandEyes Community deps install failed"
     fi
 else
@@ -1272,11 +1307,9 @@ if [ -d "$RADKIT_MCP_DIR" ]; then
         log_info "Python 3.$PY_MINOR detected (3.10+ required for RADKit MCP)"
         if [ -f "$RADKIT_MCP_DIR/pyproject.toml" ]; then
             log_info "Installing RADKit MCP dependencies..."
-            cd "$RADKIT_MCP_DIR" && netclaw_pip_install -e . 2>/dev/null || \
-                netclaw_pip_install --break-system-packages -e . 2>/dev/null || {
+            cd "$RADKIT_MCP_DIR" && netclaw_pip_install -e . || {
                 log_warn "Full RADKit install failed — installing core deps..."
-                netclaw_pip_install fastmcp python-dotenv pydantic-settings 2>/dev/null || \
-                    netclaw_pip_install --break-system-packages fastmcp python-dotenv pydantic-settings 2>/dev/null || \
+                netclaw_pip_install fastmcp python-dotenv pydantic-settings || \
                     log_warn "RADKit core deps install failed"
             }
             cd "$NETCLAW_DIR"
@@ -1306,7 +1339,7 @@ if command -v uvx &> /dev/null; then
 else
     log_info "Installing uv (required for AWS MCP servers)..."
     if command -v pip3 &> /dev/null; then
-        netclaw_pip_install uv 2>/dev/null || netclaw_pip_install --break-system-packages uv 2>/dev/null || true
+        netclaw_pip_install uv || true
     fi
     if ! command -v uvx &> /dev/null; then
         curl -LsSf https://astral.sh/uv/install.sh 2>/dev/null | sh 2>/dev/null || true
@@ -1409,11 +1442,9 @@ if [ -d "$UML_MCP_DIR" ]; then
         log_info "Python 3.$PY_MINOR detected (3.10+ required for UML MCP)"
         if [ -f "$UML_MCP_DIR/pyproject.toml" ]; then
             log_info "Installing UML MCP dependencies..."
-            cd "$UML_MCP_DIR" && netclaw_pip_install -e . 2>/dev/null || \
-                netclaw_pip_install --break-system-packages -e . 2>/dev/null || {
+            cd "$UML_MCP_DIR" && netclaw_pip_install -e . || {
                 log_warn "Full UML MCP install failed — installing core deps..."
-                netclaw_pip_install fastmcp httpx pillow graphviz 2>/dev/null || \
-                    netclaw_pip_install --break-system-packages fastmcp httpx pillow graphviz 2>/dev/null || \
+                netclaw_pip_install fastmcp httpx pillow graphviz || \
                     log_warn "UML MCP core deps install failed"
             }
             cd "$NETCLAW_DIR"
@@ -1441,8 +1472,7 @@ CLAB_MCP_DIR="$MCP_DIR/clab-mcp-server"
 clone_or_pull "$CLAB_MCP_DIR" "https://github.com/seanerama/clab-mcp-server.git"
 
 log_info "Installing ContainerLab MCP dependencies..."
-netclaw_pip_install -r "$CLAB_MCP_DIR/requirements.txt" 2>/dev/null || \
-    netclaw_pip_install --break-system-packages -r "$CLAB_MCP_DIR/requirements.txt" 2>/dev/null || \
+netclaw_pip_install -r "$CLAB_MCP_DIR/requirements.txt" || \
     log_warn "ContainerLab MCP dependencies install failed"
 
 [ -f "$CLAB_MCP_DIR/clab_mcp_server.py" ] && \
@@ -1473,16 +1503,13 @@ clone_or_pull "$SDWAN_MCP_DIR" "https://github.com/siddhartha2303/cisco-sdwan-mc
 if [ -d "$SDWAN_MCP_DIR" ]; then
     log_info "Installing SD-WAN MCP dependencies..."
     if [ -f "$SDWAN_MCP_DIR/requirements.txt" ]; then
-        netclaw_pip_install -r "$SDWAN_MCP_DIR/requirements.txt" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -r "$SDWAN_MCP_DIR/requirements.txt" 2>/dev/null || {
+        netclaw_pip_install -r "$SDWAN_MCP_DIR/requirements.txt" || {
             log_warn "SD-WAN MCP requirements.txt install failed — installing core deps..."
-            netclaw_pip_install fastmcp requests python-dotenv 2>/dev/null || \
-                netclaw_pip_install --break-system-packages fastmcp requests python-dotenv 2>/dev/null || \
+            netclaw_pip_install fastmcp requests python-dotenv || \
                 log_warn "SD-WAN MCP core deps install failed"
         }
     else
-        netclaw_pip_install fastmcp requests python-dotenv 2>/dev/null || \
-            netclaw_pip_install --break-system-packages fastmcp requests python-dotenv 2>/dev/null || \
+        netclaw_pip_install fastmcp requests python-dotenv || \
             log_warn "SD-WAN MCP deps install failed"
     fi
     [ -f "$SDWAN_MCP_DIR/sdwan_mcp_server.py" ] && \
@@ -1737,11 +1764,9 @@ fi
 if [ -d "$PROTOCOL_MCP_DIR" ]; then
     log_info "Installing Protocol MCP dependencies..."
     if [ -f "$PROTOCOL_MCP_DIR/requirements.txt" ]; then
-        netclaw_pip_install -r "$PROTOCOL_MCP_DIR/requirements.txt" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -r "$PROTOCOL_MCP_DIR/requirements.txt" 2>/dev/null || {
+        netclaw_pip_install -r "$PROTOCOL_MCP_DIR/requirements.txt" || {
             log_warn "Full Protocol MCP install failed — installing core deps..."
-            netclaw_pip_install scapy networkx mcp fastmcp 2>/dev/null || \
-                netclaw_pip_install --break-system-packages scapy networkx mcp fastmcp 2>/dev/null || \
+            netclaw_pip_install scapy networkx mcp fastmcp || \
                 log_warn "Protocol MCP core deps install failed"
         }
     fi
@@ -1779,10 +1804,8 @@ echo "  New protocol: NCFED (JSON-RPC 2.0, MCP + A2A semantics). Requires the me
 N2N_MCP_DIR="$MCP_DIR/n2n-mcp"
 if [ -d "$N2N_MCP_DIR" ]; then
     log_info "Installing n2n-mcp dependencies..."
-    netclaw_pip_install -r "$N2N_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$N2N_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install httpx fastmcp 2>/dev/null || \
-        netclaw_pip_install --break-system-packages httpx fastmcp 2>/dev/null || \
+    netclaw_pip_install -r "$N2N_MCP_DIR/requirements.txt" || \
+        netclaw_pip_install httpx fastmcp || \
         log_warn "n2n-mcp deps install failed — install httpx + fastmcp manually"
 else
     log_warn "n2n-mcp not found — it should be bundled at mcp-servers/n2n-mcp/"
@@ -1991,12 +2014,10 @@ if [ -d "$PRISMA_SDWAN_MCP_DIR" ]; then
         (cd "$PRISMA_SDWAN_MCP_DIR" && uv sync) 2>/dev/null || log_warn "Prisma SD-WAN MCP uv sync failed — trying pip"
     fi
     if [ -f "$PRISMA_SDWAN_MCP_DIR/pyproject.toml" ]; then
-        netclaw_pip_install -e "$PRISMA_SDWAN_MCP_DIR" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -e "$PRISMA_SDWAN_MCP_DIR" 2>/dev/null || \
+        netclaw_pip_install -e "$PRISMA_SDWAN_MCP_DIR" || \
             log_warn "Prisma SD-WAN MCP editable install failed"
     elif [ -f "$PRISMA_SDWAN_MCP_DIR/requirements.txt" ]; then
-        netclaw_pip_install -r "$PRISMA_SDWAN_MCP_DIR/requirements.txt" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -r "$PRISMA_SDWAN_MCP_DIR/requirements.txt" 2>/dev/null || \
+        netclaw_pip_install -r "$PRISMA_SDWAN_MCP_DIR/requirements.txt" || \
             log_warn "Prisma SD-WAN MCP requirements install failed"
     fi
     log_info "Prisma SD-WAN MCP prepared: $PRISMA_SDWAN_MCP_DIR"
@@ -2115,12 +2136,10 @@ if [ -d "$ARUBA_CX_MCP_DIR" ]; then
         (cd "$ARUBA_CX_MCP_DIR" && uv sync) 2>/dev/null || log_warn "Aruba CX MCP uv sync failed — trying pip"
     fi
     if [ -f "$ARUBA_CX_MCP_DIR/pyproject.toml" ]; then
-        netclaw_pip_install -e "$ARUBA_CX_MCP_DIR" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -e "$ARUBA_CX_MCP_DIR" 2>/dev/null || \
+        netclaw_pip_install -e "$ARUBA_CX_MCP_DIR" || \
             log_warn "Aruba CX MCP editable install failed"
     elif [ -f "$ARUBA_CX_MCP_DIR/requirements.txt" ]; then
-        netclaw_pip_install -r "$ARUBA_CX_MCP_DIR/requirements.txt" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -r "$ARUBA_CX_MCP_DIR/requirements.txt" 2>/dev/null || \
+        netclaw_pip_install -r "$ARUBA_CX_MCP_DIR/requirements.txt" || \
             log_warn "Aruba CX MCP requirements install failed"
     fi
     log_info "Aruba CX MCP prepared: $ARUBA_CX_MCP_DIR"
@@ -2147,13 +2166,11 @@ if [ -d "$AAP_MCP_DIR" ]; then
         (cd "$AAP_MCP_DIR" && uv sync) 2>/dev/null || log_warn "AAP MCP uv sync failed — trying pip"
     fi
     if [ -f "$AAP_MCP_DIR/pyproject.toml" ]; then
-        netclaw_pip_install -e "$AAP_MCP_DIR" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -e "$AAP_MCP_DIR" 2>/dev/null || \
+        netclaw_pip_install -e "$AAP_MCP_DIR" || \
             log_warn "AAP MCP editable install failed — trying requirements"
     fi
     if [ -f "$AAP_MCP_DIR/requirements.txt" ]; then
-        netclaw_pip_install -r "$AAP_MCP_DIR/requirements.txt" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -r "$AAP_MCP_DIR/requirements.txt" 2>/dev/null || \
+        netclaw_pip_install -r "$AAP_MCP_DIR/requirements.txt" || \
             log_warn "AAP MCP requirements install failed"
     fi
 
@@ -2183,8 +2200,7 @@ if [ -d "$FWRULE_MCP_DIR" ]; then
         (cd "$FWRULE_MCP_DIR" && uv sync) 2>/dev/null || log_warn "fwrule MCP uv sync failed — trying pip"
     fi
     if [ -f "$FWRULE_MCP_DIR/pyproject.toml" ]; then
-        netclaw_pip_install -e "$FWRULE_MCP_DIR" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -e "$FWRULE_MCP_DIR" 2>/dev/null || \
+        netclaw_pip_install -e "$FWRULE_MCP_DIR" || \
             log_warn "fwrule MCP editable install failed"
     fi
 
@@ -2209,8 +2225,7 @@ fi
 
 if [ -f "$SUZIEQ_MCP_DIR/requirements.txt" ]; then
     log_info "Installing SuzieQ MCP dependencies..."
-    netclaw_pip_install -r "$SUZIEQ_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$SUZIEQ_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$SUZIEQ_MCP_DIR/requirements.txt" || {
             log_warn "SuzieQ MCP pip install failed — dependencies may need manual installation"
         }
     log_info "SuzieQ MCP ready: $SUZIEQ_MCP_DIR"
@@ -2234,8 +2249,7 @@ fi
 
 if [ -f "$BATFISH_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Batfish MCP dependencies..."
-    netclaw_pip_install -r "$BATFISH_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$BATFISH_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$BATFISH_MCP_DIR/requirements.txt" || {
             log_warn "Batfish MCP pip install failed — dependencies may need manual installation"
         }
     log_info "Batfish MCP ready: $BATFISH_MCP_DIR"
@@ -2272,8 +2286,7 @@ fi
 
 if [ -f "$AZURE_NET_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Azure Network MCP dependencies..."
-    netclaw_pip_install -r "$AZURE_NET_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$AZURE_NET_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$AZURE_NET_MCP_DIR/requirements.txt" || {
             log_warn "Azure Network MCP pip install failed — dependencies may need manual installation"
         }
 
@@ -2305,8 +2318,7 @@ fi
 
 if [ -f "$GNMI_MCP_DIR/requirements.txt" ]; then
     log_info "Installing gNMI MCP dependencies (grpcio, pygnmi, protobuf, cryptography)..."
-    netclaw_pip_install -r "$GNMI_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$GNMI_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$GNMI_MCP_DIR/requirements.txt" || {
             log_warn "gNMI MCP pip install failed — dependencies may need manual installation"
             log_info "Try: pip3 install fastmcp grpcio pygnmi protobuf cryptography pydantic"
         }
@@ -2325,11 +2337,9 @@ log_step "Installing Token Optimization Library (netclaw_tokens)..."
 TOKEN_LIB_DIR="$NETCLAW_DIR/src/netclaw_tokens"
 if [ -d "$TOKEN_LIB_DIR" ]; then
     log_info "Installing netclaw_tokens dependencies..."
-    netclaw_pip_install -r "$TOKEN_LIB_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$TOKEN_LIB_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$TOKEN_LIB_DIR/requirements.txt" || {
             log_warn "netclaw_tokens pip install failed — trying individual packages"
-            netclaw_pip_install anthropic toon-format 2>/dev/null || \
-                netclaw_pip_install --break-system-packages anthropic toon-format 2>/dev/null || \
+            netclaw_pip_install anthropic toon-format || \
                     log_warn "Token optimization deps failed. Install manually: pip3 install anthropic toon-format"
         }
     log_info "netclaw_tokens library ready at $TOKEN_LIB_DIR"
@@ -2350,8 +2360,7 @@ MEMPALACE_MCP_DIR="$MCP_DIR/mempalace"
 clone_or_pull "$MEMPALACE_MCP_DIR" "https://github.com/milla-jovovich/mempalace.git"
 
 log_info "Installing MemPalace dependencies..."
-netclaw_pip_install -e "$MEMPALACE_MCP_DIR" 2>/dev/null || \
-    netclaw_pip_install --break-system-packages -e "$MEMPALACE_MCP_DIR" 2>/dev/null || \
+netclaw_pip_install -e "$MEMPALACE_MCP_DIR" || \
     log_warn "MemPalace install failed. Install manually: pip3 install mempalace"
 
 if python3 -c "import mempalace" 2>/dev/null; then
@@ -2373,8 +2382,7 @@ HUMANRAIL_MCP_DIR="$MCP_DIR/humanrail-mcp-server"
 clone_or_pull "$HUMANRAIL_MCP_DIR" "https://github.com/prime001/humanrail-mcp-server.git"
 
 log_info "Installing HumanRail MCP dependencies..."
-netclaw_pip_install "mcp[cli]>=1.0.0" httpx 2>/dev/null || \
-    netclaw_pip_install --break-system-packages "mcp[cli]>=1.0.0" httpx 2>/dev/null || \
+netclaw_pip_install "mcp[cli]>=1.0.0" httpx || \
     log_warn "HumanRail MCP dependencies install failed"
 
 [ -f "$HUMANRAIL_MCP_DIR/server.py" ] && \
@@ -2870,8 +2878,7 @@ fi
 
 if [ -f "$CLAROTY_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Claroty MCP dependencies (mcp, httpx, python-dotenv, anyio)..."
-    netclaw_pip_install -r "$CLAROTY_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$CLAROTY_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$CLAROTY_MCP_DIR/requirements.txt" || {
             log_warn "Claroty MCP pip install failed — dependencies may need manual installation"
         }
 
@@ -2901,8 +2908,7 @@ fi
 
 if [ -f "$AUVIK_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Auvik MCP dependencies (fastmcp, httpx, python-dotenv)..."
-    netclaw_pip_install -r "$AUVIK_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$AUVIK_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$AUVIK_MCP_DIR/requirements.txt" || {
             log_warn "Auvik MCP pip install failed — dependencies may need manual installation"
         }
 
@@ -2928,8 +2934,7 @@ TWITTER_MCP_DIR="$NETCLAW_DIR/mcp-servers/twitter-mcp"
 
 if [ -f "$TWITTER_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Twitter MCP dependencies (tweepy, mcp, python-dotenv)..."
-    netclaw_pip_install -r "$TWITTER_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$TWITTER_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$TWITTER_MCP_DIR/requirements.txt" || {
             log_warn "Twitter MCP pip install failed — dependencies may need manual installation"
         }
     log_info "Twitter MCP ready: $TWITTER_MCP_DIR/server.py"
@@ -2957,8 +2962,7 @@ TWILIO_MCP_DIR="$NETCLAW_DIR/mcp-servers/twilio-voice-mcp"
 
 if [ -f "$TWILIO_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Twilio Voice MCP dependencies (twilio, flask, mcp, pytz)..."
-    netclaw_pip_install -r "$TWILIO_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$TWILIO_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$TWILIO_MCP_DIR/requirements.txt" || {
             log_warn "Twilio Voice MCP pip install failed — dependencies may need manual installation"
         }
     log_info "Twilio Voice MCP ready: $TWILIO_MCP_DIR/server.py"
@@ -3212,8 +3216,7 @@ GNS3_MCP_DIR="$MCP_DIR/gns3-mcp-server"
 
 if [ -f "$GNS3_MCP_DIR/requirements.txt" ]; then
     log_info "Installing GNS3 MCP dependencies..."
-    netclaw_pip_install -r "$GNS3_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$GNS3_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$GNS3_MCP_DIR/requirements.txt" || {
             log_warn "GNS3 MCP pip install failed — dependencies may need manual installation"
         }
     log_info "GNS3 MCP ready: $GNS3_MCP_DIR/gns3_mcp_server.py"
@@ -3248,8 +3251,7 @@ fi
 
 if [ -f "$HALO_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Halo MCP dependencies (fastmcp, httpx, python-dotenv)..."
-    netclaw_pip_install -r "$HALO_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$HALO_MCP_DIR/requirements.txt" 2>/dev/null || {
+    netclaw_pip_install -r "$HALO_MCP_DIR/requirements.txt" || {
             log_warn "Halo MCP pip install failed — dependencies may need manual installation"
         }
 
@@ -3279,8 +3281,7 @@ mkdir -p "$MEMORY_DATA_DIR"
 if [ -f "$MEMORY_MCP_DIR/pyproject.toml" ]; then
     log_info "Installing Memory MCP dependencies (mcp, fastmcp, chromadb, sentence-transformers, torch)..."
     log_warn "First install downloads the embedding model (~80MB) — this may take a moment."
-    netclaw_pip_install -e "$MEMORY_MCP_DIR" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -e "$MEMORY_MCP_DIR" 2>/dev/null || \
+    netclaw_pip_install -e "$MEMORY_MCP_DIR" || \
         log_warn "Memory MCP editable install failed"
     log_info "Memory MCP ready. Data directory: $MEMORY_DATA_DIR"
     log_info "Not pre-registered in config/openclaw.json (per its own design) — register with:"
@@ -3308,8 +3309,7 @@ mkdir -p "$RAG_DATA_DIR"
 
 if [ -f "$RAG_MCP_DIR/pyproject.toml" ]; then
     log_info "Installing RAG MCP dependencies (fastmcp, chromadb, sentence-transformers, rank_bm25, pymupdf, office parsers)..."
-    netclaw_pip_install -e "$RAG_MCP_DIR" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -e "$RAG_MCP_DIR" 2>/dev/null || \
+    netclaw_pip_install -e "$RAG_MCP_DIR" || \
         log_warn "RAG MCP editable install failed"
 
     log_warn "Pre-downloading embedding + reranker models (~250MB, one time) — the system is fully offline afterwards."
@@ -3356,8 +3356,7 @@ fi
 OLLAMA_MCP_DIR="$MCP_DIR/ollama-mcp"
 if [ -f "$OLLAMA_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Ollama MCP dependencies..."
-    netclaw_pip_install -r "$OLLAMA_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$OLLAMA_MCP_DIR/requirements.txt" 2>/dev/null || \
+    netclaw_pip_install -r "$OLLAMA_MCP_DIR/requirements.txt" || \
         log_warn "Ollama MCP pip install failed — dependencies may need manual installation"
     log_info "Ollama MCP ready: $OLLAMA_MCP_DIR"
 else
@@ -3379,8 +3378,7 @@ for pair in "SNMP trap:snmptrap-mcp" "Syslog:syslog-mcp" "IPFIX/NetFlow:ipfix-mc
     receiver_dir="$MCP_DIR/$dir_name"
     if [ -f "$receiver_dir/requirements.txt" ]; then
         log_info "Installing $name receiver dependencies..."
-        netclaw_pip_install -r "$receiver_dir/requirements.txt" 2>/dev/null || \
-            netclaw_pip_install --break-system-packages -r "$receiver_dir/requirements.txt" 2>/dev/null || \
+        netclaw_pip_install -r "$receiver_dir/requirements.txt" || \
             log_warn "$name receiver pip install failed — dependencies may need manual installation"
     else
         log_warn "$name receiver requirements.txt not found at $receiver_dir"
@@ -3401,8 +3399,7 @@ echo "  Golden-config compliance job runner for Nautobot"
 GOLDEN_CONFIG_MCP_DIR="$MCP_DIR/nautobot-golden-config-mcp"
 if [ -f "$GOLDEN_CONFIG_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Nautobot Golden Config MCP dependencies..."
-    netclaw_pip_install -r "$GOLDEN_CONFIG_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$GOLDEN_CONFIG_MCP_DIR/requirements.txt" 2>/dev/null || \
+    netclaw_pip_install -r "$GOLDEN_CONFIG_MCP_DIR/requirements.txt" || \
         log_warn "Nautobot Golden Config MCP pip install failed — dependencies may need manual installation"
     log_info "Nautobot Golden Config MCP ready: $GOLDEN_CONFIG_MCP_DIR"
 else
@@ -3421,8 +3418,7 @@ echo "  BGP/routing data queries against Nautobot"
 ROUTING_MCP_DIR="$MCP_DIR/nautobot-routing-mcp"
 if [ -f "$ROUTING_MCP_DIR/requirements.txt" ]; then
     log_info "Installing Nautobot Routing MCP dependencies..."
-    netclaw_pip_install -r "$ROUTING_MCP_DIR/requirements.txt" 2>/dev/null || \
-        netclaw_pip_install --break-system-packages -r "$ROUTING_MCP_DIR/requirements.txt" 2>/dev/null || \
+    netclaw_pip_install -r "$ROUTING_MCP_DIR/requirements.txt" || \
         log_warn "Nautobot Routing MCP pip install failed — dependencies may need manual installation"
     log_info "Nautobot Routing MCP ready: $ROUTING_MCP_DIR"
 else
