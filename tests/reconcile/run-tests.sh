@@ -51,8 +51,15 @@ assert_mentions() {
 }
 
 echo "=== Clean repository: every surface reconciled ==="
-assert_exit 0 "reconcile-mcp.py exits 0 on a reconciled tree" \
-    python3 "$REPO_ROOT/scripts/reconcile-mcp.py"
+# Scoped to the DECLARATION surfaces, which compare repository artifacts against each other
+# and are therefore true of the tree regardless of what is installed. The `startup` surface
+# (spec 088/090) launches real servers, so on a fresh checkout with no vendored clones it
+# cannot pass and would make this assertion a statement about the machine rather than the
+# repository. Its own gate behaviour is asserted separately below, against fixtures.
+assert_exit 0 "reconcile-mcp.py exits 0 on a reconciled tree (declaration surfaces)" \
+    python3 "$REPO_ROOT/scripts/reconcile-mcp.py" \
+        --surface catalog --surface dependencies --surface docs \
+        --surface meraki-ids --surface portability
 assert_exit 0 "verify-catalog-coverage.py exits 0" \
     python3 "$REPO_ROOT/scripts/verify-catalog-coverage.py"
 assert_exit 0 "verify-inventory-counts.py exits 0" \
