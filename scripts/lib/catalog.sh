@@ -9,7 +9,7 @@ CATALOG=(
     "junos|Device Automation|Juniper JunOS|PyEZ/NETCONF CLI, config mgmt, Jinja2 templates (10 tools)"
     "arista-cvp|Device Automation|Arista CloudVision|Device inventory, events, connectivity monitor, tags (4 tools)"
     "f5|Device Automation|F5 BIG-IP|iControl REST — virtuals, pools, iRules"
-    "catalyst-center|Device Automation|Cisco Catalyst Center|DNA Center — devices, clients, sites"
+    "catc|Device Automation|Cisco Catalyst Center (read-only)|All 514 read-only API operations behind 8 grouped dispatchers. Official Cisco catalogue, Apache-2.0. An empty inventory is not an empty network"
     "aruba-cx|Device Automation|Aruba CX|Switch management — 16 tools (11 read, 5 write)"
     "gnmi|Device Automation|gNMI Telemetry|Streaming telemetry — Get/Set/Subscribe, YANG (bundled)"
     "radkit|Device Automation|Cisco RADKit|Cloud-relayed remote CLI, SNMP, inventory (5 tools)"
@@ -143,7 +143,7 @@ PROFILE_MINIMAL="pyats gait subnet-calc drawio-rfc"
 PROFILE_RECOMMENDED="bgp-intel pyats gait netbox servicenow nvd-cve subnet-calc wikipedia markmap \
 drawio-rfc uml packet-buddy nmap gtrace globalping suzieq batfish protocol n2n tts chrome-devtools rag-mcp document"
 
-PROFILE_CISCO="pyats gait netbox servicenow aci ise catalyst-center meraki sdwan cml fmc \
+PROFILE_CISCO="pyats gait netbox servicenow aci ise catc meraki sdwan cml fmc \
 radkit te-community te-official nvd-cve cisco-psirt subnet-calc drawio-rfc uml packet-buddy"
 
 PROFILE_MULTIVENDOR="pyats junos arista-cvp aruba-cx f5 fortinet multivendor-cli netbox nautobot gait servicenow \

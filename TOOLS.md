@@ -599,3 +599,46 @@ verified) plus a **skill preflight** (`can-i` before trusting any empty result).
 
 `kubeshark-traffic` = observed traffic · `prometheus`/`grafana` = metrics ·
 `containerlab`/`gns3`/`cml` = building labs · this = the declared object model, read-only.
+
+
+## Cisco Catalyst Center, read-only (`catc-mcp`)
+
+**Spec 087.** 10 tools, stdio, strictly read-only. **Manifest measured 1,821 / 5,000 tokens** — with all
+**514 read-only operations** reachable.
+
+Cisco released an official Catalyst Center MCP server whose default bundle measures **515 tools / 64,420
+tokens — 12.9x the ceiling**. NetClaw adopts its **catalogue** (Apache-2.0, `release/2.3.7.11`), not its
+runtime, and fronts it with 8 grouped dispatchers plus `catc_find` and `catc_describe_operation`.
+
+| Tool | Use |
+|---|---|
+| `catc_find` | **Start here** — search all 514 operations locally. Names are generated, not guessable |
+| `catc_describe_operation` | Parameter schema on demand |
+| `catc_devices` `catc_sites` `catc_wireless` `catc_health` `catc_compliance` `catc_software` `catc_events` `catc_other` | `(operation, params)` |
+
+### Why the catalogue and not the runtime
+
+Avoids three upstream properties at once: **`fastmcp>=2.0.0` unbounded** (resolves 3.x against five servers
+pinning `<3` — the third occurrence of the spec-083 hazard), **HTTP transport on port 7001** (every other
+NetClaw MCP is stdio), and **a container** needed only to isolate the first. Dependencies here are `mcp` and
+`httpx`.
+
+### Behaviour worth knowing
+
+- **An empty inventory is not an empty network.** Zero devices is a statement about the controller. Every
+  response is stamped at a chokepoint with **which appliance answered** and **when** — because the two
+  DevNet sandboxes share credentials and `sandboxdnac2` has zero devices while authenticating perfectly.
+- **Zero counts carry the same caveat as empty lists.** A bare `0` reads even more like data; found by live
+  testing.
+- **`unreachable`, `auth_failed` and `empty` are three different facts.** Keeping them apart required a real
+  fix — `httpx.HTTPStatusError` subclasses `httpx.HTTPError`, so a 401 initially surfaced as `unreachable`.
+- **Read-only by curation**: only GET operations are catalogued and the single upstream POST is excluded, so
+  it cannot be dispatched. Upstream states it enforces no read-only access; curation plus account RBAC are
+  the two controls.
+- **"Catalyst Center says unreachable" is not "the device is down"** — one controller's last poll.
+- Upstream is **version-coupled**: the branch name is the appliance version, and `main` contains no code.
+
+### Boundaries
+
+`pyats`/`multivendor-cli` read the device (and win on disagreement) · `netbox`/`nautobot` hold intent, this
+reports discovery · `devnet-catalyst-search` reads docs, this queries an appliance.

@@ -1101,6 +1101,19 @@
         "DOCUMENT_MAX_ROWS": "${DOCUMENT_MAX_ROWS}"
       }
     },
+    "catc-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/catc-mcp/server.py"
+      ],
+      "env": {
+        "CATALYST_CENTER_HOST": "${CATALYST_CENTER_HOST}",
+        "CATALYST_CENTER_USERNAME": "${CATALYST_CENTER_USERNAME}",
+        "CATALYST_CENTER_PASSWORD": "${CATALYST_CENTER_PASSWORD}",
+        "CATALYST_CENTER_VERIFY_SSL": "${CATALYST_CENTER_VERIFY_SSL}"
+      }
+    },
     "k8s-mcp": {
       "command": "mcp-servers/k8s-mcp/kubernetes-mcp-server",
       "args": [
