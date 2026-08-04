@@ -12,7 +12,7 @@ So containment here is enforced **by DuckDB, not by pattern matching**. The sequ
 2. `SET enable_external_access=false` — every filesystem and network operation now fails.
 3. `SET lock_configuration=true` — and that setting can no longer be turned back on.
 
-Measured after step 3 (see specs/092-duckdb-analysis/VERIFICATION.md): reading
+Measured after step 3 (see specs/092-duckdb-analysis/spec.md, Verification): reading
 `/etc/passwd`, globbing `/home/**`, attaching `rag.db`, attaching the memory store,
 `COPY … TO`, `INSTALL`/`LOAD`, re-enabling `enable_external_access`, and unlocking the
 configuration **all raise**. The materialised tables remain fully queryable.
@@ -29,7 +29,13 @@ from __future__ import annotations
 import re
 import threading
 
-import duckdb
+# Imported lazily so the statement screen -- which is pure `re` and enforces R17's read-only
+# rule -- stays importable where duckdb is absent (CI installs nothing, spec 075 SC-013).
+# The Sandbox class raises on construction instead, which is the honest place to fail.
+try:
+    import duckdb
+except ModuleNotFoundError:  # pragma: no cover - exercised by the CI path
+    duckdb = None
 
 # Statement forms an analyst needs. Anything else is refused before it reaches DuckDB --
 # not as the security boundary (that is the lockdown above) but because R17 asks for
@@ -93,6 +99,10 @@ class Sandbox:
     """A locked-down in-memory DuckDB holding only what was explicitly loaded."""
 
     def __init__(self) -> None:
+        if duckdb is None:
+            raise RuntimeError(
+                "the duckdb package is not installed; install "
+                "mcp-servers/analysis-mcp/requirements.txt")
         self.conn = duckdb.connect(":memory:")
         self._locked = False
         self._lock = threading.Lock()
