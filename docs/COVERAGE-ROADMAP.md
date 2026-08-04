@@ -142,7 +142,7 @@ and the IETF datatracker.
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R23** | IETF MCP-for-network-management landscape → NCFED `-01` input | — | `NOT STARTED` |
+| **R23** | IETF MCP-for-network-management landscape → NCFED `-01` input | [survey](ietf/IETF-MCP-LANDSCAPE-2026-08.md) | `DONE` — surveyed 2026-08-04. **One of the four named drafts is EXPIRED**; the count went *down* to 13; and the roadmap missed the `agentproto` **WG-forming BOF** (154–51 for a WG, scope rejected 38–124). 8 recommendations seeded into the `-01` backlog |
 
 ### Open territory (build candidates — assess before scheduling)
 
@@ -798,33 +798,55 @@ Both appear on Itential's list. NetClaw has drawio as a *skill* only.
 
 # R23 — IETF MCP-for-network-management landscape
 
-**Status:** `NOT STARTED` · **Strategic, not tooling**
+**Status:** `DONE` — surveyed 2026-08-04 · **Strategic, not tooling**
 
-MCP has arrived at the IETF: 15+ active Internet-Drafts as of April 2026, from Cisco, Google,
-Huawei, Deutsche Telekom, Orange, Telefónica, and independents. No working group has adopted
-any of them and no MCP WG exists yet.
+Full survey: **[`docs/ietf/IETF-MCP-LANDSCAPE-2026-08.md`](ietf/IETF-MCP-LANDSCAPE-2026-08.md)**.
+Recommendations seeded into `docs/ietf/NCFED-HARDENING-BACKLOG.md`; `AGENTPROTO-POSITIONING.md` corrected.
 
-Directly in NetClaw's lane:
-
-| Draft | Relevance |
-|---|---|
-| `draft-zw-opsawg-mcp-network-mgmt` | "MCP Extensions for Network Equipment Management" |
-| `draft-yang-nmrg-mcp-nm` | "Applicability of MCP to Network Management" |
-| `draft-serra-mcp-discovery-uri` | `mcp` URI scheme + `/.well-known/mcp-server` discovery |
-| `draft-morrison-mcp-dns-discovery` | MCP server discovery via DNS TXT records |
-
-`draft-capobianco-ncfed-00` is already in flight. The discovery drafts in particular overlap the
-federation/enrollment problem NCFED solved differently — worth reconciling before `-01`.
+> **⚠️ This section's original April-2026 draft list was stale. Corrected below.**
 
 **Checklist**
-- [ ] Read all four drafts in full
-- [ ] Write a positioning note: where NCFED agrees with, diverges from, or could cite each
-- [ ] Decide whether NCFED `-01` should reference the discovery drafts, and whether NetClaw's
-      TOFU-pinned enrollment is worth contributing back as an alternative
-- [ ] Check opsawg / nmrg mailing list activity for adoption signals
-- [ ] Feed conclusions into the existing NCFED `-01` backlog
+- [x] Read all four drafts — and found **`draft-zw-opsawg-mcp-network-mgmt` is EXPIRED**, one terminal of a
+      four-name rename chain in which *every* link is now expired or replaced. There is no active revision of
+      that work anywhere. **Do not cite it.**
+- [x] Positioning note written — the discovery drafts answer *"where is this domain's endpoint?"*, never
+      *"how do two agents come to trust each other?"*. Serra defines **no key pinning** and defers auth to
+      OAuth; Morrison pins keys in DNS but **admits it has no revocation**
+- [x] Decided on `-01` references — 8 recommendations, in priority order, in the backlog
+- [x] Checked opsawg / nmrg — **opsawg has no live MCP work** (all expired; migrated to NMRG and NMOP).
+      `draft-yang-nmrg-mcp-nm` reached **`-03`** with six authors across five carriers/vendors, but no
+      adoption call was found
+- [x] Fed into the `-01` backlog
 
----
+**Corrected landscape (verified 2026-08-04)**
+
+| Draft | Rev | State |
+|---|---|---|
+| `draft-zw-opsawg-mcp-network-mgmt` | 00 | **EXPIRED — do not cite** |
+| `draft-yang-nmrg-mcp-nm` | **03** | Active to 2027-01-07. The healthy one; cite this |
+| `draft-serra-mcp-discovery-uri` | 04 | Active but **expires 2026-09-25** |
+| `draft-morrison-mcp-dns-discovery` | **05** | Active. `-05` is a **retraction revision** |
+
+**Active MCP drafts: 13, not "15+".** The count went *down* — the Huawei cluster expired faster than new
+drafts arrived. Searching "agent" instead returns **199** active drafts: MCP is a small corner of a much
+larger space, and NCFED sits in the larger one.
+
+**What the original entry missed entirely**
+
+- **`agentproto` WG-forming BOF, IETF 126 Vienna, 2026-07-23.** Form a WG: **154–51 yes**. Proposed scope:
+  **38–124 — rejected.** The room wants a WG and refused the charter it was handed; the refocus toward
+  *context propagation across trust boundaries* is **closer to NCFED's contribution** than the original
+  session-layer framing. **Not chartered yet.**
+- **`dawn` BOF** ("Discovery of Agents, Workloads, Named Entities"). Its problem statement explicitly
+  assumes trust is already established and proposes **no trust model** — precisely NCFED's slot, and a
+  better citation target than either MCP discovery draft.
+- **`draft-bu-agentproto-security-principal-binding-04`** (2026-08-02) supplies a reusable claims matrix
+  authors are meant to fill in. **The cheapest high-credibility `-01` addition available.**
+- **The pushback to pre-empt is revocation** — the IETF direction is WIMSE/SPIFFE short-lived credentials
+  (`draft-klrc-aiagent-auth-03`), and NCFED's long-lived pinned keys will draw exactly that question.
+
+**Follow-on:** none as tooling. This item is complete as strategy; the work it generated lives in the NCFED
+`-01` backlog.
 
 # R24 — Open-territory triage
 
