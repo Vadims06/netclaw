@@ -759,6 +759,29 @@ Vendor-neutral EVPN/VXLAN fabric audit and troubleshooting:
 
 ---
 
+## Network Security Monitoring Skills
+
+### nsm-ids-triage
+Suricata IDS alert triage over a packet capture, read-only (spec 091):
+- Signature alerts with category, severity and signature_id
+- Ruleset presence and age as part of every finding
+- Detection posture: `ARMED` / `INERT` / `UNKNOWN`
+
+**Zero alerts is not a clean result until the signature count is checked.** Stock Suricata
+loads **0 signatures** and reports **0 alerts** behind two non-fatal warnings — measured 0
+versus 52,205 after `nsm_update_rules`. An `INERT` run means the detector was off.
+
+### nsm-session-pivot
+Zeek session and protocol metadata over a packet capture, read-only (spec 091):
+- `conn.log` session table with service, conn_state and byte counts
+- Exact pivot from a connection `uid` into dns/http/ssl/weird logs
+- Checksum posture on every response
+
+**A missing protocol log does not mean there was no such traffic.** Zeek discards
+invalid-checksum packets by default; measured, that produced **no http.log at all** and a
+conn.log with 3 rows instead of 2. NetClaw's own capture skills produce such captures, so the
+server defaults to ignoring checksums and always reports which mode it used.
+
 ## Cisco Meraki Skills
 
 ### meraki-network-ops

@@ -32,6 +32,7 @@ on:
       - 'scripts/check-mcp-portability.py'
       - 'scripts/reconcile-mcp.py'
       - 'workspace/skills/**'
+      - 'tests/**'
       - 'README.md'
       - 'SOUL.md'
       - '.github/workflows/mcp-reconciliation.yml'
@@ -83,3 +84,9 @@ jobs:
 
       - name: Exit-code contract tests
         run: bash tests/reconcile/run-tests.sh
+
+      # nsm-mcp's posture and pinning assertions need no containers; its two live-analysis
+      # assertions skip themselves when docker is unreachable, which it is here. Included so
+      # the chokepoint that stops "0 alerts" reading as "clean traffic" is regression-tested.
+      - name: nsm-mcp contract tests
+        run: bash tests/nsm/run-tests.sh

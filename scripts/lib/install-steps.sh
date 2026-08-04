@@ -1186,6 +1186,53 @@ fi
 echo ""
 }
 
+# ── Step 28.5: Zeek + Suricata NSM (spec 091, roadmap R13) ──────
+component_install_nsm() {
+log_step "Installing Zeek + Suricata NSM MCP Server..."
+echo "  NetClaw-authored: mcp-servers/nsm-mcp (6 tools)"
+echo "  Offline PCAP analysis — Zeek session/protocol metadata + Suricata IDS alerting."
+echo "  Read-only: input is a capture file on disk; nothing sniffs an interface."
+
+# Containers, not host packages, and not by preference: `zeek` has NO apt candidate on
+# Ubuntu 26.04, and `suricata` needs root to install. Both images are pinned by DIGEST --
+# a floating tag would let a security tool's analysis change under the operator silently.
+if ! command -v docker >/dev/null 2>&1; then
+    log_warn "docker not found — nsm-mcp cannot run Zeek or Suricata without it"
+    log_info "  The server still registers; nsm_status will report docker unavailable."
+else
+    log_info "Pulling pinned Zeek 8.2.1 and Suricata 8.0.6 images (may take a few minutes)..."
+    docker pull --quiet zeek/zeek@sha256:eca2b3915d3e067cbb4a904f23f4c4f461ea2b60613ab30f7ee77bbc707c87c7 \
+        >/dev/null 2>&1 || log_warn "Zeek image pull failed"
+    docker pull --quiet jasonish/suricata@sha256:81468a22f0b685f3d7e0c1646ab4fdb9a67c1b3dfa3357c52b1434dd4f39dc49 \
+        >/dev/null 2>&1 || log_warn "Suricata image pull failed"
+fi
+
+netclaw_pip_install -r "$NETCLAW_DIR/mcp-servers/nsm-mcp/requirements.txt" || \
+    log_error "nsm-mcp dependencies install FAILED — the server will not start"
+
+# THE POINT OF THIS BLOCK. Stock Suricata loads ZERO signatures and reports ZERO alerts,
+# announcing it with two NON-FATAL warnings. Measured: 0 signatures on stock config versus
+# 52,205 after an update. An operator who skips this gets a detector that inspects nothing
+# and an analyst who reads "0 alerts" as "clean traffic".
+NSM_RULES="${NSM_HOME:-$HOME/.openclaw/nsm}/rules"
+if [ -s "$NSM_RULES/suricata.rules" ]; then
+    log_info "Suricata ruleset already present at $NSM_RULES"
+elif command -v docker >/dev/null 2>&1; then
+    log_info "Fetching Emerging Threats Open ruleset (Suricata alerts on NOTHING without it)..."
+    mkdir -p "$NSM_RULES"
+    if docker run --rm -v "$NSM_RULES:/var/lib/suricata/rules" \
+        jasonish/suricata@sha256:81468a22f0b685f3d7e0c1646ab4fdb9a67c1b3dfa3357c52b1434dd4f39dc49 \
+        suricata-update --no-test >/dev/null 2>&1 && [ -s "$NSM_RULES/suricata.rules" ]; then
+        log_info "Suricata ruleset installed"
+    else
+        log_warn "Ruleset fetch failed — Suricata will load 0 signatures and alert on NOTHING"
+        log_info "  Remedy: call the nsm_update_rules tool once network access is available."
+    fi
+fi
+
+echo ""
+}
+
 # ── Step 29: Cisco Meraki — official remote MCP (spec 089) ──────
 component_install_meraki() {
 log_step "Enabling Cisco Meraki (official remote MCP)..."
