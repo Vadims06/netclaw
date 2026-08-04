@@ -892,24 +892,6 @@ netclaw_pip_install -r "$F5_MCP_DIR/requirements.txt" 2>/dev/null || \
 echo ""
 }
 
-# ── Step 21: Catalyst Center MCP (clone + pip install) ──────────
-component_install_catalyst_center() {
-log_step "Installing Catalyst Center MCP Server..."
-echo "  Source: https://github.com/richbibby/catalyst-center-mcp"
-
-CATC_MCP_DIR="$MCP_DIR/catalyst-center-mcp"
-clone_or_pull "$CATC_MCP_DIR" "https://github.com/richbibby/catalyst-center-mcp.git"
-
-log_info "Installing Catalyst Center dependencies..."
-netclaw_pip_install -r "$CATC_MCP_DIR/requirements.txt" 2>/dev/null || \
-    netclaw_pip_install fastmcp requests urllib3 python-dotenv
-
-[ -f "$CATC_MCP_DIR/catalyst-center-mcp.py" ] && \
-    log_info "Catalyst Center MCP ready: $CATC_MCP_DIR/catalyst-center-mcp.py" || \
-    log_error "catalyst-center-mcp.py not found"
-
-echo ""
-}
 
 # ── Step 22: Microsoft Graph MCP (npx, no clone) ────────────────
 component_install_msgraph() {
@@ -3870,6 +3852,32 @@ DOCUMENT_MCP_CMD_DETECTED="python3 $DOCUMENT_MCP_DIR/server.py"
 }
 
 # ── Zabbix SNMP-poller NMS (spec 083 / roadmap R11) ─────────────
+# ── Cisco Catalyst Center, read-only (spec 087) ─────────────────
+component_install_catc() {
+log_step "Installing Catalyst Center MCP Server (read-only)..."
+echo "  Source: mcp-servers/catc-mcp — NetClaw client over Cisco's OFFICIAL catalogue"
+echo "  Upstream catalogue: cisco-en-programmability/catc-mcp-oss (Apache-2.0, release/2.3.7.11)"
+echo "  All 514 read-only operations via 8 grouped dispatchers; 1,821-token manifest"
+
+CATC_MCP_DIR="$REPO_ROOT/mcp-servers/catc-mcp"
+
+if [ -d "$CATC_MCP_DIR" ]; then
+    # Only mcp + httpx. NetClaw uses the upstream CATALOGUE, not the upstream
+    # runtime, so none of fastapi/uvicorn/fastmcp is pulled in. That is deliberate:
+    # upstream declares fastmcp>=2.0.0 UNBOUNDED, which resolves to 3.x and breaks
+    # five NetClaw servers pinning <3. Do not "simplify" this by installing their
+    # requirements instead.
+    netclaw_pip_install -r "$CATC_MCP_DIR/requirements.txt" 2>/dev/null || \
+        log_warn "Catalyst Center MCP dependency install failed (mcp, httpx)"
+    log_info "Catalyst Center MCP prepared: $CATC_MCP_DIR"
+    log_info "Read-only: the one mutating upstream operation is excluded from the catalogue"
+else
+    log_warn "Catalyst Center MCP directory missing: $CATC_MCP_DIR"
+fi
+
+CATC_MCP_CMD_DETECTED="python3 $CATC_MCP_DIR/server.py"
+}
+
 component_install_zabbix() {
 log_step "Installing Zabbix NMS MCP Server..."
 echo "  Source: mcp-servers/zabbix-mcp (VENDORED third-party, GPL-3.0, pinned 0722f48)"
