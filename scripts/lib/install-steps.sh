@@ -1186,6 +1186,32 @@ fi
 echo ""
 }
 
+# ── Step 28.7: Redfish BMC out-of-band (spec 094, roadmap R15) ──
+component_install_redfish() {
+log_step "Installing Redfish BMC MCP Server..."
+echo "  NetClaw-authored: mcp-servers/redfish-mcp (6 tools, READ-ONLY)"
+echo "  Out-of-band hardware visibility: health, power state, thermal, firmware, SEL logs."
+echo "  Answers 'is the box dead or is it the network' — the BMC answers when the OS cannot."
+
+netclaw_pip_install -r "$NETCLAW_DIR/mcp-servers/redfish-mcp/requirements.txt" || \
+    log_error "redfish-mcp dependencies install FAILED — the server will not start"
+
+# Read-only is enforced at the transport: the client implements GET and nothing else. Redfish
+# exposes #ComputerSystem.Reset as a POST on every system, and a power cycle on the wrong box
+# is an outage, so no code path here can issue one.
+log_info "Read-only: no power control. Reset/power actions are deliberately not implemented."
+
+if [ -z "${REDFISH_URL:-}" ]; then
+    log_info "Set REDFISH_URL (e.g. https://10.0.0.5), REDFISH_USERNAME and REDFISH_PASSWORD in .env"
+    log_info "  Store BMC credentials in Vault where available — they are root-equivalent on the host."
+fi
+if [ "${REDFISH_VERIFY_TLS:-false}" != "true" ]; then
+    log_warn "TLS verification defaults OFF — BMCs ship self-signed certs. Every response says so."
+fi
+
+echo ""
+}
+
 # ── Step 28.6: DuckDB analysis surface (spec 092, roadmap R17) ──
 component_install_analysis() {
 log_step "Installing DuckDB Analysis MCP Server..."

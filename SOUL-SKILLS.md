@@ -747,6 +747,27 @@ Vendor-neutral EVPN/VXLAN fabric audit and troubleshooting:
 
 ---
 
+## Out-of-Band Hardware Skills
+
+### hardware-health-check
+Out-of-band hardware visibility via Redfish BMC, read-only (spec 094):
+- Power state and component health, with a verdict on what it establishes
+- Thermal, fan and PSU readings against critical thresholds
+- BMC firmware version, host firmware inventory, SEL log triage
+
+**This is the only surface that separates "the box is dead" from "the network to the box is
+dead."** The BMC answers when the OS cannot — but the distinction is symmetric and each
+direction is a different wrong answer. **BMC unreachable establishes NOTHING about the host**
+(its NIC, path and credentials are all separate); `PowerState: Off` IS a fact; `PowerState: On`
+does not mean the OS booted. `redfish-mcp` refuses to emit a host claim without the verdict that
+qualifies it, so the caveat cannot be dropped.
+
+**No power control.** Redfish exposes `#ComputerSystem.Reset`; this server deliberately does not
+implement it, and the client issues no verb but GET. A power cycle on the wrong box is an outage.
+
+**An empty SEL is not good news** — ring buffers are cleared during service, so absence of
+entries is absence of *recorded* entries.
+
 ## Network Security Monitoring Skills
 
 ### nsm-ids-triage

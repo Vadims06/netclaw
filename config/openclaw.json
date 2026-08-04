@@ -179,6 +179,20 @@
         "PAN_REGION": "${PAN_REGION:-americas}"
       }
     },
+    "redfish-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/redfish-mcp/server.py"
+      ],
+      "env": {
+        "REDFISH_URL": "${REDFISH_URL:-}",
+        "REDFISH_USERNAME": "${REDFISH_USERNAME:-}",
+        "REDFISH_PASSWORD": "${REDFISH_PASSWORD:-}",
+        "REDFISH_VERIFY_TLS": "${REDFISH_VERIFY_TLS:-false}",
+        "REDFISH_TIMEOUT": "${REDFISH_TIMEOUT:-15}"
+      }
+    },
     "datadog-mcp": {
       "url": "mcp://datadog.com/mcp",
       "env": {

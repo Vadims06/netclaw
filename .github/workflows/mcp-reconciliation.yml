@@ -97,3 +97,9 @@ jobs:
       # not install (SC-013). The allowlist is what keeps the memory/RAG stores unreachable.
       - name: analysis-mcp contract tests
         run: bash tests/analysis/run-tests.sh
+
+      # redfish-mcp's verdict assertions -- which stop a BMC timeout being reported as a downed
+      # host -- are pure stdlib and always run. The live DMTF-mockup ones skip without httpx
+      # and the container.
+      - name: redfish-mcp contract tests
+        run: bash tests/redfish/run-tests.sh
