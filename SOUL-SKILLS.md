@@ -782,6 +782,20 @@ invalid-checksum packets by default; measured, that produced **no http.log at al
 conn.log with 3 rows instead of 2. NetClaw's own capture skills produce such captures, so the
 server defaults to ignoring checksums and always reports which mode it used.
 
+### network-data-analysis
+Ad-hoc read-only SQL over exported network data via DuckDB (spec 092):
+- Cross-log joins on Zeek `uid` — the session pivot, aggregated
+- Top talkers, service breakdowns, Suricata signature frequency
+- Capped results reported as pages, never as totals
+
+**NetClaw's own stores are unreachable by construction.** Datasets are materialised, then
+DuckDB's `enable_external_access=false` + `lock_configuration=true` close every filesystem and
+network path irreversibly — so `~/.openclaw/memory/`, `rag/`, `n2n/` and `gait/` cannot be
+attached or read. Enforcement is DuckDB's, not a regex's.
+
+**It inherits its source's caveats.** SQL over a Zeek run made with checksum validation on is
+SQL over incomplete logs — check the run's posture before trusting an aggregate.
+
 ## Cisco Meraki Skills
 
 ### meraki-network-ops

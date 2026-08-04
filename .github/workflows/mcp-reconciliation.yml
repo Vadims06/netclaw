@@ -90,3 +90,9 @@ jobs:
       # the chokepoint that stops "0 alerts" reading as "clean traffic" is regression-tested.
       - name: nsm-mcp contract tests
         run: bash tests/nsm/run-tests.sh
+
+      # analysis-mcp's path-allowlist and statement-screen assertions are pure stdlib and
+      # always run; the DuckDB lockdown assertions skip without the package, which CI does
+      # not install (SC-013). The allowlist is what keeps the memory/RAG stores unreachable.
+      - name: analysis-mcp contract tests
+        run: bash tests/analysis/run-tests.sh

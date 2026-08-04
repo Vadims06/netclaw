@@ -96,6 +96,7 @@ mcp-servers/multivendor-cli-mcp/.venv/
 !mcp-servers/k8s-mcp/
 !mcp-servers/catc-mcp/
 !mcp-servers/nsm-mcp/
+!mcp-servers/analysis-mcp/
 # Re-ignore the downloaded upstream binary: 75 MB, fetched at install and
 # verified against CHECKSUMS. The negation above would otherwise commit it (spec 084).
 mcp-servers/k8s-mcp/kubernetes-mcp-server
