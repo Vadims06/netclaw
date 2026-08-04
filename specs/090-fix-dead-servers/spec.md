@@ -150,6 +150,36 @@ injection took.
 - Obtaining RADKit. That needs a Cisco account and a code-signed wheel from
   `radkit.cisco.com`; the exception documents the path.
 
+## The hard gate cannot live in CI — learned the hard way
+
+The first push made `startup` a hard gate in `reconcile-mcp.py`, and **CI failed immediately
+on a healthy tree**: a fresh container has no vendored clones (they are gitignored runtime
+clones), so 30+ *uninstalled* components read as "entry point does not exist".
+
+The workflow's own header already stated the constraint I had broken — spec 075's **SC-013**:
+this job "needs no dependencies, no network access, no credentials, and **no installed
+NetClaw agent**". A surface that launches real servers violates that by construction.
+
+A first attempt to fix it by skipping components whose vendored *directory* is absent was
+**too coarse**: `prisma-sdwan-mcp`'s directory is tracked while its server file is a runtime
+clone, so it still failed. Directory presence cannot distinguish "misregistered" from "not
+installed".
+
+The resolution splits the two kinds of check rather than weakening either:
+
+- **CI gates the five declaration surfaces.** They compare repository artifacts against each
+  other, need nothing installed, and are meaningful in a fresh container — SC-013 honoured.
+- **`startup` gates locally**, where install state is real, and runs `--warn-only` in CI so a
+  regression is still visible in the log.
+
+Verified by cloning the branch into a clean tree and running both: the declaration gate exits
+0, and the contract tests pass (51 there, 52 locally — the junos assertion skips itself when
+`junos-mcp-server` is not cloned).
+
+One pre-existing test had silently acquired the same defect: `"reconcile-mcp.py exits 0 on a
+reconciled tree"` ran the full set, so once `startup` joined it, it asserted something about
+the machine rather than the repository. Now scoped to the declaration surfaces.
+
 ## A known limitation of the check
 
 `check-server-startup.py` treats "imported cleanly and did not exit fatally" as success. It
