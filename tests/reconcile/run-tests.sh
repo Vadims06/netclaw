@@ -51,8 +51,15 @@ assert_mentions() {
 }
 
 echo "=== Clean repository: every surface reconciled ==="
-assert_exit 0 "reconcile-mcp.py exits 0 on a reconciled tree" \
-    python3 "$REPO_ROOT/scripts/reconcile-mcp.py"
+# Scoped to the DECLARATION surfaces, which compare repository artifacts against each other
+# and are therefore true of the tree regardless of what is installed. The `startup` surface
+# (spec 088/090) launches real servers, so on a fresh checkout with no vendored clones it
+# cannot pass and would make this assertion a statement about the machine rather than the
+# repository. Its own gate behaviour is asserted separately below, against fixtures.
+assert_exit 0 "reconcile-mcp.py exits 0 on a reconciled tree (declaration surfaces)" \
+    python3 "$REPO_ROOT/scripts/reconcile-mcp.py" \
+        --surface catalog --surface dependencies --surface docs \
+        --surface meraki-ids --surface portability
 assert_exit 0 "verify-catalog-coverage.py exits 0" \
     python3 "$REPO_ROOT/scripts/verify-catalog-coverage.py"
 assert_exit 0 "verify-inventory-counts.py exits 0" \
@@ -241,8 +248,13 @@ assert_exit 0 "--warn-only exits 0 despite startup findings" run_startup --warn-
 
 # STARTUP_EXCEPTIONS is the documented escape hatch, so it must actually work --
 # an untested suppression list is how a check quietly stops checking.
-sed 's/^STARTUP_EXCEPTIONS: dict\[str, str\] = {}/STARTUP_EXCEPTIONS = {"broken-mcp": "known"}/' \
+# Inject an entry after the opening brace rather than replacing an empty literal: the
+# dict now has a real entry (RADKit), and matching `= {}` silently stopped applying --
+# the test passed for the wrong reason until spec 090 populated it.
+sed 's/^STARTUP_EXCEPTIONS: dict\[str, str\] = {$/&\n    "broken-mcp": "test",/' \
     "$REPO_ROOT/scripts/check-server-startup.py" >"$SUP/scripts/excepted.py"
+grep -q '"broken-mcp": "test"' "$SUP/scripts/excepted.py" || \
+    { printf '  FAIL could not inject a STARTUP_EXCEPTIONS entry\n'; FAIL=$((FAIL + 1)); }
 assert_exit 0 "a server in STARTUP_EXCEPTIONS is suppressed" \
     python3 "$SUP/scripts/excepted.py" --config "$SUP/config/openclaw.json"
 
@@ -307,6 +319,127 @@ assert_exit 0 "--warn-only exits 0 despite meraki-id findings" run_meraki --warn
 # The real repository skills must be clean.
 assert_exit 0 "the shipped Meraki skills cite only real capability IDs" \
     python3 "$REPO_ROOT/scripts/check-meraki-capability-ids.py"
+
+# ── pip helper: PEP 668 and legibility (spec 090) ─────────────────────────────
+# netclaw_pip_install had no PEP 668 handling, so on an externally-managed host the
+# ONE install path spec 077 mandates could not install any new package -- while 56
+# call sites papered over it with `--break-system-packages 2>/dev/null || log_warn`,
+# turning total failure into one warning line and exit 0. Three servers were dead.
+echo
+echo "--- pip helper (PEP 668 + legibility) ---"
+PH="$TMP/piphelper"; mkdir -p "$PH"
+
+# A fake interpreter that refuses like a PEP 668 host unless --break-system-packages
+# is present. Exercises the retry without touching the real environment.
+cat >"$PH/fakepy668" <<'EOF'
+#!/usr/bin/env bash
+[ "$1" = "-m" ] && [ "$2" = "pip" ] || exit 9
+case " $* " in
+    *" --version "*) echo "pip 99.0"; exit 0 ;;
+    *" --break-system-packages "*) echo "Successfully installed thing-1.0"; exit 0 ;;
+esac
+echo "error: externally-managed-environment" >&2
+echo "hint: See PEP 668 for the detailed specification." >&2
+exit 1
+EOF
+chmod +x "$PH/fakepy668"
+
+assert_exit 0 "PEP 668 refusal is retried with --break-system-packages" \
+    env NETCLAW_PY="$PH/fakepy668" bash -c \
+        'source "$0"/scripts/lib/pip-helper.sh; netclaw_pip_install thing' "$REPO_ROOT"
+assert_mentions "externally managed" "the retry is announced, not silent" \
+    env NETCLAW_PY="$PH/fakepy668" bash -c \
+        'source "$0"/scripts/lib/pip-helper.sh; netclaw_pip_install thing' "$REPO_ROOT"
+
+# A failure for any OTHER reason must surface its actual output, not be swallowed.
+cat >"$PH/fakepyfail" <<'EOF'
+#!/usr/bin/env bash
+[ "$1" = "-m" ] && [ "$2" = "pip" ] || exit 9
+case " $* " in *" --version "*) echo "pip 99.0"; exit 0 ;; esac
+echo "ERROR: No matching distribution found for nonexistent-xyz" >&2
+exit 1
+EOF
+chmod +x "$PH/fakepyfail"
+
+assert_exit 1 "a genuine install failure returns non-zero" \
+    env NETCLAW_PY="$PH/fakepyfail" bash -c \
+        'source "$0"/scripts/lib/pip-helper.sh; netclaw_pip_install nonexistent-xyz' "$REPO_ROOT"
+assert_mentions "No matching distribution" "the real pip error is not swallowed" \
+    env NETCLAW_PY="$PH/fakepyfail" bash -c \
+        'source "$0"/scripts/lib/pip-helper.sh; netclaw_pip_install nonexistent-xyz' "$REPO_ROOT"
+assert_mentions "FAILED installing" "the failure names what it was installing" \
+    env NETCLAW_PY="$PH/fakepyfail" bash -c \
+        'source "$0"/scripts/lib/pip-helper.sh; netclaw_pip_install nonexistent-xyz' "$REPO_ROOT"
+
+# The installer must no longer contain the redundant swallowing retry pattern: the
+# helper handles PEP 668 itself, and a second discarded call can only hide things.
+assert_exit 1 "install-steps.sh has no --break-system-packages call sites left" \
+    grep -q 'netclaw_pip_install --break-system-packages' "$REPO_ROOT/scripts/lib/install-steps.sh"
+
+# NOT INSTALLED is not BROKEN. CI is a fresh checkout where every vendored clone is
+# absent, so without this distinction the hard gate fails on a healthy tree -- which is
+# exactly what happened on the first push of spec 090.
+NI="$TMP/notinstalled"; mkdir -p "$NI/config" "$NI/mcp-servers/present-mcp"
+python3 - "$NI" <<'EOF'
+import json, os, sys
+root = sys.argv[1]
+cfg = {"mcpServers": {"absent-component": {"command": "python3",
+        "args": ["-u", "mcp-servers/never-cloned-mcp/server.py"]}}}
+json.dump(cfg, open(os.path.join(root, "config/openclaw.json"), "w"))
+EOF
+assert_exit 0 "a component whose vendored directory was never cloned is skipped" \
+    python3 "$REPO_ROOT/scripts/check-server-startup.py" --config "$NI/config/openclaw.json"
+
+# But a wrong path INSIDE a directory that DOES exist is still the aruba-cx-mcp bug.
+python3 - "$NI" "$REPO_ROOT" <<'EOF'
+import json, os, sys
+root, repo = sys.argv[1], sys.argv[2]
+present = next((d for d in os.listdir(os.path.join(repo, "mcp-servers"))
+                if os.path.isdir(os.path.join(repo, "mcp-servers", d))), None)
+cfg = {"mcpServers": {"bad-path": {"command": "python3",
+        "args": ["-u", f"mcp-servers/{present}/DEFINITELY-NOT-HERE.py"]}}}
+json.dump(cfg, open(os.path.join(root, "config/openclaw.json"), "w"))
+EOF
+assert_exit 1 "a wrong path inside an EXISTING vendored directory still fails" \
+    python3 "$REPO_ROOT/scripts/check-server-startup.py" --config "$NI/config/openclaw.json"
+
+# ── startup surface is a HARD GATE now (spec 090) ─────────────────────────────
+# Spec 088 shipped it warn-only because seven servers were dead. Six are fixed and the
+# seventh is excepted with a reason, so a dead server must now break the build. If this
+# test fails, someone re-added "startup" to ALWAYS_WARN.
+GATE="$TMP/gate"; mkdir -p "$GATE/scripts" "$GATE/config"
+for f in reconcile-mcp.py check-server-startup.py; do
+    cp "$REPO_ROOT/scripts/$f" "$GATE/scripts/$f"
+done
+python3 - "$GATE" <<'EOF'
+import json, os, sys
+root = sys.argv[1]
+cfg = {"mcpServers": {"broken-mcp": {"command": "python3",
+        "args": [os.path.join(root, "absent", "server.py")]}}}
+json.dump(cfg, open(os.path.join(root, "config/openclaw.json"), "w"))
+EOF
+assert_exit 1 "a dead server FAILS reconciliation (startup is not warn-only)" \
+    python3 "$GATE/scripts/reconcile-mcp.py" --surface startup
+
+# A config/inventory file the server loads is NOT a missing entry point -- spec 088's
+# generic pattern reported junos-mcp's absent devices.json as an entry-point problem.
+# Uses the real junos-mcp entry point (which exists) pointed at a device-mapping file
+# that does not -- the exact shape of the original misdiagnosis.
+if [ -f "$REPO_ROOT/mcp-servers/junos-mcp-server/jmcp.py" ]; then
+    python3 - "$TMP" "$REPO_ROOT" <<'EOF'
+import json, os, sys
+tmp, root = sys.argv[1], sys.argv[2]
+cfg = {"mcpServers": {"junos-probe": {"command": "python3", "args": [
+    "-u", os.path.join(root, "mcp-servers/junos-mcp-server/jmcp.py"),
+    "-f", "/nonexistent/devices.json", "-t", "stdio"]}}}
+json.dump(cfg, open(os.path.join(tmp, "junoscfg.json"), "w"))
+EOF
+    assert_mentions "a file the server loads at startup is missing" \
+        "a missing runtime data file is distinguished from a missing entry point" \
+        python3 "$REPO_ROOT/scripts/check-server-startup.py" --config "$TMP/junoscfg.json"
+else
+    printf '  skip junos data-file assertion (junos-mcp-server not cloned)\n'
+fi
 
 echo
 echo "=== Summary ==="

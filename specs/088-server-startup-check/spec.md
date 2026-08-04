@@ -1,6 +1,6 @@
 # Spec 088 — Server Startup Check (fifth reconcile surface)
 
-**Status**: implemented
+**Status**: implemented — findings resolved by [090](../090-fix-dead-servers/spec.md)
 **Branch**: `088-server-startup-check`
 **Date**: 2026-08-04
 
@@ -65,8 +65,13 @@ Deliberately **not** silenced into `STARTUP_EXCEPTIONS` — that would defeat th
 the day it was written. Recorded in the script, and visible on every run.
 
 **1. Gated SDK — no install can fix it**
-- `prisma-sdwan-mcp` → `prisma_sase` (no matching distribution on PyPI)
-- `radkit-mcp` → `radkit_client` (Cisco RADKit, licensed)
+- ~~`prisma-sdwan-mcp` → `prisma_sase` (no matching distribution on PyPI)~~
+  **CORRECTED by spec 090: this was wrong.** `pypi.org/prisma-sase` returns 200 and it
+  installed cleanly as 6.8.1b1. The original bare `pip install` had died on **PEP 668**,
+  not on availability — one error read as another.
+- `radkit-mcp` → `radkit_client` (Cisco RADKit). **Confirmed by spec 090**: `radkit-client`
+  404s and `cisco-radkit-client` is a *relocation stub* whose build fails with "This package
+  has been relocated!" — Cisco ships code-signed wheels from radkit.cisco.com only.
 
 Needs an `EXTERNAL_INTEGRATIONS` entry or unregistration. A registered server nobody can
 install advertises a capability NetClaw does not have.

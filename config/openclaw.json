@@ -292,7 +292,7 @@
       "command": "python3",
       "args": [
         "-u",
-        "mcp-servers/aruba-cx-mcp/aruba_cx_mcp_server.py"
+        "mcp-servers/aruba-cx-mcp/mcp-servers/aruba-cx-mcp/aruba_cx_mcp_server.py"
       ],
       "env": {
         "ARUBA_CX_TARGETS": "${ARUBA_CX_TARGETS}",
@@ -759,8 +759,14 @@
         "mcp-servers/mcp-cvp-fun",
         "--with",
         "fastmcp",
+        "--with",
+        "urllib3",
+        "--with",
+        "python-dotenv",
         "fastmcp",
         "run",
+        "--transport",
+        "stdio",
         "mcp_server_rest.py"
       ],
       "env": {

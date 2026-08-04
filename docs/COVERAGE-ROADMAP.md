@@ -41,6 +41,7 @@ and the IETF datatracker.
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R0** | MCP config reconciliation — repo vs live vs vendored | [075](../specs/075-mcp-config-reconciliation/spec.md) | `DONE` |
+| **R0b** | Dead registered servers + PEP 668 install path | [090](../specs/090-fix-dead-servers/spec.md) | `DONE` — 7 servers could not start (22 skills routed to them) while reconcile exited 0. 6 fixed, 1 excepted (RADKit ships code-signed wheels outside PyPI), `startup` promoted to a **hard gate**. Root cause: `netclaw_pip_install` had no PEP 668 handling while 56 call sites hid the failure behind `--break-system-packages 2>/dev/null \|\| log_warn`. Also corrected spec 088's wrong claim that `prisma_sase` was unavailable — it was a PEP 668 error read as an availability error |
 | **R0a** | Dependency-pin hazards | [077](../specs/077-dependency-pin-hazards/spec.md) | `DONE` — 41/41. 25 pins bounded across 20 servers, 130 bare pip calls routed through one helper, GAIT's unbounded install fixed, new `dependencies` gate surface |
 
 > ### R0a — two latent breakages that make fresh installs fail

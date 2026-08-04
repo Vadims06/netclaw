@@ -50,7 +50,69 @@ WORKERS = 8
 
 # Recorded exceptions, each with a reason (the discipline spec 077 established).
 # A server here is KNOWN not to start and that is accepted for a stated reason.
-STARTUP_EXCEPTIONS: dict[str, str] = {}
+STARTUP_EXCEPTIONS: dict[str, str] = {
+    # Cisco RADKit is not installable from PyPI. `radkit-client` 404s and
+    # `cisco-radkit-client` is a RELOCATION STUB whose build fails with "This package has
+    # been relocated!" -- Cisco distributes code-signed wheels from radkit.cisco.com only
+    # (https://radkit.cisco.com/docs/security/security_codesign.html#python-wheels).
+    #
+    # So no install step can make this start, and it is already declared in
+    # verify-inventory-counts.py's EXTERNAL_INTEGRATIONS as "Cisco RADKit". Excepted rather
+    # than unregistered because the integration is real for operators who have RADKit; the
+    # reason is recorded here so nobody spends another afternoon on `pip install`.
+    #
+    # NOTE for spec 088's record: that spec claimed prisma_sase was also unavailable. That
+    # was WRONG -- prisma-sase is on PyPI and installed cleanly (6.8.1b1, spec 090).
+    "radkit-mcp": "not on PyPI — Cisco ships code-signed wheels from radkit.cisco.com "
+                  "(EXTERNAL_INTEGRATIONS: Cisco RADKit)",
+}
+
+# ── The seven found by spec 088, and how spec 090 resolved them ───────────────
+#
+# 1. FIXED by installing (the helper could not, until spec 090 gave netclaw_pip_install
+#    PEP 668 handling): gnmi-mcp (pygnmi 0.8.15), junos-mcp (junos-eznc 2.8.2),
+#    prisma-sdwan-mcp (prisma-sase 6.8.1b1). No shared pin moved.
+#
+#    CORRECTION: spec 088 recorded prisma_sase as "not on PyPI". That was WRONG --
+#    pypi.org/prisma-sase returns 200 and it installed cleanly. The original conclusion
+#    came from a failed bare `pip install` that had actually died on PEP 668, not on
+#    package availability. One error masquerading as another.
+#
+# 2. FIXED by correcting a registration path: aruba-cx-mcp. Upstream nests its server at
+#    mcp-servers/aruba-cx-mcp/ INSIDE its own repo, and the repo is cloned to
+#    mcp-servers/aruba-cx-mcp/ -- so the real path carries that level twice. Nothing was
+#    missing; the path was wrong.
+#
+# 3. FIXED by two separate defects: arista-cvp-mcp. Its `uv run --with` list omitted
+#    urllib3 and python-dotenv (urllib3 IS installed host-wide, which is irrelevant --
+#    `uv run` never sees system site-packages). Underneath that, upstream hardcoded
+#    logging to '/home/admin/app.log', a foreign home directory, so it raised
+#    FileNotFoundError before starting. Patched at install time because that clone is
+#    gitignored and a working-copy edit is lost on the next fresh install.
+#
+# 4. EXCEPTED, genuinely unobtainable: radkit-mcp -- see STARTUP_EXCEPTIONS below.
+#
+# junos-mcp also needed a devices.json; jmcp.py exits without one and the repo ships only
+# devices-template.json, which carries placeholder credentials and a device whose ip is
+# literally "ip". The installer seeds an EMPTY inventory instead, so the server starts and
+# honestly reports 0 devices.
+
+STARTUP_EXCEPTIONS: dict[str, str] = {
+    # Cisco RADKit is not installable from PyPI. `radkit-client` 404s and
+    # `cisco-radkit-client` is a RELOCATION STUB whose build fails with "This package has
+    # been relocated!" -- Cisco distributes code-signed wheels from radkit.cisco.com only
+    # (https://radkit.cisco.com/docs/security/security_codesign.html#python-wheels).
+    #
+    # So no install step can make this start, and it is already declared in
+    # verify-inventory-counts.py's EXTERNAL_INTEGRATIONS as "Cisco RADKit". Excepted rather
+    # than unregistered because the integration is real for operators who have RADKit; the
+    # reason is recorded here so nobody spends another afternoon on `pip install`.
+    #
+    # NOTE for spec 088's record: that spec claimed prisma_sase was also unavailable. That
+    # was WRONG -- prisma-sase is on PyPI and installed cleanly (6.8.1b1, spec 090).
+    "radkit-mcp": "not on PyPI — Cisco ships code-signed wheels from radkit.cisco.com "
+                  "(EXTERNAL_INTEGRATIONS: Cisco RADKit)",
+}
 
 # ── The seven found on 2026-08-04, and why each needs a DIFFERENT fix ──────────
 #
@@ -91,6 +153,12 @@ FATAL = [
      "missing Python module {0}"),
     (re.compile(r"can't open file '([^']+)': \[Errno 2\] No such file or directory"),
      "entry point does not exist: {0}"),
+    # A FileNotFoundError raised from inside the server -- a config/inventory file it was
+    # told to load -- is NOT a missing entry point. Spec 088's generic pattern reported
+    # junos-mcp's absent devices.json as "entry point or interpreter not found", which sent
+    # me looking for the wrong thing. Ordered before the generic rule so it wins.
+    (re.compile(r"FileNotFoundError: \[Errno 2\] No such file or directory: ['\"]([^'\"]+)['\"]"),
+     "a file the server loads at startup is missing: {0}"),
     (re.compile(r"No such file or directory"), "entry point or interpreter not found"),
     (re.compile(r"SyntaxError: (.+)"), "syntax error: {0}"),
     (re.compile(r"ImportError: (.+)"), "import error: {0}"),
@@ -105,9 +173,10 @@ def registered(config: str = CONFIG) -> dict:
 def launchable(name: str, spec: dict) -> tuple[list[str], str] | None:
     """The argv to try, or None with a reason to skip.
 
-    Skips remote/HTTP servers and anything whose interpreter is absent from this host —
-    a missing `node` is an install gap, not a broken registration, and conflating them
-    would make this check noisy enough to ignore.
+    Skips remote/HTTP servers, anything whose interpreter is absent from this host, and
+    any component whose vendored directory was never cloned — a missing `node` or an
+    uninstalled component is an install gap, not a broken registration, and conflating
+    them would make this check noisy enough to ignore (and unusable in CI).
     """
     cmd = spec.get("command")
     if not cmd:
@@ -119,6 +188,27 @@ def launchable(name: str, spec: dict) -> tuple[list[str], str] | None:
     ):
         return None
     argv = [cmd] + list(spec.get("args", []))
+
+    # NOT INSTALLED is not the same as BROKEN, and conflating them made this check
+    # unusable as a gate: CI is a fresh checkout where every vendored server clone is
+    # absent (they are gitignored runtime clones), so 30+ servers read as "entry point
+    # does not exist" on a tree that is perfectly healthy.
+    #
+    # The distinction that matters: if a server's vendored DIRECTORY is present but the
+    # specific file is not, the registration points somewhere wrong -- that is the real
+    # aruba-cx-mcp bug and it must still fail. If the directory itself was never cloned,
+    # the component simply is not installed here and there is nothing to judge.
+    for arg in spec.get("args", []):
+        if not isinstance(arg, str) or not arg.startswith("mcp-servers/"):
+            continue
+        parts = arg.split("/")
+        if len(parts) < 2:
+            continue
+        vendored = os.path.join(REPO_ROOT, parts[0], parts[1])
+        if not os.path.isdir(vendored):
+            return None  # component not installed on this host
+        break
+
     return argv, ""
 
 
@@ -178,7 +268,7 @@ def main() -> int:
 
     print(f"Servers registered: {len(servers)}")
     print(f"  launched and checked: {checked}")
-    print(f"  skipped (remote, or interpreter absent): {len(skipped)}")
+    print(f"  skipped (remote, interpreter absent, or not installed): {len(skipped)}")
     if STARTUP_EXCEPTIONS:
         print(f"  recorded exceptions: {len(STARTUP_EXCEPTIONS)}")
 
