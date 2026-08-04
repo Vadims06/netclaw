@@ -369,6 +369,33 @@ assert_mentions "FAILED installing" "the failure names what it was installing" \
 assert_exit 1 "install-steps.sh has no --break-system-packages call sites left" \
     grep -q 'netclaw_pip_install --break-system-packages' "$REPO_ROOT/scripts/lib/install-steps.sh"
 
+# NOT INSTALLED is not BROKEN. CI is a fresh checkout where every vendored clone is
+# absent, so without this distinction the hard gate fails on a healthy tree -- which is
+# exactly what happened on the first push of spec 090.
+NI="$TMP/notinstalled"; mkdir -p "$NI/config" "$NI/mcp-servers/present-mcp"
+python3 - "$NI" <<'EOF'
+import json, os, sys
+root = sys.argv[1]
+cfg = {"mcpServers": {"absent-component": {"command": "python3",
+        "args": ["-u", "mcp-servers/never-cloned-mcp/server.py"]}}}
+json.dump(cfg, open(os.path.join(root, "config/openclaw.json"), "w"))
+EOF
+assert_exit 0 "a component whose vendored directory was never cloned is skipped" \
+    python3 "$REPO_ROOT/scripts/check-server-startup.py" --config "$NI/config/openclaw.json"
+
+# But a wrong path INSIDE a directory that DOES exist is still the aruba-cx-mcp bug.
+python3 - "$NI" "$REPO_ROOT" <<'EOF'
+import json, os, sys
+root, repo = sys.argv[1], sys.argv[2]
+present = next((d for d in os.listdir(os.path.join(repo, "mcp-servers"))
+                if os.path.isdir(os.path.join(repo, "mcp-servers", d))), None)
+cfg = {"mcpServers": {"bad-path": {"command": "python3",
+        "args": ["-u", f"mcp-servers/{present}/DEFINITELY-NOT-HERE.py"]}}}
+json.dump(cfg, open(os.path.join(root, "config/openclaw.json"), "w"))
+EOF
+assert_exit 1 "a wrong path inside an EXISTING vendored directory still fails" \
+    python3 "$REPO_ROOT/scripts/check-server-startup.py" --config "$NI/config/openclaw.json"
+
 # ── startup surface is a HARD GATE now (spec 090) ─────────────────────────────
 # Spec 088 shipped it warn-only because seven servers were dead. Six are fixed and the
 # seventh is excepted with a reason, so a dead server must now break the build. If this

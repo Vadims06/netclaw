@@ -173,9 +173,10 @@ def registered(config: str = CONFIG) -> dict:
 def launchable(name: str, spec: dict) -> tuple[list[str], str] | None:
     """The argv to try, or None with a reason to skip.
 
-    Skips remote/HTTP servers and anything whose interpreter is absent from this host —
-    a missing `node` is an install gap, not a broken registration, and conflating them
-    would make this check noisy enough to ignore.
+    Skips remote/HTTP servers, anything whose interpreter is absent from this host, and
+    any component whose vendored directory was never cloned — a missing `node` or an
+    uninstalled component is an install gap, not a broken registration, and conflating
+    them would make this check noisy enough to ignore (and unusable in CI).
     """
     cmd = spec.get("command")
     if not cmd:
@@ -187,6 +188,27 @@ def launchable(name: str, spec: dict) -> tuple[list[str], str] | None:
     ):
         return None
     argv = [cmd] + list(spec.get("args", []))
+
+    # NOT INSTALLED is not the same as BROKEN, and conflating them made this check
+    # unusable as a gate: CI is a fresh checkout where every vendored server clone is
+    # absent (they are gitignored runtime clones), so 30+ servers read as "entry point
+    # does not exist" on a tree that is perfectly healthy.
+    #
+    # The distinction that matters: if a server's vendored DIRECTORY is present but the
+    # specific file is not, the registration points somewhere wrong -- that is the real
+    # aruba-cx-mcp bug and it must still fail. If the directory itself was never cloned,
+    # the component simply is not installed here and there is nothing to judge.
+    for arg in spec.get("args", []):
+        if not isinstance(arg, str) or not arg.startswith("mcp-servers/"):
+            continue
+        parts = arg.split("/")
+        if len(parts) < 2:
+            continue
+        vendored = os.path.join(REPO_ROOT, parts[0], parts[1])
+        if not os.path.isdir(vendored):
+            return None  # component not installed on this host
+        break
+
     return argv, ""
 
 
@@ -246,7 +268,7 @@ def main() -> int:
 
     print(f"Servers registered: {len(servers)}")
     print(f"  launched and checked: {checked}")
-    print(f"  skipped (remote, or interpreter absent): {len(skipped)}")
+    print(f"  skipped (remote, interpreter absent, or not installed): {len(skipped)}")
     if STARTUP_EXCEPTIONS:
         print(f"  recorded exceptions: {len(STARTUP_EXCEPTIONS)}")
 
