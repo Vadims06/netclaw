@@ -18,7 +18,7 @@ The security model, which is the substance of this server:
 
 After that DuckDB refuses `read_csv('/etc/passwd')`, `glob('/home/**')`, `ATTACH` of the
 memory or RAG stores, `COPY … TO`, `INSTALL`/`LOAD`, and any attempt to re-enable access.
-Verified, not assumed -- see specs/092-duckdb-analysis/VERIFICATION.md. That is how R17's
+Verified, not assumed -- see specs/092-duckdb-analysis/spec.md, Verification. That is how R17's
 "must not expose ~/.openclaw/memory/ or rag.db" is honoured: structurally, not by a regex.
 """
 
