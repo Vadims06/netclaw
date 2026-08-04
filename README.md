@@ -268,7 +268,7 @@ NetClaw is an autonomous network engineering agent powered by Claude that can:
 - **Investigate** endpoints via ISE — auth history, posture, profiling, human-authorized quarantine
 - **Audit** Cisco Secure Firewall policies via FMC — search access rules by IP/FQDN, resolve FTD device policies, cross-FMC consistency checks, and SGT-based policy review
 - **Operate** Infoblox DDI — inspect DNS zones and records, DHCP scopes and leases, and IPAM utilization before address-related changes
-- **Manage** Cisco Meraki infrastructure via Dashboard API (~804 endpoints) — org inventory, networks, devices, wireless SSIDs, RF profiles, switch ports, VLANs, MX firewall rules, site-to-site VPN, content filtering, security events, camera analytics, live diagnostics (ping, cable test), and configuration change audit
+- **Inspect** Cisco Meraki infrastructure via Cisco's official remote MCP — 494 **read-only** Dashboard capabilities behind 2 tools: org inventory, networks, devices, wireless SSIDs, RF profiles, Air Marshal, switch ports and ACLs, MX L3/L7 firewall rules, site-to-site VPN, content filtering, security events, loss/latency history, and the configuration change audit. Writes are structurally absent upstream — changes are made in the dashboard
 - **Audit** Palo Alto Panorama and FortiManager estates — policy search, device-group/ADOM/package review, NAT validation, and commit/install readiness checks
 - **Monitor** network paths via Cisco ThousandEyes — synthetic test results, agent health, hop-by-hop path visualization (latency, loss, MPLS labels per hop), BGP route analysis (AS path, reachability, origin validation), outage investigation, anomaly detection, instant on-demand tests, endpoint VPN diagnostics, and AI-powered views explanations — via both community (9 tools, local stdio) and official (~20 tools, remote HTTP) MCP servers
 - **Access** remote devices via Cisco RADKit cloud relay — discover device inventory, inspect device attributes and capabilities, execute CLI commands with timeout/truncation controls, and perform SNMP GET operations on air-gapped or cloud-unreachable devices without direct SSH/SNMP connectivity
@@ -439,7 +439,7 @@ Human (Slack / WebEx / WebChat) --> NetClaw (CCIE Agent on OpenClaw)
                                 |     MCP: Check Point (15)   --> Policy, threat intel, gateway, SASE, malware (40+ tools)
                                 |
                                 |-- CLOUD-MANAGED NETWORKING:
-                                |     MCP: Cisco Meraki       --> Dashboard API (~804 endpoints): wireless, switching, security, cameras
+                                |     MCP: Cisco Meraki       --> official remote MCP, 494 read-only capabilities via 2 tools
                                 |
                                 |-- NETWORK INTELLIGENCE:
                                 |     MCP: ThousandEyes (community) --> Tests, agents, path vis, dashboards (9 tools, stdio)
@@ -543,7 +543,7 @@ NetClaw ships with the full set of OpenClaw workspace markdown files. These are 
 | 14 | Cisco CML | [xorrkaz/cml-mcp](https://github.com/xorrkaz/cml-mcp) | stdio (Python) | Lab lifecycle, topology, nodes, links, captures, CLI exec, admin |
 | 15 | Cisco NSO | [NSO-developer/cisco-nso-mcp-server](https://github.com/NSO-developer/cisco-nso-mcp-server) | stdio (Python) | Device config, state, sync, services, NED IDs via RESTCONF |
 | 16 | Cisco FMC | [CiscoDevNet/CiscoFMC-MCP-server-community](https://github.com/CiscoDevNet/CiscoFMC-MCP-server-community) | HTTP (Python) | Secure Firewall access policy search, FTD targeting, multi-FMC (4 tools) |
-| 17 | Cisco Meraki | [CiscoDevNet/meraki-magic-mcp-community](https://github.com/CiscoDevNet/meraki-magic-mcp-community) | stdio (Python) | Meraki Dashboard API — ~804 endpoints: orgs, networks, wireless, switching, security, cameras, diagnostics |
+| 17 | Cisco Meraki | [official remote MCP](https://developer.cisco.com/meraki/api-v1/mcp-server/) ([Apache-2.0 self-host](https://github.com/CiscoDevNet/cisco-meraki-mcp-official)) | remote HTTP | Cisco's official server — 494 read-only Dashboard capabilities behind 2 tools (`semantic_search` + `execute_api`). Writes are structurally absent upstream |
 | 18 | ThousandEyes (community) | [CiscoDevNet/thousandeyes-mcp-community](https://github.com/CiscoDevNet/thousandeyes-mcp-community) | stdio (Python) | Tests, agents, path visualization, dashboards, users, account groups (9 read-only tools) |
 | 19 | ThousandEyes (official) | [CiscoDevNet/ThousandEyes-MCP-Server-official](https://github.com/CiscoDevNet/ThousandEyes-MCP-Server-official) | Remote HTTP | Alerts, outages, BGP routes, instant tests, endpoint agents, anomalies, AI views (~20 tools) |
 | 20 | Cisco RADKit | [CiscoDevNet/radkit-mcp-server-community](https://github.com/CiscoDevNet/radkit-mcp-server-community) | stdio (Python) | Cloud-relayed remote device access — CLI exec, SNMP GET, device inventory, attribute inspection (5 tools) |
@@ -642,7 +642,7 @@ All MCP servers communicate via stdio (JSON-RPC 2.0) through `scripts/mcp-call.p
 - **CML** — pip-installed (`cml-mcp`)
 - **NSO** — pip-installed (`cisco-nso-mcp-server`)
 - **FMC** — runs as an HTTP server on port 8000
-- **Meraki Magic** — FastMCP stdio (~804 Dashboard API endpoints)
+- **Cisco Meraki (official)** — remote HTTP, 494 read-only Dashboard capabilities via `semantic_search` + `execute_api`
 - **ThousandEyes** — community MCP via stdio (9 read-only tools); official MCP is a remote HTTP endpoint hosted by Cisco at `https://api.thousandeyes.com/mcp` (~20 tools via `npx mcp-remote`)
 - **RADKit** — FastMCP stdio with certificate-based cloud relay auth (5 tools for remote device access)
 - **Nautobot** — MCP SDK stdio (5 IPAM tools, alternative to NetBox)
@@ -937,7 +937,7 @@ All MCP servers communicate via stdio (JSON-RPC 2.0) through `scripts/mcp-call.p
 
 | Skill | What It Does |
 |-------|-------------|
-| **meraki-network-ops** | Meraki Dashboard organization and network management via ~804 API endpoints: list organizations, org inventory, license status, network CRUD, device lifecycle (claim, unclaim, reboot), client discovery with usage/policy, uplink status, config change audit, action batches for bulk operations, and generic `call_meraki_api` for any Dashboard endpoint. Built-in caching (50-90% API reduction), auto-retry, rate limit handling. |
+| **meraki-network-ops** | Meraki organization and network **discovery** — the entry point for every Meraki skill. Via Cisco's official remote MCP: `getOrganizations` and `getOrganizationNetworks` are called directly, everything else is found with `semantic_search` across 494 read-only capabilities. Org inventory, licensing, device and client listing, group policies, admins, alert settings, config change audit. No writes exist upstream, so there is no CRUD and no lifecycle control. |
 | **meraki-wireless-ops** | Meraki wireless management: list/update SSIDs (auth, VLAN, band, splash), RF profile creation with band selection and power settings, channel utilization analysis per AP, signal quality (SNR) monitoring, connection statistics (auth/DHCP success rates), per-client connectivity event investigation (roaming, deauth, failures). Workflows for wireless health, client troubleshooting, and RF optimization. |
 | **meraki-switch-ops** | Meraki MS switch operations: port configuration (VLAN, type, PoE, BPDU guard, RSTP), live port statuses (speed, duplex, CRC errors, traffic, PoE draw), VLAN management (list, create), switch ACLs, QoS rules, and port cycling for PoE resets. Workflows for port audit, VLAN provisioning, and port troubleshooting. |
 | **meraki-security-appliance** | Meraki MX security appliance: L3 outbound firewall rules (audit and modify), site-to-site Auto VPN (status, hub/spoke config), content filtering (URL categories, blocked/allowed lists), traffic shaping (global and per-rule bandwidth limits), IDS/IPS security event investigation. Workflows for firewall audit, VPN troubleshooting, content filter review, and security incident response. |
@@ -2452,7 +2452,6 @@ netclaw/
 │   ├── catalyst-center-mcp/              # Cisco Catalyst Center / DNA-C
 │   ├── packet-buddy-mcp/                 # pcap analysis via tshark (built-in)
 │   ├── CiscoFMC-MCP-server-community/   # Cisco FMC firewall policy search
-│   ├── meraki-magic-mcp-community/      # Cisco Meraki Dashboard (~804 API endpoints)
 │   ├── thousandeyes-mcp-community/     # ThousandEyes monitoring (9 read-only tools)
 │   ├── radkit-mcp-server-community/   # Cisco RADKit cloud-relayed device access (5 tools)
 │   ├── mcp-nautobot/                  # Nautobot IPAM source of truth (5 tools)

@@ -717,16 +717,13 @@
         "GRAFANA_SERVICE_ACCOUNT_TOKEN": "${GRAFANA_SERVICE_ACCOUNT_TOKEN}"
       }
     },
-    "meraki-magic-mcp": {
-      "command": "python3",
-      "args": [
-        "-u",
-        "mcp-servers/meraki-magic-mcp-community/meraki-mcp-dynamic.py"
-      ],
+    "meraki-mcp": {
+      "url": "https://mcp.meraki.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MERAKI_DASHBOARD_API_KEY}"
+      },
       "env": {
-        "MERAKI_API_KEY": "${MERAKI_API_KEY}",
-        "MERAKI_ORG_ID": "${MERAKI_ORG_ID}",
-        "MERAKI_BASE_URL": "${MERAKI_BASE_URL:-https://api.meraki.com/api/v1}"
+        "MERAKI_DASHBOARD_API_KEY": "${MERAKI_DASHBOARD_API_KEY}"
       }
     },
     "radkit-mcp": {

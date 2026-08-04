@@ -762,15 +762,17 @@ Vendor-neutral EVPN/VXLAN fabric audit and troubleshooting:
 ## Cisco Meraki Skills
 
 ### meraki-network-ops
-Meraki Dashboard operations (~804 API endpoints via dynamic MCP):
-- Organization inventory
-- Network management
-- Device lifecycle
-- Client discovery
-- Uplink status
-- Action batches for bulk operations
+Meraki discovery and inventory via Cisco's **official** remote MCP (spec 089) — 494
+read-only Dashboard capabilities behind 2 tools (`semantic_search` + `execute_api`):
+- Organization discovery (`getOrganizations` — the entry point for every Meraki skill)
+- Network inventory and `productTypes` routing
+- Device and inventory listing
+- Clients, group policies, admins, licensing, alert settings
 
-Built-in caching reduces API calls by 50-90%. `READ_ONLY_MODE=true` blocks all writes.
+**Read-only is structural, not configured.** All 431 mutating operations are absent from
+the upstream capability catalogue, so there is no toggle and nothing to gate. Discover
+capability IDs with `semantic_search` rather than recalling them — the previous version of
+these skills cited 54 method names that did not exist.
 
 ### meraki-wireless-ops
 Meraki wireless management:
