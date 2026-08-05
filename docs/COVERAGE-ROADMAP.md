@@ -100,7 +100,7 @@ and the IETF datatracker.
 | **R2** | Cisco PSIRT vulnerability intelligence | [078](../specs/078-cisco-psirt-vulnerability/spec.md) | `DONE` — 52/52. **Rescoped from four API families to one**: Bug/EoX/Case/Serial all return 403 under the API Console grant, CX Cloud 504. All 7 PSIRT OSTypes live-verified; `iosxr` is not an OSType (404). Full chain proven on live CML: pyATS read 17.16.1a → 26 advisories, 1 Critical |
 | **R3** | Fortinet (FortiOS / FortiManager / FortiAnalyzer) | [080](../specs/080-fortinet-coverage/spec.md) | `DONE` — 21 tools, 3 planes, 2,486/5,000 token manifest. Device plane live-verified from Slack on FortiOS 7.6.7; manager/analyzer implemented, unverified. **Built, not adopted** — no candidate emits a plane field, and their manifests are 69–204 tools each |
 | **R4** | Palo Alto PAN-OS / Panorama NGFW | — | `NOT STARTED` |
-| **R5** | Juniper Mist (official) + Apstra | — | `NOT STARTED` |
+| **R5** | Juniper Mist (official) + Apstra | [095](../specs/095-juniper-mist/spec.md) | **`BLOCKED — measured`** — measured 2026-08-05 against the live endpoint with the operator's own org. **Adoption rejected on the ceiling: 7 tools, 11,783 tokens, 2.36× over**, and `config/openclaw.json` has no tool-filtering key across 101 servers, so a subset cannot be loaded. The opposite failure mode from every prior rejection — not too many tools, but **~1,678 tokens per tool**. Build path specified (GET-only client, ≤1,500-token target, 087 shape) and **gated on a populated org**: the verification org has 1 site and 0 devices, so no assurance path can be exercised. Three durable findings: the **chars/4 convention under-reports by 17%** near the ceiling; `get_mist_insights` requires a `query_type` its schema never declares (silently dropped, then reported missing); and `sites_sle` on an empty org returns `count: 1` with no metrics — **no telemetry and no problems are the same shape** |
 | **R6** | HPE Aruba Central / ClearPass / EdgeConnect / GreenLake | — | `NOT STARTED` |
 | **R7** | Cisco Nexus Dashboard / Intersight / UCS | — | `NOT STARTED` |
 | — | Cisco Catalyst Center (official) — operator request, not an R item | [087](../specs/087-catalyst-center-official/spec.md) | `DONE` — 514 read ops via 8 dispatchers + find/describe, 1,821/5,000 tokens. Built a client over Cisco's catalogue because the official server's 515 tools bust the ceiling |
@@ -367,15 +367,30 @@ FortiAnalyzer-VM (separate 15-day trials) to verify 12 of the 21 tools; a Servic
 
 ## R5 — Juniper Mist (official) + Apstra
 
-**Status:** `NOT STARTED`
+**Status:** `BLOCKED — measured` · [spec 095](../specs/095-juniper-mist/spec.md) ·
+[measurements](../specs/095-juniper-mist/VERIFICATION.md)
 
 `junos-mcp-server` covers devices. Nothing covers Mist wired/wireless assurance or Marvis.
-Juniper ships an **official** Mist MCP server (Claude Desktop beta).
+Juniper ships an **official** Mist MCP server (Claude Desktop beta) — **measured and rejected**.
+
+> **Adoption is not available.** `https://mcp.ai.juniper.net/mcp/mist` exposes 7 tools costing
+> **11,783 tokens against the 5,000 ceiling (2.36×)**, counted with `count_tokens`, not estimated.
+> No tool-filtering key exists in `config/openclaw.json` across 101 registered servers, so a
+> cheaper subset cannot be loaded. Re-check with `python3 scripts/probe-mist-mcp.py --count`.
+
+> **The build is gated, not merely unstarted.** The verification org has **1 site, 0 devices**.
+> `sites_sle` there returns `count: 1` with no metrics — a site with no telemetry and a site with
+> no problems are indistinguishable in the response. Assurance skills whose central failure mode
+> cannot be exercised are not built; see spec 095's exit conditions.
 
 **Checklist**
-- [ ] Adopt the official Juniper Mist MCP server; note its beta status and org scoping
-- [ ] Mist API token + org ID handling
-- [ ] Skills: wireless assurance, client troubleshooting, Marvis query, SLE review
+- [x] Measure the official server against the ceiling — **11,783, rejected**
+- [x] Mist API token + org ID handling — `Bearer` only, `X-Mist-Base-URL` mandatory for regional
+      clouds, per-call `org_id` required (the `X-Mist-Org-ID` header does not supply it)
+- [ ] Obtain a populated org (Juniper SE demo org, or hardware — `trial_enabled: true` already)
+- [ ] Build the GET-only client (≤1,500-token manifest, 4 dispatchers, 087 shape)
+- [ ] Skills: wireless assurance, client troubleshooting, Marvis query, SLE review — **after** the
+      above, so the empty-vs-healthy trap can be reproduced and blocked
 - [ ] Assess Apstra separately (community only) — DC fabric intent; may fold into R6 if the
       unified HPE server covers it adequately
 
