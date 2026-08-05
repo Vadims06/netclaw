@@ -1233,6 +1233,52 @@ echo ""
 }
 
 # ── Step 28.5: Zeek + Suricata NSM (spec 091, roadmap R13) ──────
+component_install_anta() {
+log_step "Installing Arista ANTA Validation MCP Server..."
+echo "  NetClaw-authored server over ANTA 1.9.0 (Apache-2.0, Arista Networks)"
+echo "  208 tests behind 4 tools, 1,272/5,000 tokens. Read-only: ANTA tests, it never configures."
+
+# DEDICATED VIRTUALENV, AND NOT BY PREFERENCE. A system install of `anta` moves
+# cryptography 46.0.5 -> 50.0.0. Four installed distributions depend on cryptography with
+# NO upper bound -- Authlib, pygnmi, service-identity, sshsig -- and NetClaw's own
+# federation TLS stack (spec 060) is built on it. Measured by `pip install --dry-run`
+# BEFORE installing anything, which is the lesson spec 076's cryptography incident taught.
+ANTA_DIR="$NETCLAW_DIR/mcp-servers/anta-mcp"
+ANTA_VENV="$ANTA_DIR/.venv"
+
+if [ ! -x "$ANTA_VENV/bin/python" ]; then
+    log_info "Creating dedicated virtualenv at $ANTA_VENV"
+    # `python3 -m venv` fails on hosts without ensurepip (this one included); netclaw_venv_create
+    # handles that, and virtualenv is the fallback spec 076 already relies on.
+    netclaw_venv_create "$ANTA_VENV" || \
+        virtualenv -q -p /usr/bin/python3 "$ANTA_VENV" || {
+            log_error "anta-mcp virtualenv creation FAILED — the server will not start"
+            return 1
+        }
+fi
+
+NETCLAW_VENV="$ANTA_VENV" netclaw_pip_install -r "$ANTA_DIR/requirements.txt" || \
+    log_error "anta-mcp dependencies install FAILED — the server will not start"
+
+if "$ANTA_VENV/bin/python" -c "import anta, mcp" 2>/dev/null; then
+    ANTA_V=$("$ANTA_VENV/bin/python" -c "import importlib.metadata as m; print(m.version('anta'))" 2>/dev/null)
+    log_info "ANTA $ANTA_V installed in its own venv"
+    # Prove the isolation held. If the system cryptography moved, the venv did not do its job.
+    SYS_CRYPTO=$(python3 -c "import importlib.metadata as m; print(m.version('cryptography'))" 2>/dev/null || echo "absent")
+    log_info "  system cryptography still: $SYS_CRYPTO (venv holds its own copy)"
+else
+    log_warn "anta-mcp installed but imports failed — check $ANTA_VENV"
+fi
+
+# THE POINT OF THIS BLOCK. ANTA reports a test for a feature the device does not run as
+# FAILURE, not skipped. Measured: VerifyBGPPeerCount on a device with no BGP returns
+# "failure: 'show bgp summary vrf all' failed: BGP inactive". Counted naively, that reports
+# a BGP fault on a box with no BGP at all. The server reclassifies it to not_applicable.
+log_info "Verdicts: pass / fail / not_applicable / skipped / error — counted separately"
+log_info "  'not configured' is NOT a failure, and no health percentage is ever emitted"
+echo "  Credentials: ANTA_USERNAME / ANTA_PASSWORD (environment only, never tool arguments)"
+}
+
 component_install_elastic() {
 log_step "Installing Elasticsearch Logs MCP Server..."
 echo "  Adopted: docker.elastic.co/mcp/elasticsearch (Apache-2.0, 5 tools, 1,094 tokens)"

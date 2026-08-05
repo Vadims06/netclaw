@@ -104,6 +104,11 @@ mcp-servers/k8s-mcp/kubernetes-mcp-server
 # Re-ignore the dedicated venv: the negation above re-includes EVERYTHING under
 # zabbix-mcp, which would otherwise commit the whole virtualenv (spec 083).
 mcp-servers/zabbix-mcp/.venv/
+!mcp-servers/anta-mcp/
+# Same re-ignore for anta-mcp's dedicated venv (spec 098). It exists because ANTA
+# pulls cryptography 50.0.0 while the system holds 46.0.5 with four unbounded
+# dependents -- including the federation TLS stack.
+mcp-servers/anta-mcp/.venv/
 
 # Traces
 trace.json

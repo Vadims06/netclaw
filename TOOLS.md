@@ -479,6 +479,42 @@ No API keys. Nothing to rotate.
 `servicenow-change-workflow` owns the CR lifecycle; this renders a document from one.
 `slack-report-delivery` / `webex-report-delivery` **send** documents; this only writes them.
 
+## Arista ANTA Validation (`anta-mcp`, NetClaw-authored over Apache-2.0 ANTA)
+
+**Spec 098 / roadmap R25.** 4 tools, stdio, read-only, **own virtualenv**. Manifest measured
+**1,272 / 5,000 tokens** for a **208-test** catalogue.
+
+The assertion layer: every other source reads state, this one asserts on it.
+
+| Tool | Purpose |
+|---|---|
+| `anta_list_tests(category, keyword)` | Search the 208-test catalogue — **contacts no device** |
+| `anta_describe_test(test)` | One test's description and input schema — **contacts no device** |
+| `anta_run_tests(host, tests\|category, inputs)` | Run tests against one EOS device |
+| `anta_status()` | ANTA version, catalogue size, credential state |
+
+### Five verdicts, never merged
+
+`pass` / `fail` / **`not_applicable`** / `skipped` / `error`, counted separately.
+
+**The reclassification that matters**: ANTA reports a test for an unconfigured feature as a
+*failure*. Measured — `VerifyBGPPeerCount` on a device with no BGP returns
+`"'show bgp summary vrf all' failed: BGP inactive"`. Counted naively that claims a BGP fault on a box
+with no BGP. The server reclassifies to `not_applicable`, keeps the original message, and the rule is
+deliberately narrow so a real failure is never hidden.
+
+**No health percentage is emitted** — `passed/total` is meaningless with `not_applicable` and
+`skipped` in the denominator. The helper raises rather than computing one.
+
+### Its own venv, and not by preference
+
+ANTA pulls **cryptography 50.0.0** while the system holds **46.0.5** with four unbounded dependents
+(`Authlib`, `pygnmi`, `service-identity`, `sshsig`) including NetClaw's federation TLS stack. Measured
+by dry-run *before* installing — spec 076's cryptography incident.
+
+Credentials: `ANTA_USERNAME` / `ANTA_PASSWORD`, environment only. `ANTA_VERIFY_TLS` defaults to
+`false` and is always disclosed in output as `tls_verified`.
+
 ## Elasticsearch Logs (`elasticsearch-mcp`, adopted third-party Apache-2.0)
 
 **Spec 096 / roadmap R12.** 5 tools, stdio via Docker, read-only. **Manifest measured 1,094 / 5,000

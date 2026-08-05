@@ -1107,6 +1107,20 @@
         "BGP_INTEL_MAX_RPS": "${BGP_INTEL_MAX_RPS}"
       }
     },
+    "anta-mcp": {
+      "command": "mcp-servers/anta-mcp/.venv/bin/python",
+      "args": [
+        "-u",
+        "mcp-servers/anta-mcp/server.py"
+      ],
+      "env": {
+        "ANTA_USERNAME": "${ANTA_USERNAME}",
+        "ANTA_PASSWORD": "${ANTA_PASSWORD}",
+        "ANTA_ENABLE_PASSWORD": "${ANTA_ENABLE_PASSWORD}",
+        "ANTA_VERIFY_TLS": "${ANTA_VERIFY_TLS:-false}",
+        "ANTA_TIMEOUT": "${ANTA_TIMEOUT:-30}"
+      }
+    },
     "elasticsearch-mcp": {
       "command": "docker",
       "args": [
