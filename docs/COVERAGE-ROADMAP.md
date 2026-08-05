@@ -41,12 +41,12 @@ form and **8 remain unstarted**, with one blocked on external access.
 
 | Disposition | Count | Items |
 |---|---|---|
-| **DONE** | **14** | R0, R0a, R0b, R1, R2, R3, R8, R9, R11, R13, R14, R15, R17, R18, R23 |
+| **DONE** | **15** | R0, R0a, R0b, R1, R2, R3, R8, R9, R11, R13, R14, R15, R17, R18, R23, **R24** |
 | **DONE, narrowed** | **1** | **R12** — Elastic only; Dynatrace and New Relic still open |
 | **CLOSED — not needed** | **1** | **R22** — diagram coverage already satisfied; Excalidraw is an aesthetic, not a capability |
 | **DEFERRED** | **1** | **R10** — ntopng; ClickHouse flow history is Enterprise M+ only |
 | **BLOCKED — measured** | **1** | **R5** — Mist adoption rejected at 2.36× the ceiling; build specified and gated on a populated org |
-| **NOT STARTED** | **8** | R4, R6, R7, R16, R19, R20, R21, R24 |
+| **NOT STARTED** | **8** | R4, R6, R7, R16, R19, R20, R21, **R25** (new, from R24's triage) |
 
 Not roadmap items, delivered alongside: **087** Catalyst Center and **089** Meraki (operator
 requests), **088** the startup surface, **093** the package-reference surface, **096**'s spec-artifact
@@ -74,7 +74,8 @@ shipped deliberately unverified, and still unverified.
 
 | Item | Why now |
 |---|---|
-| **R24** Open-territory triage | No build at all. Cheapest item on the board and it re-prioritises everything below it. Should arguably run before the rest |
+| ~~**R24** Open-territory triage~~ | **DONE 2026-08-05** — ran first exactly as intended, and produced R25 below |
+| **R25** Arista ANTA | **The triage's own pick.** The validation plane NetClaw lacks, and the only open-territory candidate needing nothing obtained — vEOS image already on disk. Manifest cost is the design risk, not access |
 | **R21** GitOps — ArgoCD / Flux | Fully self-hostable; needs a `kind`/`k3s` cluster, which also revives R14's Kubernetes integration. Real data the operator controls end to end |
 | **R20** Notion + Linear | Free self-serve tiers, official MCPs, zero infrastructure. Fast to land; lower network-engineering value |
 | **R19** Google Workspace | Self-serve with an existing Google account. Composes with R18 so generated documents can land in Drive |
@@ -212,7 +213,8 @@ minutes; discovering it after the spec is written costs a day, which is exactly 
 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
-| **R24** | Open-territory triage — pick flag-planting targets | — | `NOT STARTED` |
+| **R24** | Open-territory triage — pick flag-planting targets | [097](../specs/097-open-territory-triage/spec.md) | `DONE` — all 22 candidates dispositioned ([TRIAGE.md](../specs/097-open-territory-triage/TRIAGE.md)): **4 `COVERED`** (all absorbed by R1, unnoticed until now — only SR Linux verified live), **1 `SELECTED`** (Arista ANTA → R25), **12 `DEFERRED`**, **5 `DROPPED`**. Two premises were stale: **Megaport is no longer unclaimed** (an official read-only MCP exists in open beta), and MikroTik's "adopt a dedicated MCP" entry predates R1, which now reaches it |
+| **R25** | Arista ANTA — structured network-state validation | — | `NOT STARTED` — **Tier A**, created by R24's triage. The assertion layer NetClaw lacks; verifiable with the vEOS image already on disk, no vendor account needed |
 
 ---
 
@@ -1034,38 +1036,88 @@ larger space, and NCFED sits in the larger one.
 
 # R24 — Open-territory triage
 
-**Status:** `NOT STARTED`
+**Status:** `DONE` · [spec 097](../specs/097-open-territory-triage/spec.md) ·
+**[full dispositions → TRIAGE.md](../specs/097-open-territory-triage/TRIAGE.md)**
 
-No mature MCP found for any of these. Flag-planting opportunities rather than gaps — assess
-strategic value before scheduling any of them as their own spec.
+All 22 candidates triaged 2026-08-05. The table below is a **summary** — the reasons, evidence and
+unblocking conditions live in `TRIAGE.md`, deliberately not duplicated here.
 
-**Networking platforms**
-Nokia SR Linux / SR OS · SONiC · VyOS · Arista ANTA (notable, given CVP is covered) ·
-netlab · Oxidized / Netpicker (config backup & compliance) · gNOI (gNMI is covered; the
-operations half is not)
+| Disposition | Count | Which |
+|---|---|---|
+| `COVERED` | **4** | Nokia SR Linux/SR OS, SONiC, VyOS, MikroTik RouterOS — **all absorbed by R1** |
+| `SELECTED` | **1** | **Arista ANTA** — see below |
+| `DEFERRED` | **12** | gNOI, Ciena, Infinera, Nokia NSP, Netskope, Cato, Versa, Aviatrix, Alkira, Megaport, Hamina, UniFi |
+| `DROPPED` | **5** | netlab, Oxidized/Netpicker, Open5GS, free5GC, Ekahau |
 
-> Most of these are practically answered by **R1** (Nornir/Netmiko). Do R1 first, then
-> re-assess which still justify a dedicated server.
+> **R1 absorbed four of the 22 and nobody noticed.** R24 was written 2026-07-30; R1 merged after it
+> and the list was never re-checked — which is exactly what R24's own first checklist item asked
+> for. Only **one** of those four (SR Linux) is verified live; the other three are claimed on the
+> strength of the driver's platform table, and the triage records that distinction rather than
+> smoothing it over.
 
-**Service provider / optical / mobile**
-Ciena · Infinera · Nokia NSP · Open5GS · free5GC
+> **Two premises were stale.** **Megaport is no longer "genuinely unclaimed"** — an official MCP
+> server now exists (open beta, read-only, staging environment documented), which makes it an
+> *adopt* candidate whose manifest cost would decide it. And **MikroTik's "adopt a dedicated MCP"**
+> entry predates R1, which now reaches it. Do not trust "unclaimed" for any remaining candidate
+> without re-checking.
 
-**SASE / cloud networking / NaaS**
-Netskope · Cato · Versa · Aviatrix · Alkira · **Megaport/NaaS** (genuinely unclaimed and
-strategically interesting)
+### The selection — Arista ANTA (new roadmap item **R25**)
 
-**Wireless design**
-Ekahau · Hamina
+The only candidate that is both a capability nothing here has **and** verifiable with access already
+on disk.
 
-**Exist but NetClaw lacks (adopt, don't build)**
-- MikroTik RouterOS MCP (API + SSH)
-- UniFi MCP (community, on the official UniFi API)
+NetClaw can read state (pyATS, R1, gNMI), read what the manager says (CVP), and read state over time
+(SuzieQ, Zabbix). It has **no assertion layer** — nothing that takes a declarative expectation and
+returns a structured pass/fail verdict. ANTA is exactly that.
+
+**Access check**: an Arista vEOS image is already on disk (`~/clab-images/`), containerlab is
+installed and registered, ANTA is pip-installable, **no vendor account is required.** It is the only
+candidate whose verification path needs nothing obtained.
+
+**Known design risk**: ANTA's test catalogue is large. One tool per test would blow the ceiling as
+Catalyst Center's 515 tools did — the expected shape is a dispatcher plus discovery (the 087
+pattern), and the manifest must be **counted, not estimated** (the R5 lesson).
+
+### Cheapest deferrals to revisit first
+
+**Megaport** (needs only a staging account — the server already exists) and **UniFi** (needs a
+self-hostable controller with one adopted device). Both are credential/setup problems, not build
+problems.
+
+> The untriaged candidate list that stood here has been replaced by the summary above. It is
+> preserved in full, with a disposition and reason for every entry, in
+> [TRIAGE.md](../specs/097-open-territory-triage/TRIAGE.md).
 
 **Checklist**
-- [ ] After R1 lands, re-test which platforms remain genuinely unreachable
-- [ ] Pick at most one or two flag-planting targets; Megaport/NaaS and Arista ANTA are the
-      strongest candidates
-- [ ] Everything else: record as `DEFERRED` with a reason so it isn't re-litigated
+- [x] After R1 lands, re-test which platforms remain genuinely unreachable — **4 of 22 absorbed**
+- [x] Pick at most one or two flag-planting targets — **one: Arista ANTA**. The roadmap's own guess
+      named Megaport and ANTA as strongest; ANTA held up, Megaport did not (an official MCP now
+      exists, and no account is available here)
+- [x] Everything else: recorded as `DEFERRED` or `DROPPED` with a reason and, where deferred, the
+      condition that would change the answer
+
+---
+
+# R25 — Arista ANTA: structured network-state validation
+
+**Status:** `NOT STARTED` — created by [R24's triage](../specs/097-open-territory-triage/TRIAGE.md)
+
+The assertion layer NetClaw does not have. Every existing source answers *what is the state*, *what
+does the manager say*, or *what was the state over time*. Nothing answers **does the state match
+what it should be**, as a structured pass/fail verdict.
+
+**Why this is Tier A**: verifiable with access already on disk — vEOS image present, containerlab
+installed, ANTA pip-installable, **no vendor account required**. It is the only R24 candidate whose
+verification path needs nothing obtained.
+
+**Checklist**
+- [ ] Measure the manifest before designing: ANTA's catalogue is large, and one tool per test would
+      repeat Catalyst Center's 12.9× ceiling breach. **Count, do not estimate**
+- [ ] Expected shape: dispatcher + discovery (the 087 pattern), not one tool per test
+- [ ] Verify live against vEOS in containerlab — the access check that made this selectable
+- [ ] Define the boundary against `arista-cvp-mcp` (management plane) and R1 (device CLI): ANTA is
+      the *validation* plane and must not duplicate either
+- [ ] Read-only: ANTA runs tests, it does not change devices
 
 ---
 
