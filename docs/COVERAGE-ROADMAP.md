@@ -34,6 +34,67 @@ and the IETF datatracker.
 
 ---
 
+## Where we are — tally as of 2026-08-05
+
+**25 specs have landed since 072.** Of the 25 roadmap items (R0–R24), **16 are closed** in some
+form and **8 remain unstarted**, with one blocked on external access.
+
+| Disposition | Count | Items |
+|---|---|---|
+| **DONE** | **14** | R0, R0a, R0b, R1, R2, R3, R8, R9, R11, R13, R14, R15, R17, R18, R23 |
+| **DONE, narrowed** | **1** | **R12** — Elastic only; Dynatrace and New Relic still open |
+| **CLOSED — not needed** | **1** | **R22** — diagram coverage already satisfied; Excalidraw is an aesthetic, not a capability |
+| **DEFERRED** | **1** | **R10** — ntopng; ClickHouse flow history is Enterprise M+ only |
+| **BLOCKED — measured** | **1** | **R5** — Mist adoption rejected at 2.36× the ceiling; build specified and gated on a populated org |
+| **NOT STARTED** | **8** | R4, R6, R7, R16, R19, R20, R21, R24 |
+
+Not roadmap items, delivered alongside: **087** Catalyst Center and **089** Meraki (operator
+requests), **088** the startup surface, **093** the package-reference surface, **096**'s spec-artifact
+gate. Specs **085** and **086** are docs-only (the IETF survey feeding R23, and the R10/R17
+deferral) and have no spec directory — the numbering gap is expected, not a loss.
+
+### The sequencing rule this project learned the hard way
+
+Three separate items stalled on the same thing in one week: **can this be verified today, with the
+access we actually have?**
+
+- **R5** — org obtained, credential working, adoption measured and rejected. The *build* is blocked
+  because the org has zero devices, so the failure mode it must prevent cannot be exercised.
+- **R12** — Dynatrace and New Relic are SaaS-only with no self-hostable path, so R12 shipped as
+  Elastic alone rather than three-quarters unverified.
+- **R10** — the free edition cannot do the job at all.
+
+**So prioritise by verifiability first, value second.** An item that ships unverified is not a
+closed item; it is a claim. R3's FortiManager and FortiAnalyzer planes are the standing example —
+shipped deliberately unverified, and still unverified.
+
+### What is left, in priority order
+
+**Tier A — buildable and verifiable today, no vendor gate**
+
+| Item | Why now |
+|---|---|
+| **R24** Open-territory triage | No build at all. Cheapest item on the board and it re-prioritises everything below it. Should arguably run before the rest |
+| **R21** GitOps — ArgoCD / Flux | Fully self-hostable; needs a `kind`/`k3s` cluster, which also revives R14's Kubernetes integration. Real data the operator controls end to end |
+| **R20** Notion + Linear | Free self-serve tiers, official MCPs, zero infrastructure. Fast to land; lower network-engineering value |
+| **R19** Google Workspace | Self-serve with an existing Google account. Composes with R18 so generated documents can land in Drive |
+
+**Tier B — blocked on access, not on effort**
+
+| Item | Gate |
+|---|---|
+| **R5** build | A Mist org with at least one live AP or switch |
+| **R6** Aruba Central / ClearPass / GreenLake | A GreenLake tenant **and devices** — the same empty-tenant problem R5 hit. Still paired with R5 |
+| **R4** Palo Alto PAN-OS / Panorama | A PAN-OS VM-Series image (support-account gated). `vrnetlab/paloalto/pan` build harness is present; **no image on disk** |
+| **R7** Nexus Dashboard / Intersight / UCS | Cisco entitlement. Intersight has a free tier and DevNet sandboxes exist — **the most likely Tier B item to become Tier A** |
+| **R16** vSphere / NSX | A vCenter |
+| **R12** remainder | Dynatrace and New Relic tenants |
+
+**Do not start a Tier B item without first confirming the access exists.** That check costs
+minutes; discovering it after the spec is written costs a day, which is exactly what R5 cost.
+
+---
+
 ## Status board
 
 ### Foundation (blocks everything else)
@@ -1010,26 +1071,58 @@ Ekahau · Hamina
 
 # Recommended execution order
 
-R0 is mandatory and first. After that, the value-ordered sequence:
+> **Rewritten 2026-08-05.** The original order was written before anything shipped and is now
+> history. Everything it sequenced is done. The current order lives in
+> [Where we are](#where-we-are--tally-as-of-2026-08-05) at the top of this document; this section
+> keeps the record of what was executed and the two rules that emerged from executing it.
 
-1. **R0** — config reconciliation *(foundation; blocks all)*
-2. **R1** — Nornir/Netmiko *(~100 platforms, one server)*
-3. **R18** — document generation *(closes the deliverable gap; libraries already installed, but
-   **built rather than vendored** — the upstream skills are demonstration-only, not Apache-2.0)*
-4. **R8** — Globalping *(remote MCP, zero install, opens the external plane)*
+## What was executed, in order
 
-> **Sequencing note added 2026-08-04.** Two items were investigated and *not* built, both because their
-> premise did not survive contact with reality. Recorded here so the order below is read with that in mind:
-> **R10 is `DEFERRED`** (ClickHouse flow history is Enterprise M+ only), and **R17's premise is weakened**
-> (no exported data exists yet, and its ClickHouse rationale depended on R10). R17 should follow whichever
-> item first produces bulk exports — most likely **R13** now.
-5. **R2** — Cisco Support APIs *(closes PSIRT/EoL/bug in the deepest vendor)*
-6. **R3** — Fortinet *(largest single-vendor absence)*
+`R0` → `R1` → `R18` → `R8` → `R2` → `R3` → `R14` → `R15` → `R13` → `R17` → `R11` → `R9` → `R23`
+→ `R12`, with `R0a`/`R0b` inserted when the foundation turned out to be less solid than R0 had
+established, and `R10`/`R22`/`R5` closed without building.
 
-Next wave: **R14** Kubernetes · **R5** Mist · **R6** Aruba Central · **R10** ntopng ·
-**R15** Redfish.
+## Rule 1 — sequence by verifiability, not by value
 
-Then: R4, R7, R9, R11, R17, R19, R21, and R23 in parallel with tooling work.
+Three items stalled on the same question in one week: **can this be verified today, with the access
+we actually have?**
+
+R10's free edition could not do the job. R12's APM half is SaaS-only. R5's org is empty. In each
+case the item was worth building and could not be *proven*, which is not the same as being built.
+
+**Confirm access before writing the spec.** That check costs minutes. Discovering it afterwards cost
+R5 a day.
+
+## Rule 2 — the premise is not a given, it is the first measurement
+
+Four roadmap premises did not survive contact with reality:
+
+| Item | The premise | What measurement found |
+|---|---|---|
+| **R2** | Four Cisco API families | Three return 403 under the API Console grant — rescoped to PSIRT alone |
+| **R10** | ntopng gives flow history | Enterprise M+ only, verified in ntop's own `Prefs.cpp:3381` |
+| **R17** | A query layer is needed | Nothing to query until R13 produced exports — resequenced |
+| **R22** | Diagram coverage is missing | Already satisfied; Excalidraw is an aesthetic, not a capability |
+
+**Twice the operator questioned the premise and was right** (R22, and the "we have lots of visuals
+already" challenge that produced 093's real defect). A roadmap item is a hypothesis, not an
+instruction.
+
+## Rule 3 — measure the manifest before deciding adopt-vs-build
+
+The 5,000-token ceiling has decided more designs than any architectural preference:
+
+| Item | Tools | Manifest | Outcome |
+|---|---|---|---|
+| **R12** Elastic | 5 | **1,094** | adopt as-is |
+| **089** Meraki | 2 | **1,561** | adopt as-is |
+| **R14** k8s | 21 → 7 | 5,716 → **1,643** | adopt, trimmed |
+| **087** Catalyst Center | 515 → 10 | 64,420 → **1,821** | build a dispatcher over the catalogue |
+| **R5** Mist | 7 | **11,783** | **reject** — no filtering mechanism exists |
+| **093** MS-365 | 188 | **225,355** | adopt only a filtered 12-tool subset |
+
+**Count, do not estimate, within ~20% of the ceiling.** The chars/4 convention under-reported Mist's
+manifest by 17% (10,052 estimated vs 11,783 measured) — enough to turn a "fits" into a breach.
 
 ---
 
