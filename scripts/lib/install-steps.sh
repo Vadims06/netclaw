@@ -1233,6 +1233,43 @@ echo ""
 }
 
 # ── Step 28.5: Zeek + Suricata NSM (spec 091, roadmap R13) ──────
+component_install_elastic() {
+log_step "Installing Elasticsearch Logs MCP Server..."
+echo "  Adopted: docker.elastic.co/mcp/elasticsearch (Apache-2.0, 5 tools, 1,094 tokens)"
+echo "  Read-only log search over an Elasticsearch YOU already run. NetClaw installs no cluster."
+
+# DEPRECATED UPSTREAM, ADOPTED DELIBERATELY. Elastic superseded this server with Agent
+# Builder, which is ENTERPRISE-tier on self-managed -- so the supported path is paywalled
+# and the free path is this one. Apache-2.0 and already published: Elastic cannot withdraw
+# it. Pinned by DIGEST so a security-only upstream cannot change answers underneath us.
+if ! command -v docker >/dev/null 2>&1; then
+    log_warn "docker not found — elasticsearch-mcp cannot run without it"
+    log_info "  The server still registers; it will fail to start until docker is present."
+else
+    log_info "Pulling pinned Elasticsearch MCP image..."
+    docker pull --quiet \
+        docker.elastic.co/mcp/elasticsearch@sha256:d57ea11dcb3451ca332cb6d3bb8c4bb1ea29f15e498937ad6c2eada9f88eb003 \
+        >/dev/null 2>&1 || log_warn "Elasticsearch MCP image pull failed"
+fi
+
+# ES_URL is reached from INSIDE the container. A cluster on this host is not 'localhost'
+# there -- the registration adds host.docker.internal, so a local cluster is
+# http://host.docker.internal:9200, not http://localhost:9200.
+if [ -z "${ES_URL:-}" ]; then
+    log_warn "ES_URL is not set — the server starts but every tool call will fail"
+    log_info "  Local cluster:  ES_URL=http://host.docker.internal:9200"
+    log_info "  Remote cluster: ES_URL=https://<host>:9243 plus ES_API_KEY"
+fi
+
+# THE POINT OF THIS BLOCK. Elasticsearch caps hits.total at 10,000 and marks it
+# relation:"gte". This server DROPS that qualifier and prints "Total results: 10000",
+# which is indistinguishable from an exact count. Measured: 10,075 real documents
+# reported as 10,000. The skill mandates track_total_hits:true and routes counting
+# through ESQL; an operator who bypasses the skill gets silently truncated totals.
+log_info "Counting rule: ESQL for totals, or search with track_total_hits:true"
+log_info "  A bare search total caps at 10,000 and reads as exact — see specs/096-elastic-logs/"
+}
+
 component_install_nsm() {
 log_step "Installing Zeek + Suricata NSM MCP Server..."
 echo "  NetClaw-authored: mcp-servers/nsm-mcp (6 tools)"
