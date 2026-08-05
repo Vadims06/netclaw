@@ -41,12 +41,12 @@ form and **8 remain unstarted**, with one blocked on external access.
 
 | Disposition | Count | Items |
 |---|---|---|
-| **DONE** | **15** | R0, R0a, R0b, R1, R2, R3, R8, R9, R11, R13, R14, R15, R17, R18, R23, **R24** |
+| **DONE** | **16** | R0, R0a, R0b, R1, R2, R3, R8, R9, R11, R13, R14, R15, R17, R18, R23, R24, **R25** |
 | **DONE, narrowed** | **1** | **R12** — Elastic only; Dynatrace and New Relic still open |
 | **CLOSED — not needed** | **1** | **R22** — diagram coverage already satisfied; Excalidraw is an aesthetic, not a capability |
 | **DEFERRED** | **1** | **R10** — ntopng; ClickHouse flow history is Enterprise M+ only |
 | **BLOCKED — measured** | **1** | **R5** — Mist adoption rejected at 2.36× the ceiling; build specified and gated on a populated org |
-| **NOT STARTED** | **8** | R4, R6, R7, R16, R19, R20, R21, **R25** (new, from R24's triage) |
+| **NOT STARTED** | **7** | R4, R6, R7, R16, R19, R20, R21 |
 
 Not roadmap items, delivered alongside: **087** Catalyst Center and **089** Meraki (operator
 requests), **088** the startup surface, **093** the package-reference surface, **096**'s spec-artifact
@@ -75,7 +75,7 @@ shipped deliberately unverified, and still unverified.
 | Item | Why now |
 |---|---|
 | ~~**R24** Open-territory triage~~ | **DONE 2026-08-05** — ran first exactly as intended, and produced R25 below |
-| **R25** Arista ANTA | **The triage's own pick.** The validation plane NetClaw lacks, and the only open-territory candidate needing nothing obtained — vEOS image already on disk. Manifest cost is the design risk, not access |
+| ~~**R25** Arista ANTA~~ | **DONE 2026-08-05** — the triage's pick, built and verified live the same day. Manifest was indeed the design risk: 208 tests, 4 tools, 1,272 tokens |
 | **R21** GitOps — ArgoCD / Flux | Fully self-hostable; needs a `kind`/`k3s` cluster, which also revives R14's Kubernetes integration. Real data the operator controls end to end |
 | **R20** Notion + Linear | Free self-serve tiers, official MCPs, zero infrastructure. Fast to land; lower network-engineering value |
 | **R19** Google Workspace | Self-serve with an existing Google account. Composes with R18 so generated documents can land in Drive |
@@ -214,7 +214,7 @@ minutes; discovering it after the spec is written costs a day, which is exactly 
 | ID | Title | Spec # | Status |
 |----|-------|--------|--------|
 | **R24** | Open-territory triage — pick flag-planting targets | [097](../specs/097-open-territory-triage/spec.md) | `DONE` — all 22 candidates dispositioned ([TRIAGE.md](../specs/097-open-territory-triage/TRIAGE.md)): **4 `COVERED`** (all absorbed by R1, unnoticed until now — only SR Linux verified live), **1 `SELECTED`** (Arista ANTA → R25), **12 `DEFERRED`**, **5 `DROPPED`**. Two premises were stale: **Megaport is no longer unclaimed** (an official read-only MCP exists in open beta), and MikroTik's "adopt a dedicated MCP" entry predates R1, which now reaches it |
-| **R25** | Arista ANTA — structured network-state validation | — | `NOT STARTED` — **Tier A**, created by R24's triage. The assertion layer NetClaw lacks; verifiable with the vEOS image already on disk, no vendor account needed |
+| **R25** | Arista ANTA — structured network-state validation | [098](../specs/098-arista-anta-validation/spec.md) | `DONE` — **built**, read-only, **4 tools reaching a 208-test catalogue for 1,272/5,000 tokens** (one tool per test would be ~58,000, 11.6× over). Verified live against `clab-mandible-veos1` (vEOS-lab 4.36.1F) over eAPI. Runs in **its own venv, and not by preference**: ANTA moves `cryptography` 46.0.5 → 50.0.0 and four installed distributions depend on it unbounded, including the federation TLS stack — caught by a dry-run *before* installing, per spec 076. **Silent wrong answer reproduced and blocked**: ANTA reports a test for an *unconfigured* feature as a **failure** — `VerifyBGPPeerCount` returns "BGP inactive" as a failure on a switch with no BGP — so the server reclassifies to `not_applicable` with a deliberately narrow rule that never hides a real failure. No health percentage is emitted: `passed/total` is meaningless with `not_applicable` in the denominator |
 
 ---
 
@@ -1100,7 +1100,7 @@ problems.
 
 # R25 — Arista ANTA: structured network-state validation
 
-**Status:** `NOT STARTED` — created by [R24's triage](../specs/097-open-territory-triage/TRIAGE.md)
+**Status:** `DONE` · [spec 098](../specs/098-arista-anta-validation/spec.md) — created by [R24's triage](../specs/097-open-territory-triage/TRIAGE.md) and built the same day
 
 The assertion layer NetClaw does not have. Every existing source answers *what is the state*, *what
 does the manager say*, or *what was the state over time*. Nothing answers **does the state match

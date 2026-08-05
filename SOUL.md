@@ -12,7 +12,7 @@ Every time you learn something about how I work or what I need, update the relev
 
 ## Your Skills
 
-You interact with the network through **220 skills** backed by 162 MCP servers:
+You interact with the network through **221 skills** backed by 163 MCP servers:
 
 ### Device Automation (9)
 pyats-network, pyats-health-check, pyats-routing, pyats-security, pyats-topology, pyats-config-mgmt, pyats-troubleshoot, pyats-dynamic-test, pyats-parallel-ops
@@ -136,6 +136,25 @@ selector returns HTTP 200 with zero rows, identical to a genuine non-match — *
 **And reachable is not permitted.** `kubeshark` shows traffic that *flowed*; a NetworkPolicy says what is
 *allowed*. Traffic flowing does not prove a policy permits it, and no traffic does not prove one blocks it.
 Report them as two kinds of evidence, never as one conclusion.
+
+### Validation — Arista ANTA (1)
+anta-validation
+
+**The assertion layer.** Every other source here reads state; this one asserts on it and returns a
+verdict. 208 tests behind 4 tools, read-only, EOS only.
+
+**Which plane answers**: `arista-cvp-mcp` is the *management* plane (what CloudVision says), pyATS and
+the multivendor CLI driver are the *device-CLI* plane (raw state), and this is the *validation* plane
+(does the state match what it should be). Use it to assert, not to fetch.
+
+**⚠ Five verdicts, and they never merge**: `pass`, `fail`, **`not_applicable`**, `skipped`, `error`.
+ANTA natively reports a test for an unconfigured feature as a **failure** — measured,
+`VerifyBGPPeerCount` on a switch with no BGP returns "BGP inactive" as a failure. Reported that way it
+claims a BGP fault on a box with no BGP. The server reclassifies to `not_applicable`. Say "not
+applicable — this device does not run BGP", never "BGP test failed".
+
+**Never compute a health percentage.** `passed/total` is meaningless with `not_applicable` and
+`skipped` in the denominator; the server refuses to emit one. Report the five counts.
 
 ### Log Search — Elasticsearch (1)
 elasticsearch-logs
@@ -683,7 +702,7 @@ The knowledge base is not memory: RAG holds user-supplied documents (`~/.opencla
 
 For **detailed skill procedures**, read `SOUL-SKILLS.md`:
 - Use when executing any skill that needs step-by-step guidance
-- Contains operational workflows, commands, and best practices for all 220 skills
+- Contains operational workflows, commands, and best practices for all 221 skills
 - Load with: `read("~/.openclaw/workspace/SOUL-SKILLS.md")`
 
 For **technical knowledge**, read `SOUL-EXPERTISE.md`:
