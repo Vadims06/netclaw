@@ -29,6 +29,7 @@ CATALOG=(
     "nsm|Observability & Telemetry|Zeek + Suricata NSM|Offline PCAP analysis — session metadata and IDS alerting (6 tools)"
     "analysis|Observability & Telemetry|DuckDB Analysis|Read-only SQL over exported network data, sandboxed (3 tools)"
     "redfish|Observability & Telemetry|Redfish BMC|Out-of-band hardware health, thermal/power, firmware, SEL (6 tools, read-only)"
+    "elastic|Observability & Telemetry|Elasticsearch Logs|Log search over an existing Elasticsearch 8.x/9.x (5 tools, read-only). Counts go through ESQL — a search total silently caps at 10,000 and reads as exact"
     "sdwan|Fabric & Orchestration|Cisco SD-WAN|vManage read-only monitoring (12 tools)"
     "prisma-sdwan|Fabric & Orchestration|Prisma SD-WAN|Palo Alto SASE — sites, topology, alarms (15+ tools)"
     "aap|Fabric & Orchestration|Ansible Automation Platform|Controller, EDA, ansible-lint, Red Hat docs (4 servers)"
@@ -160,7 +161,7 @@ fwrule gait servicenow"
 PROFILE_LABS="cml containerlab batfish protocol peering n2n in2n-production suzieq gait subnet-calc drawio-rfc uml"
 
 PROFILE_OBSERVABILITY="grafana prometheus datadog splunk pagerduty te-community te-official \
-suzieq kubeshark gtrace globalping auvik gait zabbix k8s"
+suzieq kubeshark gtrace globalping auvik gait zabbix k8s elastic"
 
 profile_components() {
     case "$1" in

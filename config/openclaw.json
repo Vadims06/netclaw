@@ -1107,6 +1107,34 @@
         "BGP_INTEL_MAX_RPS": "${BGP_INTEL_MAX_RPS}"
       }
     },
+    "elasticsearch-mcp": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--add-host=host.docker.internal:host-gateway",
+        "-e",
+        "ES_URL",
+        "-e",
+        "ES_API_KEY",
+        "-e",
+        "ES_USERNAME",
+        "-e",
+        "ES_PASSWORD",
+        "-e",
+        "ES_SSL_SKIP_VERIFY",
+        "docker.elastic.co/mcp/elasticsearch@sha256:d57ea11dcb3451ca332cb6d3bb8c4bb1ea29f15e498937ad6c2eada9f88eb003",
+        "stdio"
+      ],
+      "env": {
+        "ES_URL": "${ES_URL}",
+        "ES_API_KEY": "${ES_API_KEY}",
+        "ES_USERNAME": "${ES_USERNAME}",
+        "ES_PASSWORD": "${ES_PASSWORD}",
+        "ES_SSL_SKIP_VERIFY": "${ES_SSL_SKIP_VERIFY:-false}"
+      }
+    },
     "document-mcp": {
       "command": "python3",
       "args": [

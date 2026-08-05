@@ -119,7 +119,7 @@ and the IETF datatracker.
 |----|-------|--------|--------|
 | **R10** | ntopng — flow analytics platform | — | **`DEFERRED`** — investigated 2026-08-04. **The premise is false for the free edition**: ClickHouse flow history is hard-gated to Enterprise M+ (€699.95), verified in ntop's own `Prefs.cpp:3381`. Community's 12 MCP tools also require an **admin** token and bust the ceiling once the 5,338-token `instructions` payload is counted |
 | **R11** | SNMP-poller NMS (Zabbix / LibreNMS / Netdata) | [083](../specs/083-zabbix-nms/spec.md) | `DONE` — **Zabbix only**, adopted not built (3 tools, 589/5,000 tokens). NetClaw's first polled-history source. Runs in a dedicated venv (fastmcp 3.x vs five servers pinning `<3`). Both silent-wrong-answer traps reproduced against live 7.0.29 |
-| **R12** | APM + log platforms (Dynatrace / New Relic / Elastic) | — | `NOT STARTED` |
+| **R12** | APM + log platforms (Dynatrace / New Relic / Elastic) | [096](../specs/096-elastic-logs/spec.md) | **`DONE — Elastic only`** — adopted, zero code. 5 tools, **1,094/5,000 tokens**, verified against a live Elasticsearch 9.2.0 (`basic` licence) with 25,000 indexed documents. **Dynatrace and New Relic remain open** — SaaS-only, no self-hostable verification path, the same access blocker that gated R5. Adopted a **deprecated** upstream deliberately: the successor (Agent Builder MCP endpoint) is **Enterprise-tier on self-managed**, so the supported path is paywalled while this one is Apache-2.0 and already published; pinned by digest so a security-only update cannot shift answers. Silent wrong answer reproduced and blocked: Elasticsearch caps `hits.total` at 10,000 and marks it `relation:"gte"`, but **the server discards the qualifier** — 10,075 real documents reported as `Total results: 10000`, an error that is unbounded (a million-doc index still says 10,000). Mitigations verified: `esql`, or `search` + `track_total_hits: true` |
 | **R13** | NSM / IDS (Zeek / Suricata / Arkime) + packet-buddy audit | [091](../specs/091-nsm-zeek-suricata/spec.md) | `DONE` — **built**, read-only offline PCAP analysis. Zeek 8.2.1 + Suricata 8.0.6 from digest-pinned containers, 6 tools / 934 tokens, 19 assertions. **Arkime rejected** (mandatory OpenSearch + ~12–16 GB = a platform, not a tool). Two silent wrong answers reproduced live and structurally blocked: stock Suricata loads **0 signatures** and reports 0 alerts behind two non-fatal warnings (52,205 after update); Zeek **discards invalid-checksum packets by default**, losing `http.log` entirely and miscounting `conn.log` (3 rows vs 2) — which affects NetClaw's **own** capture skills' output |
 
 ### Tier 4 — The layer beneath the network
@@ -667,16 +667,32 @@ SNMP-poller NMS at all** — and therefore no polled history anywhere in NetClaw
 
 ## R12 — APM + log platforms (Dynatrace / New Relic / Elastic)
 
-**Status:** `NOT STARTED`
+**Status:** `DONE — Elastic only` · [spec 096](../specs/096-elastic-logs/spec.md).
+**Dynatrace and New Relic remain open.**
 
-Both APM vendors appear on Itential's 56-server list; NetClaw has neither. Elasticsearch is
+Both APM vendors appear on Itential's 56-server list; NetClaw has neither. Elasticsearch was
 absent and is extremely common for netops logging.
 
+> **Scoped to the verifiable target**, the same cut R11 made (Zabbix only) and R17 made (DuckDB
+> only). Both APM vendors are SaaS with no self-hostable path, so they would ship unverified —
+> the blocker that gated R5 the same day. Elastic runs locally on a free `basic` licence, so its
+> traps are reproducible.
+
+> **The correction that shaped this item.** An initial claim that NetClaw had "no log search at
+> all" was wrong: `splunk-mcp` (3 skills), `datadog-logs`, `gcp-logging-mcp` and `grafana-mcp`
+> were already registered. What was missing is an **Elasticsearch backend**. Note also that
+> `SPLUNK_HOST`/`SPLUNK_TOKEN` are unset in this environment and the endpoint is unreachable, so
+> the Splunk skills currently point at nothing — which is why FR-004's backend boundaries matter
+> more here than for a greenfield integration.
+
 **Checklist**
-- [ ] Assess Dynatrace and New Relic official MCP availability
-- [ ] Elastic/Elasticsearch MCP — likely higher practical value than either APM for netops
-- [ ] Define the boundary against existing Splunk / Datadog / Grafana skills so the agent
-      picks the right backend rather than guessing
+- [x] Assess Dynatrace and New Relic official MCP availability — **deferred, SaaS-only**
+- [x] Elastic/Elasticsearch MCP — **adopted**, 5 tools, 1,094/5,000 tokens, digest-pinned
+- [x] Define the boundary against existing Splunk / Datadog / Grafana skills — FR-004, stated in
+      the skill, SOUL.md and the data model: selection is by **where the data lives**, never by
+      question shape; if unknown, ask
+- [ ] Dynatrace — revisit if a tenant becomes available
+- [ ] New Relic — revisit if a tenant becomes available
 
 ## R13 — NSM / IDS (Zeek / Suricata / Arkime) + packet-buddy audit
 

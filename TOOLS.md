@@ -479,6 +479,40 @@ No API keys. Nothing to rotate.
 `servicenow-change-workflow` owns the CR lifecycle; this renders a document from one.
 `slack-report-delivery` / `webex-report-delivery` **send** documents; this only writes them.
 
+## Elasticsearch Logs (`elasticsearch-mcp`, adopted third-party Apache-2.0)
+
+**Spec 096 / roadmap R12.** 5 tools, stdio via Docker, read-only. **Manifest measured 1,094 / 5,000
+tokens.** NetClaw installs no cluster — this queries one the operator already runs (8.x/9.x).
+
+| Tool | Purpose |
+|---|---|
+| `list_indices(index_pattern)` | Indices, status, document counts |
+| `get_mappings(index)` | Field names and types — read before composing a query |
+| `search(index, query_body)` | Query DSL retrieval (and aggregations) |
+| `esql(query)` | ES-QL — counting, grouping, ranking |
+| `get_shards()` | Shard allocation and health |
+
+### The counting rule
+
+Elasticsearch caps `hits.total` at 10,000 and marks it `relation: "gte"`. **This server discards the
+qualifier**, printing a bare `Total results: 10000` that is indistinguishable from an exact count.
+Measured against 10,075 documents: unguarded `search` said **10000**; `esql` and
+`search` + `track_total_hits: true` both said **10075**. The error is unbounded — a million-document
+index still reports 10,000.
+
+Count with `esql` or `track_total_hits`. An unguarded `search` retrieves example documents only.
+
+### Adopted, deprecated upstream, digest-pinned
+
+Elastic deprecated this server in favour of Agent Builder's MCP endpoint, which is **Enterprise-tier on
+self-managed** — so the supported path is paywalled and this one is not. Apache-2.0 and already
+published, so it cannot be withdrawn. The image is pinned by digest
+(`sha256:d57ea11d…eb003`) so a security-only update cannot change answers underneath the operator.
+
+`ES_URL` resolves **inside the container**: a cluster on the host is `http://host.docker.internal:9200`,
+never `localhost`. Credentials: `ES_API_KEY` (scope it `read` + `view_index_metadata`) or
+`ES_USERNAME`/`ES_PASSWORD`.
+
 ## Zabbix SNMP-Poller NMS (`zabbix-mcp`, vendored third-party GPL-3.0)
 
 **Spec 083 / roadmap R11.** 3 tools, stdio, read-only. **Manifest measured 589 / 5,000 tokens** — the

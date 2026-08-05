@@ -31,6 +31,7 @@ on:
       - 'scripts/verify-*.py'
       - 'scripts/check-mcp-portability.py'
       - 'scripts/reconcile-mcp.py'
+      - 'specs/**'
       - 'workspace/skills/**'
       - 'tests/**'
       - 'README.md'
@@ -59,6 +60,14 @@ jobs:
       # The DECLARATION surfaces are the gate. Each compares repository artifacts against
       # each other, needs no installed component, and is therefore meaningful in a fresh
       # container -- which is what SC-013 above requires.
+      # Constitution Principle XVI: specify -> plan -> task -> implement. Nothing
+      # checked it, and ten consecutive specs (087-096) shipped with spec.md alone
+      # before an audit on 2026-08-05 caught it. The drift was self-reinforcing:
+      # sampling the three most recent specs made the gap look like the convention.
+      # Stdlib only, reads only the repo -- same SC-013 posture as everything above.
+      - name: Verify spec SDD artifacts
+        run: python3 scripts/verify-spec-artifacts.py
+
       - name: Reconcile MCP registration surfaces
         run: |
           python3 scripts/reconcile-mcp.py \

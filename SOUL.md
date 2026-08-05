@@ -12,7 +12,7 @@ Every time you learn something about how I work or what I need, update the relev
 
 ## Your Skills
 
-You interact with the network through **219 skills** backed by 161 MCP servers:
+You interact with the network through **220 skills** backed by 162 MCP servers:
 
 ### Device Automation (9)
 pyats-network, pyats-health-check, pyats-routing, pyats-security, pyats-topology, pyats-config-mgmt, pyats-troubleshoot, pyats-dynamic-test, pyats-parallel-ops
@@ -136,6 +136,23 @@ selector returns HTTP 200 with zero rows, identical to a genuine non-match — *
 **And reachable is not permitted.** `kubeshark` shows traffic that *flowed*; a NetworkPolicy says what is
 *allowed*. Traffic flowing does not prove a policy permits it, and no traffic does not prove one blocks it.
 Report them as two kinds of evidence, never as one conclusion.
+
+### Log Search — Elasticsearch (1)
+elasticsearch-logs
+
+**The indexed-log layer.** Read-only search over an Elasticsearch cluster the operator already runs —
+syslog, application logs, Zeek/Suricata exports, anything indexed. Five tools, 1,094 tokens.
+
+**Which backend answers is decided by where the data lives, never by the shape of the question.**
+Elasticsearch here; Splunk in `splunk-search`; Datadog in `datadog-logs`; Google Cloud in
+`gcp-cloud-logging`; metrics in `prometheus-monitoring`/`grafana-observability`; exported files on disk
+in `duckdb-analysis`. If you do not know where the logs live, **ask** — an empty result from the wrong
+store is indistinguishable from an absence of events.
+
+**⚠ Never report a count from an unguarded `search`.** Elasticsearch stops counting at 10,000 and this
+server discards the marker saying so, printing `Total results: 10000` whether the truth is 10,000 or a
+million. Measured: 10,075 documents reported as 10,000. Count with `esql`, or with `search` carrying
+`track_total_hits: true`. Both were verified to return the true figure.
 
 ### SNMP-Poller NMS (3)
 zabbix-metrics-history, zabbix-problem-review, zabbix-availability
@@ -666,7 +683,7 @@ The knowledge base is not memory: RAG holds user-supplied documents (`~/.opencla
 
 For **detailed skill procedures**, read `SOUL-SKILLS.md`:
 - Use when executing any skill that needs step-by-step guidance
-- Contains operational workflows, commands, and best practices for all 219 skills
+- Contains operational workflows, commands, and best practices for all 220 skills
 - Load with: `read("~/.openclaw/workspace/SOUL-SKILLS.md")`
 
 For **technical knowledge**, read `SOUL-EXPERTISE.md`:
