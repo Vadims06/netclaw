@@ -16,22 +16,46 @@ The result is an observability inversion: routine noise is loud and urgent-looki
 
 This was not a theoretical concern. It was found while actively waiting for a real call, and the workaround was to bypass the log entirely and poll the database.
 
+## Clarifications
+
+### Session 2026-08-06
+
+- Q: How far should a long-dead peer be backed off, given the current 60s-forever ceiling? → A: Escalate long-dead peers (stale endpoint plus many consecutive failures) to a **15-minute** ceiling; peers that have only recently begun failing keep the existing 60-second behavior. An endpoint change resets the backoff immediately, so a peer that re-registers reconnects within seconds regardless of how long it was dampened.
+- Q: A flapping peer currently resets its failure counter on every success, which would defeat dampening entirely. How should that be handled? → A: Clear dampening only after a connection has **stayed up for a sustained period**, not on the mere fact of connecting. A flapping peer therefore remains dampened and summarized.
+- Q: How should the "forget a peer's endpoint" operation be exposed? → A: A supported **registry method plus an operator-facing tool**, so a stale endpoint can be retired conversationally without shell access or direct database writes. No HUD control — that is out of scope for this feature.
+
+### Decisions taken without a question (reasonable defaults, recorded for traceability)
+
+- **Correlation reuses the existing per-request identifier.** Every inbound handler already receives a request identifier and already writes it to the audit record, so FR-005 needs no new correlation mechanism — the identifier already present becomes the log correlation key.
+- **Inbound-call logging is centralized at the existing audit choke point.** Every inbound handler already funnels each of its decision branches through one audit-recording helper. Emitting operator-facing log entries there yields uniform coverage of every inbound method and every branch, rather than depending on per-handler logging that would inevitably be added inconsistently and drift as handlers are added.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - An inbound federated call is unmistakable in the log (Priority: P1)
 
-An operator watching the mesh daemon log sees a clear, structured, info-level record when a remote peer invokes a capability: that the call arrived, which peer it came from, what was requested, whether it was authorized or denied, and how it finished. No database query is required to know a call happened.
+An operator watching the mesh daemon log can attribute each inbound call to a specific request and can immediately distinguish a routine success from a refusal.
 
-**Why this priority**: This is the core value. Noise reduction only matters because it was hiding this signal — but removing all the noise from a log that still says nothing about inbound calls would leave the operator no better off. This story delivers standalone value even if Stories 2 and 3 are never implemented, and it is the only story that makes the log a sufficient answer to "did the call come in?"
+**IMPORTANT — corrected premise.** The original draft of this spec asserted that the inbound-call path logs almost nothing at info level. **That was wrong**, and the correction substantially narrows this story. Every audit write already emits one info-level line carrying direction, peer identity, target type and name, decision, outcome, and provenance reference. Because every inbound handler routes each of its decision branches through that single audit call, an inbound call is *already* visible, and FR-001, FR-002, FR-004, and FR-006 are **already satisfied by existing behavior**.
 
-**Independent Test**: Trigger an inbound federated invocation from a test peer and read only the log (no DB access). The reader can state the peer identity, the target, the authorization decision, and the outcome.
+The error arose from inspecting the invocation module for logging calls and finding almost none, without following through to the audit component it delegates logging to. The practical lesson is recorded here because it shaped the spec: the operational failure on 2026-08-06 was **not** that inbound calls are unlogged — it was that the surrounding noise (User Stories 2 and 3) buried a line that already existed, and that the observer's own log filter omitted the audit channel.
+
+What remains genuinely missing is narrow and specific:
+
+- **Refusals are indistinguishable by severity from successes.** Every audit line is emitted at info, so an authorization denial reads at the same severity as a routine success and cannot be isolated by severity filtering.
+- **The log line omits the request identifier** that the audit record itself stores, so entries cannot be tied to a specific request or to their audit row from the log alone.
+- **There is no arrival event distinct from the outcome.** A call that hangs or never reaches a decision leaves no trace, because the existing line is written at decision time rather than on receipt.
+
+**Why this priority**: Retained at P1 because refusal-versus-success severity is a security-relevant distinction and because correlation is what makes the other two stories' logs auditable. It is now a much smaller change than first scoped — an enhancement to one existing choke point, not new logging across many handlers.
+
+**Independent Test**: Trigger a permitted inbound invocation and a denied one from a test peer, and read only the log. The reader can tie each entry to a request identifier and can isolate the denial by severity alone.
 
 **Acceptance Scenarios**:
 
-1. **Given** a federated peer with a live channel, **When** it invokes a permitted capability, **Then** the log records call-received, authorization-granted, and completion-with-outcome as info-level entries correlated to one another and to the audit record.
-2. **Given** a federated peer, **When** it invokes a capability it is not authorized for, **Then** the log records the denial at a severity that reflects an operator-relevant security event, naming the peer and the refused target.
-3. **Given** an inbound call that requires human approval, **When** the approval request is created, **Then the** log makes the pending approval visible without the operator polling for it.
-4. **Given** a burst of inbound calls, **When** they are logged, **Then** each call's entries can be attributed to that specific call rather than interleaving ambiguously.
+1. **Given** a federated peer, **When** it invokes a capability it is not authorized for, **Then** the refusal is emitted at a severity distinct from and higher than routine success, naming the peer and the refused target.
+2. **Given** any inbound call, **When** it is logged, **Then** the entry carries the request identifier already stored on the audit record, so the log line and the audit row can be joined without guesswork.
+3. **Given** an inbound call that never reaches a decision, **When** an operator inspects the log, **Then** the call's arrival is nonetheless visible.
+4. **Given** a burst of inbound calls, **When** they are logged, **Then** each entry can be attributed to a specific request rather than interleaving ambiguously.
+5. **Given** existing audit behavior, **When** this story is implemented, **Then** no inbound call produces duplicate or redundant log lines — the existing line is enriched, not supplemented by a parallel one.
 
 ---
 
@@ -87,12 +111,31 @@ An operator can tell the system to forget a peer's recorded endpoint, leaving th
 
 ---
 
+---
+
+### User Story 5 - An outbound call's outcome is recorded, not left pending forever (Priority: P1)
+
+When this system calls a remote peer, the audit record reflects what actually came back — granted, denied, failed, or timed out — rather than remaining permanently in a "pending" state.
+
+**Why this priority**: P1 because it defeats cross-ledger reconciliation, the core promise of federation auditing. Discovered 2026-08-06 at 18:53Z during a live two-party test with peer `as65006-6.6.6.6`, where the peer's stated protocol was "match the request identifier across your log and my chain." Two outbound calls were recorded and both remain `requested/pending` indefinitely. The response — including an expected **denial** — was returned to the caller but never persisted. A ledger that cannot show the outcome of its own outgoing calls cannot be reconciled against a counterparty's, and a denial that is invisible in the audit trail is precisely the record a security review would need.
+
+**Independent Test**: Invoke a remote tool that is known to be refused. The audit record for that call reflects the refusal rather than staying pending.
+
+**Acceptance Scenarios**:
+
+1. **Given** an outbound invocation to a peer, **When** the peer returns a refusal, **Then** the audit record and log reflect a denied outcome tied to the same request identifier, not a pending one.
+2. **Given** an outbound invocation, **When** the peer returns a successful result, **Then** the record reflects success.
+3. **Given** an outbound invocation, **When** the call times out or the channel drops, **Then** the record reflects that terminal state rather than remaining pending forever.
+4. **Given** a reconciliation against a counterparty's ledger, **When** both sides are compared by request identifier, **Then** each side shows a terminal outcome for the same call.
+
+---
+
 ### Edge Cases
 
-- A peer is dampened for being long-dead at the exact moment it comes back — how quickly does it recover, and is there a path that leaves it dampened while reachable?
+- A peer is dampened for being long-dead at the exact moment it comes back. *Resolved by FR-013*: if it re-registers an endpoint it reconnects within seconds; if it returns without re-registering, the worst-case delay is one escalated interval (~15 minutes). This bounded blind spot is an accepted tradeoff, not an oversight.
 - Two peers fail with different causes: are their failures summarized separately, or does one mask the other?
 - The endpoint-freshness marker is absent entirely (never set) rather than merely old — is that treated as "stale" or "unknown"?
-- A peer flaps: repeatedly succeeds and fails. Does the failure counter reset on each success, and can flapping defeat dampening and restore the storm?
+- A peer flaps: repeatedly succeeds and fails. *Resolved by FR-031*: because today's behavior resets the failure counter on any success, flapping would otherwise defeat dampening completely and recreate the storm; dampening therefore clears only after sustained uptime. Note the peer whose reconnect was observed live on 2026-08-06 exhibited exactly this close-then-reopen shape, so this path is real traffic, not a hypothetical.
 - An inbound call arrives while its peer is simultaneously being dialled outbound — do both paths log coherently?
 - A capability denial and a benign disconnect arrive from the same peer in the same second — can an operator still tell them apart?
 - Forgetting the endpoint of a peer with a currently-live channel: is the channel torn down or left running?
@@ -105,23 +148,28 @@ An operator can tell the system to forget a peer's recorded endpoint, leaving th
 
 **Inbound-call visibility**
 
-- **FR-001**: The system MUST record, at info level, the receipt of an inbound federated invocation, identifying the calling peer and the requested target.
-- **FR-002**: The system MUST record the authorization decision for each inbound invocation, distinguishing granted from denied.
-- **FR-003**: The system MUST record a denied inbound invocation at a severity appropriate to an operator-relevant security event, and MUST NOT allow denials to be suppressed by any noise-dampening behavior.
-- **FR-004**: The system MUST record the terminal outcome of each inbound invocation, including failures and cancellations, so that no call is left with an unresolved final state in the log.
-- **FR-005**: Log entries belonging to one inbound invocation MUST be correlatable with each other and with that invocation's audit record.
-- **FR-006**: The system MUST make a newly created pending approval visible in the log at the time it is created.
+> Note: FR-001, FR-002, FR-004, and FR-006 were verified to be **already satisfied** by existing audit logging. They are retained as regression guards — the implementation must not lose them — and are marked accordingly. Only FR-003, FR-005, FR-033, and FR-032 require new work.
+
+- **FR-001** *(already satisfied — regression guard)*: The system MUST record, at info level, each inbound federated invocation, identifying the calling peer and the requested target.
+- **FR-002** *(already satisfied — regression guard)*: The system MUST record the authorization decision for each inbound invocation, distinguishing granted from denied.
+- **FR-003**: The system MUST emit a denied inbound invocation at a severity distinct from and higher than routine success, so refusals can be isolated by severity alone, and MUST NOT allow denials to be suppressed by any noise-dampening behavior.
+- **FR-004** *(already satisfied — regression guard)*: The system MUST record the terminal outcome of each inbound invocation, including failures and cancellations, so that no call is left with an unresolved final state in the log.
+- **FR-005**: Operator-facing log entries for an inbound invocation MUST carry the request identifier already persisted on the audit record, so a log line can be joined to its audit row without guesswork.
+- **FR-006** *(already satisfied — regression guard)*: The system MUST make a newly created pending approval visible in the log at the time it is created.
 - **FR-007**: Inbound-call logging MUST NOT emit secrets, credentials, key material, or full invocation payloads.
+- **FR-033**: The system MUST make an inbound call's arrival visible even when it never reaches a decision, so a hung or abandoned call is not invisible.
+- **FR-032**: Enriching inbound-call logging MUST NOT introduce a second, parallel log line per call. The existing single audit line is to be enriched in place; total log volume per inbound call MUST NOT increase beyond the arrival event required by FR-008.
 
 **Dead-peer dampening**
 
 - **FR-008**: Repeated dial failures against the same peer with an unchanged cause MUST collapse into a periodic summary rather than one entry per attempt.
 - **FR-009**: A summarized report MUST convey how many attempts it covers and the period covered, so suppression never hides the scale of a problem.
-- **FR-010**: The retry interval for a peer that has failed continuously over a long period MUST be permitted to grow substantially beyond the interval used for a peer that has just begun failing.
-- **FR-011**: The endpoint-freshness signal MUST be an input to how aggressively a peer is dialled and reported.
+- **FR-010**: A peer that has failed continuously over a long period AND whose endpoint information is stale MUST escalate to a retry interval of approximately 15 minutes. A peer that has only recently begun failing MUST retain the existing ceiling of approximately 60 seconds.
+- **FR-011**: The endpoint-freshness signal MUST be an input to how aggressively a peer is dialled and reported; a peer is eligible for the escalated interval in FR-010 only when both its failure history and its endpoint staleness indicate a durable outage.
 - **FR-012**: Dampening MUST NOT delay reconnection for a peer that has failed only transiently.
-- **FR-013**: A dampened peer MUST remain federated and MUST resume normal dialling and reporting promptly once it becomes reachable or re-registers an endpoint.
+- **FR-013**: A dampened peer MUST remain federated. A change to a peer's endpoint MUST reset its backoff immediately, so that a peer which re-registers reconnects within seconds no matter how long it was dampened.
 - **FR-014**: A peer's unreachable status and consecutive-failure count MUST remain observable to an operator while dampened.
+- **FR-031**: Dampening MUST be cleared only after a connection has remained up for a sustained period, not on the mere fact of a successful connection. A peer that repeatedly connects and drops MUST remain dampened and summarized rather than resetting its failure history on each brief success.
 - **FR-015**: Successive failures with materially different causes MUST NOT be collapsed into one another.
 - **FR-016**: Total log volume attributable to unreachable peers MUST remain bounded as the number of unreachable peers grows, while still conveying that multiple peers are affected.
 
@@ -131,16 +179,24 @@ An operator can tell the system to forget a peer's recorded endpoint, leaving th
 - **FR-018**: A complete-but-invalid protocol preamble MUST continue to be reported at error severity.
 - **FR-019**: Unexpected internal faults on the inbound path MUST continue to be reported at error severity with a stack trace.
 - **FR-020**: Severity assignment MUST be driven by whether an operator needs to act, not by which code path raised the condition.
+- **FR-038**: Malformed or non-protocol connections to the publicly-reachable edge listener MUST NOT produce error-level stack traces. Observed live on 2026-08-06 from 14:58 onward: internet background scanning against the listener's port produced repeated multi-frame tracebacks for ordinary probe traffic (plain HTTP sent to a WebSocket endpoint — wrong method, missing upgrade header). These are unsolicited, expected, and never actionable, and because the port is internet-reachable the volume is unbounded and continuous. Such connections MUST be summarized at low severity, subject to the same dampening as FR-008, and MUST remain distinguishable from a genuine enrolled-device connection failure, which an operator does need to see.
 - **FR-030**: A benign warning emitted by the underlying async runtime on every secure channel closure — one that reflects a harmless internal detail of how encrypted streams signal end-of-file, is not caused by peer behavior, and requires no operator action — MUST NOT reach the operator at warning severity. Because this warning originates outside the system's own code, the remedy is reclassification or filtering rather than a behavioral change, and it MUST NOT be addressed by suppressing genuine warnings from the same runtime.
 
 **Endpoint retirement**
 
-- **FR-021**: The system MUST provide a supported operation to forget a peer's endpoint, clearing endpoint host, port, and freshness marker together.
+- **FR-021**: The system MUST provide a supported registry operation to forget a peer's endpoint, clearing endpoint host, port, and freshness marker together, AND MUST expose it as an operator-facing tool so a stale endpoint can be retired without shell access or direct database writes.
 - **FR-022**: Forgetting an endpoint MUST leave the peer's federated state, trust material, chat enablement, and audit history unchanged.
 - **FR-023**: After an endpoint is forgotten, the peer MUST be skipped by dialling until an endpoint is recorded again.
 - **FR-024**: Re-registration of an endpoint MUST restore normal dialling without further operator action.
 - **FR-025**: Endpoint-forgetting MUST be recorded such that the change is attributable after the fact.
 - **FR-026**: Achieving any requirement in this feature MUST NOT require direct database manipulation by an operator.
+
+**Outbound outcome resolution**
+
+- **FR-034**: An outbound invocation's audit record MUST be updated with its terminal outcome — success, denial, failure, or timeout — rather than remaining permanently in a pending state.
+- **FR-035**: The terminal outcome MUST be joined to the same request identifier used when the call was initiated, so both parties to a federated call can reconcile the same call by identifier.
+- **FR-036**: A refusal returned by a remote peer MUST be recorded as a denial, not discarded, so refusals are auditable evidence rather than transient responses.
+- **FR-037**: A call that times out or whose channel drops before a response MUST reach a terminal recorded state rather than remaining pending.
 
 **Preservation of existing behavior**
 
@@ -164,7 +220,8 @@ An operator can tell the system to forget a peer's recorded endpoint, leaving th
 - **SC-003**: With one or more permanently-unreachable peers configured, sustained log volume attributable to them is reduced by at least 90% compared with today, measured over a period long enough to include many retry intervals.
 - **SC-004**: A benign connect-and-close produces exactly one log line and no stack trace.
 - **SC-005**: A peer suffering a single transient failure reconnects no later than it does today.
-- **SC-006**: A long-dead peer that becomes reachable again resumes normal operation within one bounded, documented interval.
+- **SC-006**: A long-dead peer that re-registers an endpoint resumes normal operation within seconds; one that becomes reachable without re-registering resumes within approximately 15 minutes.
+- **SC-012**: A peer that repeatedly connects and drops does not defeat dampening — its log volume stays bounded rather than returning to per-attempt reporting.
 - **SC-007**: Retiring a stale endpoint is achievable through a supported operation, with zero direct database writes.
 - **SC-008**: In a live scenario mixing one healthy peer, one dead peer, and background probe traffic, an inbound call is identifiable in the log within seconds by visual inspection.
 - **SC-009**: Audit completeness is unchanged: for any inbound call, the audit record contains everything it contains today.
