@@ -33,6 +33,17 @@ account exists. Written as part of spec [099-mobile-prerelease-sweep](../specs/0
    never committed). Upload an APNs auth key (`.p8`) to the Firebase project's
    Cloud Messaging settings.
 
+3a. **Register the `WatchComplication` App Group.**
+   Confirmed empirically (not just documented): a free/Personal team has **no
+   Certificates/Identifiers/App Groups management UI at all** in the Apple
+   Developer portal — that section only appears once Program enrollment is
+   active. Once it is, go to Certificates, IDs & Profiles → Identifiers → App
+   Groups → create `group.ca.automateyournetwork.netclaw.mobile`, then a real-device
+   build of `WatchComplication` (Story 8's watch face complication) will
+   provision correctly. Until then, real-device installs need `WatchComplication`
+   temporarily detached from `WatchApp`'s embed phase (see `research.md` R13) —
+   Simulator/CI builds are unaffected either way.
+
 4. **Fill in `ExportOptions.plist`'s `teamID`.**
    Find it at [developer.apple.com/account](https://developer.apple.com/account)
    under Membership.
