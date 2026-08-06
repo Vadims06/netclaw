@@ -130,7 +130,13 @@ For **detailed infrastructure notes on specific MCP servers/skills** (GitLab, Ch
 
 ## N2N Federation MCP Server (NetClaw Native)
 
-38 MCP tools proxying the local `bgp-daemon-v2` HTTP API for claw-to-claw federation over NCFED. Replication-specific tools (feature 065, chroma-to-chroma vector replication — see `workspace/skills/n2n-federation/SKILL.md` for when/how to use them):
+39 MCP tools proxying the local `bgp-daemon-v2` HTTP API for claw-to-claw federation over NCFED.
+
+Observability / endpoint hygiene tool (feature 100 — see `specs/100-federation-log-observability/`):
+- `n2n_forget_endpoint(peer, actor="operator")` — WHEN a peer's recorded dial endpoint is known-wrong (it moved, its tunnel rotated, or it will not return) and `n2n_health` shows repeated dial failures against it. A permanently-unreachable peer with a stale endpoint was the single largest source of federation log noise (23,366 lines in 7 days before this feature); clearing the endpoint stops it at the source. The peer stays federated and keeps trust material, chat setting and audit history — only the dial address is cleared, and it reconnects automatically the moment it re-registers by contacting this Border. A live channel is left running. Idempotent.
+- Config (dead-peer log dampening, all optional): `N2N_RECONNECT_DAMPEN` (`0` = full bypass, restores per-attempt WARNING logging for diagnosis), `N2N_RECONNECT_DEAD_CEILING_S` (default `900`), `N2N_RECONNECT_DEAD_AFTER` (default `20`), `N2N_RECONNECT_ENDPOINT_STALE_S` (default `86400`), `N2N_RECONNECT_SUMMARY_INTERVAL_S` (default `300`), `N2N_RECONNECT_STABLE_AFTER_S` (default `120`)
+- No new credentials.
+ Replication-specific tools (feature 065, chroma-to-chroma vector replication — see `workspace/skills/n2n-federation/SKILL.md` for when/how to use them):
 - `n2n_replicate` — WHEN the user wants a standing local copy of a consenting peer's RAG collection (not just a one-off answer — use `n2n_knowledge_query` for that). Returns a `task_id` immediately; does not block.
 - `n2n_replicate_resync` — WHEN a previously replicated collection needs refreshing to match the source's current content (full replace, same async pattern)
 - `n2n_replicate_delete` — WHEN the user wants a local replica removed entirely (distinct from revoking the grant, which only blocks *future* replication)

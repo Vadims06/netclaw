@@ -2,7 +2,7 @@
 
 **Feature Branch**: `100-federation-log-observability`
 **Created**: 2026-08-06
-**Status**: Draft
+**Status**: Implemented — code complete, 441 tests green, `reconcile-mcp.py` clean. **Live verification (T048) still pending**: it requires a `netclaw-mesh.service` restart, which drops the live federation channel to `as65006-6.6.6.6`, so it is an explicit operator-confirmed step (plan.md "Restart sensitivity"). SC-003 additionally needs a synthetic dead peer, because the manual endpoint clear during the original incident left the defect dormant — see [baseline.md](./baseline.md).
 **Input**: Live operational finding, 2026-08-06 — while watching the mesh daemon log for an expected inbound federated call from peer `as65006-6.6.6.6` ("Nate"), the operator could not have spotted the call by eye. The journal was emitting roughly 38 lines per 5 minutes of pure noise about permanently-dead peers, and the inbound-call path itself logs almost nothing at info level. Detecting the call reliably required polling the `remote_invocation_record` audit table instead of reading the log. Three distinct code defects were confirmed against the source.
 
 ## Problem Statement
@@ -245,6 +245,40 @@ When this system calls a remote peer, the audit record reflects what actually ca
 ## Out of Scope
 
 - **The `fd00:ee::0` BGP session flap observed alongside these defects is configuration, not code.** It originates from a configured BGP peer with nothing listening, and is corrected by editing the daemon's environment configuration and restarting the service — not by changing code. It is excluded from this feature deliberately. However, it exhibits **the same defect shape as User Story 2**: a session state machine that reports a known-dead peer forever at unchanging cadence. Whether the dampening principle established here should also govern BGP session retry reporting is a legitimate follow-on question this feature should answer explicitly rather than silently leave open.
+
+  **Answered (T047, 2026-08-06): yes — as a follow-on spec, not as scope creep here.**
+
+  The measured case for it is now stronger than when this spec was written. `baseline.md`
+  records **241 `Connection failed to fd00:ee::0` lines today** at a flat 5 per 10
+  minutes, and unlike the federation storm this one is *still running* — clearing the
+  peers' endpoints silenced US2's noise but did nothing for the BGP FSM, which has no
+  endpoint-staleness concept to gate on. After this feature lands, `fd00:ee::0` becomes
+  the single largest remaining source of mesh-daemon log noise.
+
+  Three reasons it is nonetheless a separate spec:
+
+  1. **Different state machine, different code.** US2's dampening lives in
+     `FederationService`'s reconnect supervisor and keys off `federation_peer`
+     endpoint freshness. The BGP FSM (`bgp/session.py`) has neither a peer registry row
+     nor an endpoint-freshness marker, so FR-011's two-signal test has no second signal
+     available. A BGP equivalent needs its own staleness notion (e.g. "never once
+     reached Established"), which is a design question, not a port.
+  2. **RFC 4271 constrains it.** Federation dial cadence is NetClaw's own invention and
+     free to change. BGP `ConnectRetryTimer` behavior is specified, and altering retry
+     *scheduling* risks interoperability with real routers. A follow-on spec must
+     separate **reporting** cadence (safe to dampen) from **retry** cadence (not), a
+     distinction this feature never had to make because both were ours.
+  3. **The immediate remedy is config, and it is one line.** Removing the dead peer from
+     the daemon's environment eliminates 241 lines/day today, with no code risk. Fixing
+     the reporting in code is the durable answer for *operators who legitimately
+     configure an unreachable peer* — a real but secondary case.
+
+  **Recommended follow-on scope**: apply the reporting principle (collapse identical
+  consecutive FSM transition failures into a periodic summary carrying count and period)
+  to `bgp/session.py`, reusing this feature's `_cause_sig` normalization and
+  `N2N_RECONNECT_SUMMARY_INTERVAL_S`-style tunable, and explicitly **not** changing
+  `ConnectRetryTimer` scheduling. That keeps RFC 4271 conformance untouched while
+  removing the noise.
 - Changing federation wire protocol, handshake semantics, trust model, or certificate handling.
 - Altering audit, provenance, or approval semantics beyond making existing events visible in the log.
 - Building log aggregation, metrics export, dashboards, or alerting.
