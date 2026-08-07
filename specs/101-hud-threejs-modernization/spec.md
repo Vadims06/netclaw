@@ -61,6 +61,53 @@ Scene size | ~40 nodes (7 peers + 30 members + Border + edges) |
   through FR-033 and SC-008 go with them. US1–US5 are unchanged and were written to be
   renderer-agnostic, so nothing else shifts.
 
+- Q: What should the liveness encoding do when the `/api/n2n` poll itself fails (network
+  error, daemon down, malformed response)? → A: **Freeze and flag.** Retain the last known
+  good state, mark the whole scene as stale-data with the age of the last successful poll, and
+  never mutate per-peer liveness on a failed fetch. A failed poll is not evidence about peers;
+  conflating "I cannot see" with "they are down" would fabricate a total outage and send an
+  operator chasing it.
+
+- Q: How should the performance target be quantified, given FR-021's unfalsifiable
+  "measurably"? → A: **Relative budget — frame time may not increase more than 10% versus a
+  captured pre-change baseline on the same machine and the same scene.**
+
+  Because a relative budget is only as good as its baseline, the baseline capture is itself
+  constrained (FR-044): same machine, same scene composition, same quality mode, same browser,
+  measured over a sustained window rather than an instant, and recorded in the PR so the
+  comparison is reproducible rather than asserted. Without that, a noisy baseline run makes any
+  later regression pass.
+
+- Q: What happens when a peer is selected and then disappears from the `/api/n2n` feed? → A:
+  **Retain and mark as gone.** Keep the panel showing that peer's last known detail, explicitly
+  flagged as no longer present in the feed, and drop the node's selected treatment in the scene.
+  This is Q1's principle one level down: blanking the panel discards what the operator was
+  reading mid-investigation, while keeping it live and unlabelled is the FR-006 defect in a new
+  place. Peers genuinely do leave the feed — Hermes was re-enrolled under a new AS on
+  2026-07-23, and spec 100's `forget_peer_endpoint` mutates rows under a running HUD.
+
+- Q: How do SC-002 and SC-003 pass or fail, given "an observer can correctly identify/sort" is
+  self-graded? → A: **Declared channels plus screenshot evidence.** The design must name the
+  specific visual channels carrying each state (e.g. outline, rim, opacity, badge, label
+  affix), and acceptance is a screenshot in which each declared channel is present and distinct
+  per state. Self-checkable with the `chrome-devtools-mcp` already in use, needs no second
+  observer, and converts a judgement into a check. A pixel-diff fixture harness (the fully
+  objective option) was rejected as tooling this repo has never had and does not need for four
+  states.
+
+- Q: Which three.js version is the FR-044 performance baseline captured against, given US5
+  bumps mid-feature? → A: **Two baselines.** Capture at `0.170.0`; land the bump alone and
+  re-measure, gating its own frame-time delta at 10%; then measure US2/US3/US4 against the
+  post-bump baseline.
+
+  Without this, a baseline at 0.170 followed by both a bump and new animation makes a
+  regression unattributable, defeating the falsifiability Q2 was chosen to create. It also
+  gives US5 a performance gate it otherwise lacks entirely — FR-025 only required the upgrade
+  preserve *visual* behavior, so nothing checked whether it cost frame time.
+
+  **Sequencing consequence**: US5 must land **alone and before** US2/US3/US4 are measured, even
+  though it is P2 by operator value. Priority orders *value*; this orders *measurement*.
+
 ### Decisions taken without asking (reasonable defaults, recorded)
 
 - **The version bump is decoupled from the renderer choice.** Verified free at build level
@@ -103,6 +150,9 @@ with no other story implemented.
    detail renders — both entry points are affected by the defect and both must be fixed.
 5. **Given** a peer with in-flight delegated tasks, **When** it is selected, **Then** those
    tasks are listed.
+6. **Given** a peer is selected, **When** it disappears from `/api/n2n` on the next poll,
+   **Then** the panel still shows its last known detail marked as no longer present, and the
+   node is no longer drawn as selected.
 
 ---
 
@@ -200,6 +250,9 @@ unchanged scene.
    normal access path.
 5. **Given** `THIRD_PARTY_NOTICES.md` or the HUD README cites a three.js version, **Then**
    they are updated (Principle XII).
+6. **Given** the pre-bump and post-bump FR-044 baselines, **When** they are compared, **Then**
+   the upgrade's own median frame-time increase is within 10% — the bump is gated on cost, not
+   only on looking unchanged.
 
 ---
 
@@ -210,12 +263,16 @@ unchanged scene.
 - What happens when two peers share a `display_name` (the live "Hermes" case, two identities)?
   Feature 072's `disambiguateLabels` handles the label; US1's inspector must show the
   *identity*, not just the label, or the panel is ambiguous.
-- What happens on a browser with neither WebGPU nor adequate WebGL 2?
 - What happens if `channel_state` is `"unknown"` — genuinely unknown, or not yet polled? US3
   must not render "unknown" as "dead".
-- What happens to the CSS2D label layer under `WebGPURenderer`? Labels are DOM overlays and
-  should be unaffected, but this is unverified.
-- What happens when a peer is selected and then disappears from the feed?
+- **Resolved (Clarifications):** what happens when the `/api/n2n` poll fails outright? The
+  scene freezes on last known good state and is flagged stale with the age of the last
+  successful poll (FR-041/042/043). Per-peer liveness is never mutated by a failed fetch.
+- What happens on a browser without adequate WebGL 2? (The WebGPU variant of this question was
+  removed with the renderer clarification — this feature stays on `WebGLRenderer`.)
+- **Resolved (Clarifications):** a selected peer disappearing from the feed retains its last
+  known detail in the panel, explicitly flagged as no longer present, and loses its selected
+  treatment in the scene (FR-045).
 
 ## Requirements *(mandatory)*
 
@@ -234,6 +291,10 @@ unchanged scene.
 - **FR-006**: No `setDetail` kind may fall through to the default overview branch. An
   unrecognised kind MUST fail loudly in development rather than silently rendering another
   subject's content — this silent fallthrough *is* the defect.
+- **FR-045**: If the selected peer disappears from the feed, the inspector MUST retain that
+  peer's last known detail and MUST label it as no longer present, and the scene MUST drop that
+  node's selected treatment. The panel MUST NOT silently continue to read as current, and MUST
+  NOT be blanked — the operator may be mid-investigation.
 
 ### Selection (US2)
 
@@ -256,6 +317,14 @@ unchanged scene.
 - **FR-016**: `unknown` state MUST be rendered as distinct from both healthy and dead.
 - **FR-017**: The encoding MUST NOT overstate confidence — a peer that is merely unpolled must
   not read as failed.
+- **FR-041**: A failed, errored, or unparseable `/api/n2n` poll MUST NOT mutate any peer's or
+  member's liveness encoding. The last known good state MUST be retained. Absence of data is
+  not evidence of failure, and rendering it as failure would fabricate an outage.
+- **FR-042**: While the last poll is failing, the HUD MUST indicate at scene level that the
+  data is stale, including the age of the last successful poll, so the operator can distinguish
+  "this is current" from "this is what I last knew."
+- **FR-043**: On recovery, the scene MUST return to normal indication on the next successful
+  poll with no reload and no manual acknowledgement.
 
 ### Link flow (US4)
 
@@ -263,7 +332,8 @@ unchanged scene.
   peers MUST NOT.
 - **FR-019**: Flow direction MUST correspond to something real, or MUST be non-directional.
 - **FR-020**: Flow MUST respect reduced-motion preference.
-- **FR-021**: Flow MUST NOT measurably regress frame rate at current scene scale.
+- **FR-021**: Flow MUST NOT increase median frame time by more than **10%** versus the
+  pre-change baseline captured per FR-044, at current scene scale with all effects enabled.
 
 ### Version upgrade (US5)
 
@@ -287,6 +357,21 @@ unchanged scene.
   scene renders.
 - **FR-036**: Any new pure logic MUST be unit-tested on the `src/orgchart/` side of feature
   072's pure/render split, which forbids importing three.js.
+- **FR-046**: The design MUST declare, per state, which visual channels carry it — selected vs
+  unselected, and live vs unknown vs stale vs severed. Each state MUST map to a combination
+  distinct from every other state's, and no state may be carried by color alone (FR-014).
+  SC-002 and SC-003 are checked against this declaration, so an undeclared channel set makes
+  them unverifiable.
+- **FR-044**: **Two** performance baselines MUST be captured and recorded in the PR: one at
+  `three@0.170.0` before any change, and one at `three@0.185.1` after the bump lands alone.
+  Each MUST state machine, browser, scene composition (node counts by band), quality mode, and
+  median frame time over a sustained window — not an instantaneous reading. An uncaptured or
+  unreproducible baseline makes FR-021, FR-047 and SC-005 unverifiable and blocks their
+  acceptance.
+- **FR-047**: The version bump's own frame-time delta MUST be measured between the two FR-044
+  baselines and MUST NOT exceed 10%. US2/US3/US4 are then measured against the **post-bump**
+  baseline, so a regression is attributable to the upgrade or to the feature work, never
+  ambiguous between them.
 
 ### Preservation
 
@@ -301,19 +386,26 @@ unchanged scene.
 
 - **SC-001**: An operator can click any of the 7 peers and see that peer's own detail — 7/7,
   where today it is 0/7.
-- **SC-002**: In a screenshot with no panel visible, an observer can correctly identify which
-  node is selected.
-- **SC-003**: In a screenshot, an observer can correctly sort peers into live / stale /
-  severed without clicking.
+- **SC-002**: A screenshot with no panel visible shows the selected node carrying every
+  channel declared for selection (FR-046), each visibly distinct from the unselected treatment
+  of the same node type.
+- **SC-003**: A single screenshot containing a live, a stale, and a severed peer shows three
+  mutually distinct combinations of the declared channels (FR-046) — no two states share an
+  identical rendering.
 - **SC-004**: The HUD runs on `0.185.1` with zero console errors and no visual regression.
-- **SC-005**: Frame rate at current scene scale is no worse than before, measured the same way
-  before and after.
+- **SC-005**: Median frame time at current scene scale is within **110%** of the **post-bump**
+  FR-044 baseline, and the bump's own delta from the pre-bump baseline is also within 110%
+  (FR-047). All three numbers are recorded in the PR. A run that cannot produce them fails this
+  criterion rather than passing by default.
 - **SC-006**: No `setDetail` call can silently render the wrong subject — an unhandled kind is
   detectable rather than plausible.
 - **SC-007**: Bundle growth from the upgrade stays within ~10% of today's 753 kB.
   the WebGPU-only capabilities absent rather than broken.
 - **SC-009**: Every claim of "verified" in this feature is backed by a build result, a
   screenshot, or a test — not by inspection alone.
+- **SC-010**: With the mesh daemon stopped, no peer's appearance changes to indicate failure,
+  and the scene reports stale data with the age of the last successful poll. Directly testable
+  by stopping `netclaw-mesh.service` with the HUD open.
 
 ## Assumptions
 
