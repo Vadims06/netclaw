@@ -2,7 +2,7 @@
 
 **Feature Branch**: `101-hud-threejs-modernization`
 **Created**: 2026-08-06
-**Status**: Draft — awaiting clarification on the renderer decision (see Clarifications)
+**Status**: Draft — renderer decision resolved 2026-08-06 (stay on WebGLRenderer; WebGPU deferred to spec 102). Ready for `/speckit.plan`.
 **Input**: Operator request, 2026-08-06 — "I can't click on Nate / eN2N netclaws in the HUD for details, they are not clickable"; then "anything else you think the HUD needs work on especially using three.js latest and greatest stuff"; then "proceed with fix, and 2-5; and bring in some really showboat three.js stuff we couldn't do in .170 with .185.1".
 
 ## Problem Statement
@@ -43,20 +43,23 @@ Scene size | ~40 nodes (7 peers + 30 members + Border + edges) |
 
 ## Clarifications
 
-### Needed before Phase 1 — the renderer decision
+### Session 2026-08-06
 
-- **Q: Migrate to `WebGPURenderer`, or stay on `WebGLRenderer`?** → **[NEEDS CLARIFICATION]**
+- **Q: Migrate to `WebGPURenderer`, or stay on `WebGLRenderer`?** → **A: Staged. This feature
+  stays on `WebGLRenderer`.** The WebGPU migration and the capabilities that depend on it
+  become a **follow-on spec (102)** with its own risk budget.
 
-  This is the only genuinely open question and it gates User Stories 6–7 entirely.
-  `WebGPURenderer` does **not** support `ShaderMaterial` with raw GLSL, and does **not**
-  support `EffectComposer` — both must be ported (4 shaders, one 7-pass chain). In exchange it
-  is the *only* way to get compute-shader particles, `ClusteredLighting`, and node-based
-  post-processing. It falls back to WebGL 2 automatically, but the fallback does **not**
-  restore the WebGPU-only capabilities, so anything built on them is a progressive
-  enhancement that the HUD must look correct without.
+  Rationale, recorded because it is the load-bearing decision of this feature: adopting
+  `WebGPURenderer` requires porting 4 `ShaderMaterial`s to TSL *and* rebuilding a 7-pass
+  `EffectComposer` chain, because it supports neither raw GLSL shaders nor `EffectComposer`
+  (research R4). Bundling that with the peer-detail bug fix and the 0.185.1 bump — both
+  proven-safe — would make a zero-risk change hostage to a large one. Staging also means the
+  two highest-payoff improvements (selection legibility, liveness encoding) ship without
+  waiting on a renderer rewrite that, per research R5, does not itself improve them.
 
-  The spec is written so US1–US5 are renderer-agnostic and shippable either way, and US6–US7
-  are explicitly gated on this answer.
+  **Consequence for this spec**: US6 and US7 are removed and moved to Out of Scope; FR-029
+  through FR-033 and SC-008 go with them. US1–US5 are unchanged and were written to be
+  renderer-agnostic, so nothing else shifts.
 
 ### Decisions taken without asking (reasonable defaults, recorded)
 
@@ -200,53 +203,6 @@ unchanged scene.
 
 ---
 
-### User Story 6 — Node-based post-processing on WebGPU (Priority: P3) 🔒
-
-The post-processing chain runs on the modern node stack, enabling per-object selective bloom.
-
-**Why this priority**: P3 and **gated on the renderer clarification**. It requires porting 4
-`ShaderMaterial`s to TSL and rebuilding a 7-pass chain — bounded but real. Its main payoff is
-making US2's selection treatment cleaner, which US2 already achieves acceptably without it.
-
-**Independent Test**: the HUD renders identically on the node stack, and selective bloom
-applies to one object without affecting its neighbours.
-
-**Acceptance Scenarios**:
-
-1. **Given** `WebGPURenderer`, **Then** the four custom materials render as they do today.
-2. **Given** the node post-processing stack, **Then** bloom, SMAA, vignette, RGB-shift,
-   afterimage, film and glitch equivalents are all present or a deliberate, recorded omission.
-3. **Given** a WebGL-only browser, **Then** the HUD still renders correctly via fallback.
-4. **Given** selective bloom, **Then** the selected node can bloom without its neighbours doing so.
-
----
-
-### User Story 7 — Capabilities impossible at 0.170 (Priority: P3) 🔒
-
-The HUD uses genuinely new r185 capabilities: `ClusteredLighting` for per-claw lighting, and
-compute-shader particles for link flow.
-
-**Why this priority**: P3, **gated on the renderer clarification**, and explicitly a
-progressive enhancement — the WebGL fallback cannot provide these, so the HUD must be correct
-without them. This is the most visually impressive story and the least operationally necessary,
-and the priority reflects that honestly rather than rewarding novelty.
-
-**Independent Test**: on a WebGPU browser, per-claw lights and particle flow are present; on a
-WebGL-only browser, the HUD still reads correctly.
-
-**Acceptance Scenarios**:
-
-1. **Given** `ClusteredLighting` and one light per live claw, **Then** dozens of dynamic lights
-   render without the frame-rate collapse this would cause at 0.170.
-2. **Given** compute-shader particle flow on federation links, **Then** live links carry
-   visible packet flow and dead links do not.
-3. **Given** a WebGL-only browser, **Then** these degrade to US3/US4's non-WebGPU treatments
-   with no broken or empty visuals.
-4. **Given** either capability, **Then** it conveys real state — never decoration that could
-   mislead an operator about liveness.
-
----
-
 ### Edge Cases
 
 - What happens when `/api/n2n` returns zero peers (fresh install)? US3's encoding must have an
@@ -323,18 +279,6 @@ WebGL-only browser, the HUD still reads correctly.
 - **FR-028**: The upgrade MUST be verifiable without disturbing the running
   `netclaw-hud.service`, or the disruption MUST be an explicit confirmed step.
 
-### Renderer migration (US6/US7) — gated
-
-- **FR-029**: If `WebGPURenderer` is adopted, all four `ShaderMaterial`s MUST be ported to node
-  materials/TSL with no visual regression.
-- **FR-030**: If adopted, the 7-pass `EffectComposer` chain MUST be rebuilt on the node stack,
-  and any effect deliberately dropped MUST be recorded as a decision rather than silently lost.
-- **FR-031**: If adopted, the HUD MUST render correctly on a WebGL-only browser via fallback.
-- **FR-032**: WebGPU-only capabilities MUST be progressive enhancements. The HUD MUST NOT
-  depend on them for conveying any operational state.
-- **FR-033**: Any new visual channel MUST encode real state, never decoration that could be
-  misread as liveness.
-
 ### Verification
 
 - **FR-034**: Runtime verification MUST be visual, using the existing `chrome-devtools-mcp`
@@ -367,7 +311,6 @@ WebGL-only browser, the HUD still reads correctly.
 - **SC-006**: No `setDetail` call can silently render the wrong subject — an unhandled kind is
   detectable rather than plausible.
 - **SC-007**: Bundle growth from the upgrade stays within ~10% of today's 753 kB.
-- **SC-008**: If WebGPU is adopted, the HUD renders correctly on a WebGL-only browser, with
   the WebGPU-only capabilities absent rather than broken.
 - **SC-009**: Every claim of "verified" in this feature is backed by a build result, a
   screenshot, or a test — not by inspection alone.
@@ -388,6 +331,21 @@ WebGL-only browser, the HUD still reads correctly.
 
 ## Out of Scope
 
+- **The `WebGPURenderer` migration and everything gated on it — deferred to spec 102.**
+  Resolved in Clarifications, not dropped. Specifically deferred: porting the 4
+  `ShaderMaterial`s to node materials/TSL, rebuilding the 7-pass `EffectComposer` chain on the
+  node post-processing stack, `ClusteredLighting` (new in r185 — a light per live claw),
+  compute-shader particle flow, and per-object selective bloom.
+
+  Spec 102 inherits three constraints already established here, so it need not re-derive them:
+  the migration cost is **4 shaders and 0 `onBeforeCompile` hooks** (research R4); the WebGL
+  fallback keeps the scene rendering but does **not** restore WebGPU-only capabilities, making
+  every such capability a progressive enhancement the HUD must be correct without; and
+  `ClusteredLighting` overrides the WebGPU lighting system rather than layering on it.
+
+  It should be sequenced **after** 101 lands, because 101 establishes the visual baseline
+  (selection treatment, liveness encoding) that 102's post-processing rewrite must preserve —
+  attempting them together would leave no known-good reference to regress against.
 - **WebXR / VR walkthrough of the mesh.** Newly possible with WebGPU in r185 and genuinely
   interesting, but a distinct feature with its own interaction design.
 - **Rendering thousands of nodes.** Compute particles and instancing headlines target a scale
