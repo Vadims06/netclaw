@@ -1,7 +1,7 @@
 {
   "name": "netclaw-hud",
   "version": "1.0.0",
-  "description": "NetClaw Three.js HUD \u2014 futuristic network operations dashboard",
+  "description": "NetClaw Three.js HUD — futuristic network operations dashboard",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"node server.js\" \"vite --host\"",
@@ -20,7 +20,7 @@
     "multer": "^2.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "three": "^0.170.0",
+    "three": "^0.185.1",
     "ws": "^8.16.0"
   },
   "devDependencies": {

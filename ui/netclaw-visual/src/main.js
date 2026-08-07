@@ -22,6 +22,14 @@ import {
 import {
   createChartCamera, createChartControls, resizeChartCamera, frameChart,
 } from './orgchart-render/camera.js';
+// Feature 101: pure view-model + poll-outcome logic. These live under orgchart/
+// (never importing three.js) precisely so the decisions they make — what a peer's
+// state means, how stale is stale, whether a failed poll is an outage — are
+// unit-tested. The render modules here have no automated coverage.
+import { peerDetailView } from './orgchart/peer-detail.js';
+import {
+  createFeedState, recordSuccess, recordFailure, staleIndicator, renderablePayload,
+} from './orgchart/feed-state.js';
 import { VignetteShader } from 'three/addons/shaders/VignetteShader.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import gsap from 'gsap';
@@ -1310,6 +1318,66 @@ function setDetail(kind, payload, related = []) {
     return;
   }
 
+  // ── Feature 101 (US1): the eN2N peer inspector ──────────────────────────
+  //
+  // THE DEFECT THIS FIXES. The org-chart click path already passed
+  // 'federation-peer' from two places (the pointer handler and the keyboard/a11y
+  // handler), but no branch existed for it — so it fell past all six branches
+  // into the default overview below and repainted the panel with the GENERIC
+  // "This NetClaw" summary. The click registered, the panel repainted, and it
+  // showed a different subject's content. That is why it read as "not clickable"
+  // even though the mesh is pickable and hover-scales correctly.
+  //
+  // Deliberately NOT routed through 'peer-core': that branch expects a
+  // /api/graph BGP-session payload (peer.as, routerId, peerIp, routesReceived,
+  // adjRibIn) which is absent from the /api/n2n shape the org chart carries, so
+  // reusing it would render a panel of undefineds. The /api/n2n shape is also
+  // the richer one for federation.
+  if (kind === 'federation-peer') {
+    const nowEpochS = Math.floor(Date.now() / 1000);
+    const v = peerDetailView(payload, nowEpochS, {
+      label: payload?.__label,
+      presentInFeed: payload?.__presentInFeed !== false,
+    });
+
+    const taskRows = v.inFlightTasks.map((t) => `
+      <div class="detail-row"><span>${t.task_id || t.target_name || 'task'}</span>
+        <strong>${t.state || '—'}${t.progress ? ` · ${t.progress}` : ''}</strong></div>
+    `).join('');
+
+    dom.detailPanel.innerHTML = `
+      <h2>Peer Claw</h2>
+      <p>${v.heading}</p>
+      ${v.notInFeedNotice
+        ? `<div class="n2n-state-not-federated" style="padding:6px 0">${v.notInFeedNotice}</div>`
+        : ''}
+      <div class="detail-grid">
+        <div class="detail-row"><span>Identity</span><strong>${v.identity}</strong></div>
+        <div class="detail-row"><span>State</span><strong class="n2n-state-${v.state.toLowerCase()}">${v.state}</strong></div>
+        <div class="detail-row"><span>Meaning</span><strong>${v.stateSummary}</strong></div>
+        <div class="detail-row"><span>Channel</span><strong>${v.channelState}</strong></div>
+        <div class="detail-row"><span>Inventory</span><strong>${v.inventoryAge} · ${v.inventoryJudgement}</strong></div>
+        <div class="detail-row"><span>Chat</span><strong>${v.chatText}</strong></div>
+        <div class="detail-row"><span>In-flight tasks</span><strong>${v.inFlightText}</strong></div>
+      </div>
+      ${taskRows ? `<div class="detail-grid">${taskRows}</div>` : ''}
+    `;
+    return;
+  }
+
+  // FR-006: no kind may reach the default overview by accident.
+  //
+  // The silent fallthrough IS the bug fixed above — it renders a plausible panel
+  // for the wrong subject, which is strictly worse than rendering nothing,
+  // because the operator has no signal that anything went wrong. Anything not
+  // explicitly handled is a programming error and must be loud, not plausible.
+  if (kind !== undefined && kind !== null && kind !== 'overview') {
+    const msg = `setDetail: unhandled kind '${kind}' — falling through to the generic
+      overview would show another subject's content (feature 101 FR-006)`;
+    if (import.meta?.env?.DEV) throw new Error(msg);
+    console.error(msg);
+  }
+
   // Default: overview with BGP summary if available
   const bgpSummary = state.bgp?.available ? `
     <div class="bgp-overview-section">
@@ -2177,7 +2245,9 @@ function onClick(event) {
         setDetail('local-core');
         state.selected = { kind: 'local-core' };
       } else if (node.kind === 'peer') {
-        setDetail('federation-peer', node.payload);
+        // Pass the layout node's label: disambiguation is a whole-list operation
+        // (two peers legitimately share "Hermes") and normalize.js already did it.
+        setDetail('federation-peer', { ...node.payload, __label: node.label });
         state.selected = { kind: 'federation-peer', peer: node.id };
       } else {
         setDetail('member-core', node.payload);
@@ -2762,7 +2832,7 @@ async function boot() {
     mountA11y(document.getElementById('scene-root'), {
       onSelect: (node) => {
         if (node.kind === 'border') { setDetail('local-core'); state.selected = { kind: 'local-core' }; }
-        else if (node.kind === 'peer') { setDetail('federation-peer', node.payload); state.selected = { kind: 'federation-peer', peer: node.id }; }
+        else if (node.kind === 'peer') { setDetail('federation-peer', { ...node.payload, __label: node.label }); state.selected = { kind: 'federation-peer', peer: node.id }; }
         else { setDetail('member-core', node.payload); state.selected = { kind: 'member-core', member: node.id }; }
       },
       onToggle: (node) => toggleNodeExpansion(node.id, makeLabel),
