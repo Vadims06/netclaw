@@ -18,6 +18,7 @@ import {
   mountOrgChart, updateOrgChart, searchOrgChart,
   pickableObjects, chartNodes, tickOrgChart, activateNode,
   mountA11y, toggleNodeExpansion,
+  setSelectedNode, clearSelectedNode,
 } from './orgchart-render/index.js';
 import {
   createChartCamera, createChartControls, resizeChartCamera, frameChart,
@@ -73,6 +74,8 @@ const state = {
     view: 'integrations',
   },
   mouse: new THREE.Vector2(),
+  // Feature 101 (FR-041/042/043): poll-outcome memory for freeze-and-flag.
+  feed: createFeedState(),
   raycaster: new THREE.Raycaster(),
   socket: null,
   clock: new THREE.Clock(),
@@ -1177,6 +1180,29 @@ function wireFederationChat(peer) {
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') send(); });
 }
 
+/**
+ * Scene-level stale-data indicator (feature 101, FR-042).
+ *
+ * Deliberately a banner rather than a per-node treatment: the peers are not
+ * individually stale, our VIEW of all of them is. Marking each node would be the
+ * very confusion FR-041 exists to prevent.
+ */
+function renderStaleBanner(ind) {
+  let el = document.getElementById('feed-stale-banner');
+  if (!ind.degraded) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'feed-stale-banner';
+    el.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);'
+      + 'z-index:9999;padding:6px 14px;border-radius:6px;font:12px/1.4 ui-monospace,monospace;'
+      + 'background:rgba(120,80,20,.92);color:#ffe9c2;border:1px solid #d9a94a;'
+      + 'pointer-events:none;letter-spacing:.04em';
+    document.body.appendChild(el);
+  }
+  el.textContent = `⚠ ${ind.message}`
+    + (ind.consecutiveFailures > 1 ? ` (${ind.consecutiveFailures} failed polls)` : '');
+}
+
 function setDetail(kind, payload, related = []) {
   if (kind === 'local-core') {
     dom.detailPanel.innerHTML = `
@@ -2035,6 +2061,10 @@ function clearSelection() {
     restoreTracePath();
   }
   state.selected = null;
+  // Feature 101 (FR-008): selection is a scene channel now, so clearing the
+  // selection must clear it there too — otherwise the ring is left orphaned
+  // on a node the panel no longer describes.
+  clearSelectedNode();
   setDetail('overview');
   state.integrations.forEach((entry) => {
     entry.node.material.uniforms.uBrightness.value = 1.0;
@@ -2241,6 +2271,8 @@ function onClick(event) {
     const node = activateNode(chartHit.object, makeLabel);
     if (node) {
       clearSelection();
+      // Feature 101 (US2): channel 5. Set AFTER clearSelection, which clears it.
+      setSelectedNode(node.id);
       if (node.kind === 'border') {
         setDetail('local-core');
         state.selected = { kind: 'local-core' };
@@ -2303,7 +2335,7 @@ function animate() {
   // HUD 2.0 node pulses. Motion is a redundant channel (R8) — the four health
   // states are already separable by form and colour — so honouring reduced
   // motion simply skips it without weakening the encoding.
-  tickOrgChart(elapsed);
+  tickOrgChart(elapsed, state.camera);
 
   // Track time offset for freeze: when frozen, hold rotations at the moment of freeze
   if (frozen && state._frozenAt == null) state._frozenAt = elapsed;
@@ -2791,8 +2823,16 @@ async function boot() {
       const url = state.fixtureName
         ? `/fixtures/${state.fixtureName}.json`
         : '/api/n2n';
-      state.n2n = await (await fetch(url)).json();
-    } catch { state.n2n = null; }
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      recordSuccess(state.feed, await res.json(), Date.now());
+      state.n2n = renderablePayload(state.feed);
+    } catch (e) {
+      // First load failed: nothing to freeze. state.n2n stays null and the
+      // existing empty/first-run path renders — NOT a fabricated outage.
+      recordFailure(state.feed, e, Date.now());
+      state.n2n = null;
+    }
     if (state.fixtureName) markFixtureMode(state.fixtureName);
 
     setLoading(36, 'Spinning up scene');
@@ -2866,7 +2906,43 @@ async function boot() {
     setInterval(checkGatewayStatus, 15000);
     // Refresh N2N federation state so claw nodes reflect consent/inventory/sever (FR-026)
     setInterval(async () => {
-      try { state.n2n = await (await fetch('/api/n2n')).json(); } catch { /* keep last */ }
+      // Feature 101 (FR-041/042/043): freeze and flag.
+      //
+      // The pre-101 `catch { /* keep last */ }` froze by accident but never SAID
+      // so, and it could not detect a 200 carrying a wrongly-shaped body. A
+      // failed poll must never recompute liveness — if it did, the mesh daemon
+      // going down would render all seven peers dead and send an operator
+      // chasing an outage that does not exist. The decision logic lives in the
+      // tested pure module; this is only the wiring.
+      const nowMs = Date.now();
+      try {
+        const res = await fetch('/api/n2n');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        recordSuccess(state.feed, await res.json(), nowMs);
+      } catch (e) {
+        recordFailure(state.feed, e, nowMs);
+      }
+      // Only ever adopt a payload that actually succeeded. While degraded this
+      // keeps returning the last good one, which is the freeze half.
+      const frozen = renderablePayload(state.feed);
+      if (frozen) {
+        // FR-045: a peer selected when its row disappears keeps its panel, marked
+        // as gone, and loses its scene selection. Detected here because it needs
+        // the previous poll for comparison.
+        const before = new Set((state.n2n?.peers || []).map((p) => p.identity));
+        const after = new Set((frozen.peers || []).map((p) => p.identity));
+        if (state.selected?.kind === 'federation-peer'
+            && before.has(state.selected.peer) && !after.has(state.selected.peer)) {
+          const gone = (state.n2n.peers || []).find((p) => p.identity === state.selected.peer);
+          if (gone) {
+            setDetail('federation-peer', { ...gone, __presentInFeed: false });
+            clearSelection();
+            state.selected = { kind: 'federation-peer', peer: gone.identity, stillPresent: false };
+          }
+        }
+        state.n2n = frozen;
+      }
+      renderStaleBanner(staleIndicator(state.feed, nowMs));
       // The detail panel only renders on click (setDetail is never called
       // again just because state.n2n refreshed) -- if "This NetClaw" is the
       // panel currently open, re-render it in place so edge-node liveness/

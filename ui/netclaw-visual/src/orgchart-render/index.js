@@ -16,7 +16,7 @@ import * as THREE from 'three';
 import { computeLayout, appendMember } from '../orgchart/layout.js';
 import { buildNodes, animateNodes, applyHighlight, TREATMENTS } from './nodes.js';
 import { buildBands } from './bands.js';
-import { buildLinks } from './links.js';
+import { buildLinks, animateFlows } from './links.js';
 import { classifyHealth } from '../orgchart/health.js';
 import { toggleExpansion, collapseAll, isExpanded, expandedCount } from './expansion.js';
 import { buildA11yOverlay } from './a11y.js';
@@ -33,6 +33,11 @@ const chart = {
   catalog: [],
   entries: [],
   search: '',
+  // Feature 101 (US2): the single selection marker. ONE mesh moved between
+  // nodes rather than a per-node treatment, which makes FR-009 (exactly one
+  // node reads as selected) structural instead of something to remember.
+  selectionMarker: null,
+  selectedNodeId: null,
 };
 
 export function prefersReducedMotion() {
@@ -224,6 +229,83 @@ export function collapseAllExpansions() {
 
 export { isExpanded, expandedCount };
 
-export function tickOrgChart(elapsed) {
+/**
+ * Selection as its own visual channel (feature 101, US2 — visual-contract §2).
+ *
+ * ## Why an outline and not brightness
+ *
+ * The org chart had NO selection treatment at all — clicking set the detail panel
+ * and nothing else, so the only feedback was the panel itself. The legacy orbit
+ * scene used `emissiveIntensity = 1.8` plus a scale bump, and copying that here
+ * would have reused STATE channels: brightening a dim node pushes it toward the
+ * healthy treatment, so a selected STALE peer would look like a live one. That is
+ * the concrete failure FR-007 names.
+ *
+ * So selection lives outside the silhouette, in space no state channel uses:
+ * a ring drawn around the node, in a neutral colour that belongs to no state.
+ *
+ * Additive blending is deliberately NOT used — the scene already runs
+ * UnrealBloomPass, and an additive ring washes out into the glow it is supposed
+ * to stand against.
+ */
+const SELECTION_COLOR = 0xffffff;
+
+function ensureSelectionMarker() {
+  if (chart.selectionMarker) return chart.selectionMarker;
+  const geo = new THREE.TorusGeometry(1, 0.075, 8, 48);
+  const mat = new THREE.MeshBasicMaterial({
+    color: SELECTION_COLOR, transparent: true, opacity: 0.95,
+    depthTest: false,          // always legible, even behind a nearer node
+    toneMapped: false,         // keep it pure white through the tone-mapped chain
+  });
+  const ring = new THREE.Mesh(geo, mat);
+  ring.renderOrder = 999;
+  ring.visible = false;
+  ring.name = 'orgchart-selection';
+  chart.selectionMarker = ring;
+  if (chart.root) chart.root.add(ring);
+  return ring;
+}
+
+/**
+ * Mark one node as selected, or clear when nodeId is falsy.
+ *
+ * @param {string|null} nodeId layout node id
+ */
+export function setSelectedNode(nodeId) {
+  const ring = ensureSelectionMarker();
+  if (chart.root && ring.parent !== chart.root) chart.root.add(ring);
+
+  const entry = nodeId ? chart.entries.find((e) => e.node.id === nodeId) : null;
+  if (!entry) {
+    ring.visible = false;
+    chart.selectedNodeId = null;
+    return;
+  }
+
+  // Sized from the node's own base scale so it reads at every zoom (FR-011) and
+  // never depends on the pulse-modulated live scale.
+  const r = entry.baseScale * 1.9 + 0.9;
+  ring.scale.setScalar(r);
+  ring.position.set(entry.node.position.x, entry.node.position.y, entry.node.position.z);
+  ring.visible = true;
+  chart.selectedNodeId = nodeId;
+}
+
+/** FR-008: full restoration on deselect, with no residue. */
+export function clearSelectedNode() {
+  setSelectedNode(null);
+}
+
+export function selectedNodeId() {
+  return chart.selectedNodeId;
+}
+
+export function tickOrgChart(elapsed, camera) {
   animateNodes(chart.entries, elapsed, prefersReducedMotion());
+  // Feature 101 (US4): flow markers on LIVE peer links only.
+  animateFlows(chart.links?.flows, elapsed, prefersReducedMotion());
+  // Billboard the selection ring: an unrotated torus seen edge-on collapses to
+  // a line and the selection appears to vanish at some camera angles.
+  if (camera && chart.selectionMarker?.visible) chart.selectionMarker.quaternion.copy(camera.quaternion);
 }
