@@ -2,7 +2,7 @@
 
 **Feature Branch**: `102-hud-webgpu-interactive-layout`
 **Created**: 2026-08-07
-**Status**: Draft — two blocking clarifications (see Clarifications)
+**Status**: Draft — both clarifications resolved 2026-08-07 (server-side persistence; hard switch to `WebGPURenderer`).
 **Input**: Operator request, 2026-08-07 — "work on 102 - the amazing show off polish - also for 102 ADD the ability to click / drag / reposition the layouts maybe offer a drop down default layout; some layout options; free-form; SAVE layout?"
 
 ## Problem Statement
@@ -33,21 +33,25 @@ Test split | `src/orgchart/` pure and tested; `src/orgchart-render/` has no cove
 
 ## Clarifications
 
-### Needed before Phase 1
+### Session 2026-08-07
 
-- **Q1: Where do saved layouts persist?** → **[NEEDS CLARIFICATION]**
-  Spec 101's FR-039 forbade touching `server.js` or the `/api/n2n` contract, and 072 did the same.
-  Saving a layout breaks that unless it stays client-side. Options: browser `localStorage`
-  (no server change, per-browser, lost on cache clear); a new `server.js` endpoint plus on-disk
-  file (shared across browsers, but widens the API surface two specs deliberately kept closed);
-  or export/import a JSON file the operator manages. This decides whether 102 is still a
-  client-only feature.
+- Q: Where do saved layouts persist? → **A: Server-side.** A new `server.js` endpoint backed by an
+  on-disk file, so a layout follows the operator across browsers and survives a cache clear.
+  **This makes 102 the first HUD spec to change `server.js`**, which 072 and 101 both explicitly
+  forbade — now a *scoped, deliberate exception* rather than drift, narrowed to layout persistence
+  with `/api/n2n` and `/api/graph` untouched (FR-032). Consequences accepted: the HUD gains write
+  state it has never had, bringing a small attack surface (FR-033/034) and a "whose layout" question
+  resolved by the single-operator assumption, not by building multi-user support.
 
-- **Q2: Does the WebGPU migration ship as a hard switch or a runtime toggle?** → **[NEEDS CLARIFICATION]**
-  A toggle means both renderers must be maintained — 4 shaders in *both* GLSL and TSL, and *two*
-  post-processing chains — roughly doubling the surface. A hard switch means WebGL-only browsers
-  lose the showcase features permanently and there is no fallback to compare against when a
-  visual regression appears.
+- Q: Hard renderer switch, or runtime toggle? → **A: Hard switch to `WebGPURenderer`.** One
+  maintained path: 4 shaders ported to TSL with no GLSL kept, 7-pass chain rebuilt on the node stack
+  with no `EffectComposer` kept. **This does NOT abandon WebGL users** — `WebGPURenderer` has its own
+  automatic WebGL 2 backend, so such browsers still render, just without the WebGPU-only showcase
+  features already specified as progressive enhancements (FR-024). "Hard switch" is about how many
+  code paths *we* maintain, not who can view. Real cost accepted: no second renderer to A/B against
+  when a regression appears — mitigated by 101's committed baselines in `specs/101-*/evidence/`,
+  which is exactly why they were committed. They are the reference implementation now.
+
 
 ### Decisions taken without asking (reasonable defaults, recorded)
 
@@ -228,6 +232,15 @@ necessary, and unavailable to any WebGL fallback viewer.
   no credentials, no inventory.
 - **FR-019**: A corrupt or unreadable saved layout MUST fall back to computed and say so, never
   render a broken scene.
+- **FR-032**: Layout persistence MUST be the ONLY addition to `server.js`. `/api/n2n` and
+  `/api/graph` MUST NOT change. A scoped exception, not a general licence.
+- **FR-033**: The endpoint MUST reject any payload that is not node identifiers plus numeric
+  positions, and MUST bound entry count and request size. The HUD has never accepted a write; an
+  unbounded one is a new failure mode.
+- **FR-034**: The layout file MUST be written to a fixed, non-configurable path under the HUD's own
+  data directory. No path component may come from the request.
+- **FR-035**: A write failure MUST surface to the operator and MUST NOT discard the in-memory
+  arrangement — a failed save must not also lose what it failed to save.
 
 ### WebGPU migration (US4)
 
@@ -235,7 +248,12 @@ necessary, and unavailable to any WebGL fallback viewer.
   regression against 101's baseline screenshots.
 - **FR-021**: The 7-pass chain MUST be rebuilt on the node stack; any effect dropped MUST be a
   recorded decision, not a silent loss.
-- **FR-022**: The HUD MUST render correctly on a WebGL-only browser.
+- **FR-022**: The HUD MUST render correctly on a browser without WebGPU, via `WebGPURenderer`'s own
+  WebGL 2 backend. Showcase features are absent there, never broken (FR-024).
+- **FR-036**: Exactly ONE renderer path ships. No GLSL `ShaderMaterial` and no `EffectComposer`
+  usage may remain — a dormant second path would rot unnoticed, since nothing would exercise it.
+- **FR-037**: With no live fallback to compare against, every visual claim MUST be verified against
+  spec 101's committed baseline screenshots, not a running WebGL build.
 - **FR-023**: 101's six peer states, selection ring and link-flow gating MUST be preserved
   exactly — they are the visual baseline this migration must not disturb.
 
@@ -284,6 +302,9 @@ necessary, and unavailable to any WebGL fallback viewer.
   when 101 began.
 - ~40 nodes remains the scale. Nothing here targets thousands.
 - `/api/n2n` remains unchanged as the source of topology and state.
+- **Single operator.** The HUD is served on loopback to one person, so a server-side layout needs no
+  identity, scoping or conflict resolution. Concurrent use is last-write-wins — a recorded limit.
+- `WebGPURenderer`'s automatic WebGL 2 backend is the fallback; no separate fallback is maintained.
 
 ## Out of Scope
 
@@ -291,8 +312,11 @@ necessary, and unavailable to any WebGL fallback viewer.
 - **Automatic layout algorithms** (force-directed, hierarchical solvers). Presets are a fixed
   named set; solving layout is its own problem.
 - **Collaborative or shared layouts** — multiple operators seeing each other's arrangements.
-- **Changing `/api/n2n`, `server.js`** — unless Q1 resolves toward a server-side store, in which
-  case that becomes an explicit, scoped exception rather than a quiet drift.
+- **Changing `/api/n2n` or `/api/graph`.** Still forbidden (FR-032); the `server.js` exception
+  covers layout persistence and nothing else.
+- **Multi-operator / shared layouts.** Server-side storage makes this look free; it is not — it
+  needs identity, conflict resolution and per-user scoping.
+- **Maintaining a WebGL renderer path.** Removed by the hard switch.
 - **Rendering thousands of nodes.**
 - **The chat interface and right-hand info bar.**
 
