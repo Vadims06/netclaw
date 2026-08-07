@@ -344,7 +344,11 @@ unchanged scene.
   deprecation warnings.
 - **FR-025**: All existing visual behavior MUST be preserved — bands, labels, links,
   selection, camera, and every post-processing pass.
-- **FR-026**: Documentation citing a three.js version MUST be updated (Principle XII).
+- **FR-026**: The renderer stack version MUST be recorded in `ui/netclaw-visual/README.md`
+  (Principle XII — documentation must accurately reflect current state). **Verified during
+  analysis: neither `README.md` nor `THIRD_PARTY_NOTICES.md` currently cites a three.js
+  version at all**, so this is an addition, not an edit. `THIRD_PARTY_NOTICES.md` is out of
+  scope — it covers adapted third-party *source* (Jack Rabbit), not dependency versions.
 - **FR-027**: `scripts/reconcile-mcp.py` MUST exit 0 (CLAUDE.md; CI gate).
 - **FR-028**: The upgrade MUST be verifiable without disturbing the running
   `netclaw-hud.service`, or the disruption MUST be an explicit confirmed step.
@@ -389,9 +393,11 @@ unchanged scene.
 - **SC-002**: A screenshot with no panel visible shows the selected node carrying every
   channel declared for selection (FR-046), each visibly distinct from the unselected treatment
   of the same node type.
-- **SC-003**: A single screenshot containing a live, a stale, and a severed peer shows three
-  mutually distinct combinations of the declared channels (FR-046) — no two states share an
-  identical rendering.
+- **SC-003**: A screenshot set covering **all six** declared peer states (`LIVE`, `IDLE`,
+  `STALE`, `UNKNOWN`, `UNREACHABLE`, `SEVERED`) shows six mutually distinct combinations of
+  the declared channels (FR-046) — no two states share an identical rendering. Covering only
+  live/stale/severed would leave FR-016's `UNKNOWN`-is-distinct requirement unverified
+  visually, which is exactly the state five of seven live peers occupy.
 - **SC-004**: The HUD runs on `0.185.1` with zero console errors and no visual regression.
 - **SC-005**: Median frame time at current scene scale is within **110%** of the **post-bump**
   FR-044 baseline, and the bump's own delta from the pre-bump baseline is also within 110%

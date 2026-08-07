@@ -31,7 +31,7 @@ would make any regression unattributable.
 **Constraints**: `server.js` and the `/api/n2n` contract MUST NOT change (FR-039). Chat interface and right-hand info bar untouched (FR-037). Feature 072's layout stability holds — no sibling moves on select/expand (FR-038). No state may be carried by color alone (FR-014). Bundle growth ≤10% of 753 kB (SC-007).
 **Scale/Scope**: ~40 nodes (7 peers + 30 members + Border + 2 edge nodes). ~6 files touched, 2–3 new pure modules.
 
-### Resolved during clarification (no NEEDS CLARIFICATION remain)
+### Resolved during clarification (no open questions remain)
 
 All five ambiguities were closed by `/speckit.clarify` and are recorded in spec.md
 Clarifications: poll-failure behavior, the performance metric, selected-peer disappearance,
@@ -54,8 +54,8 @@ initialisation anyway.
 |---|---|---|
 | **VIII. Verify After Every Change** | **PASS** | FR-044 mandates two captured baselines; FR-034/035 mandate screenshot + zero-console-error verification per story. This feature's verification is stronger than its predecessor's precisely because research R2 showed the existing test suite cannot see rendering. |
 | **X. Observability First-Class** | **PASS** | This *is* HUD work, and the clause "the Three.js HUD MUST be updated to reflect new integrations and their operational status" is the feature's whole point — US3 surfaces operational status the HUD currently fetches and discards. |
-| **XI. Full-Stack Artifact Coherence** | **PASS (subset — no new capability)** | Adds **no** MCP server, skill, integration, or installable component, so the catalog/install-steps/SOUL/SKILL/`config/openclaw.json` clauses do not apply. Applicable subset: `ui/netclaw-visual/` (the feature itself), `ui/netclaw-visual/README.md` + `THIRD_PARTY_NOTICES.md` (three.js version, FR-026), and `scripts/reconcile-mcp.py` must exit 0 (FR-027). No tool counts change. |
-| **XII. Documentation-as-Code** | **PASS** | Version references updated in the same PR (FR-026). No SKILL.md — no skill added. |
+| **XI. Full-Stack Artifact Coherence** | **PASS (subset — no new capability)** | Adds **no** MCP server, skill, integration, or installable component, so the catalog/install-steps/SOUL/SKILL/`config/openclaw.json` clauses do not apply. Applicable subset: `ui/netclaw-visual/` (the feature itself), `ui/netclaw-visual/README.md` (record the renderer stack version, FR-026 — analysis found neither README nor THIRD_PARTY_NOTICES currently cites one, so this is an addition), and `scripts/reconcile-mcp.py` must exit 0 (FR-027). No tool counts change. |
+| **XII. Documentation-as-Code** | **PASS** | Renderer stack version recorded in the same PR (FR-026). No SKILL.md — no skill added. |
 | **XIII. Credential Safety** | **PASS** | No credentials, no new environment variable. |
 | **XIV. Human-in-the-Loop (External)** | **PASS** | No external communication. Principle XVII post drafted and offered, never published unprompted. |
 | **XV. Backwards Compatibility** | **PASS** | `/api/n2n` consumed unchanged (FR-039); no API, schema or tool contract altered. The three.js bump is internal to the package. |
@@ -99,8 +99,7 @@ specs/101-hud-threejs-modernization/
 ```text
 ui/netclaw-visual/
 ├── package.json                    # US5: three 0.170.0 -> 0.185.1 (the only dep change)
-├── README.md                       # FR-026: three.js version reference
-├── THIRD_PARTY_NOTICES.md          # FR-026: three.js version reference
+├── README.md                       # FR-026: record renderer stack version (currently absent)
 └── src/
     ├── main.js                     # US1: new 'federation-peer' setDetail branch + FR-006
     │                               #      guard; US2: wire selection treatment; freeze-and-flag
