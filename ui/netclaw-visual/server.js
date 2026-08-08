@@ -1190,6 +1190,77 @@ app.get('/api/testbed/raw', (req, res) => {
   res.type('text/yaml').send(readText(TESTBED_FILE) || '# No testbed found');
 });
 
+// ── Layout persistence (feature 102, US3) ────────────────────────────────────
+//
+// SCOPED EXCEPTION. Specs 072 and 101 both forbade changing server.js; the operator
+// chose server-side persistence so a layout follows them across browsers. FR-032
+// narrows the exception to these three routes — /api/n2n and /api/graph are
+// untouched — and this is a new route in an existing pattern, since the server
+// already accepts writes (PUT /api/env, PUT /api/testbed/raw).
+//
+// Validation is the SHARED pure module, so the browser cannot construct a payload
+// the server would reject and vice versa. A second validator here would drift from
+// the client's within a release.
+import { validateLayout } from './src/orgchart/layout-payload.js';
+
+// FR-034: a module constant. No path component may derive from a request.
+const LAYOUT_FILE = path.join(os.homedir(), '.openclaw', 'netclaw-hud-layout.json');
+const LAYOUT_MAX_BYTES = 256 * 1024;
+
+app.get('/api/layout', (req, res) => {
+  // Absence is a normal first-run condition, NOT an error — making the client
+  // distinguish 404-means-none from 404-means-broken is a needless trap.
+  try {
+    if (!fs.existsSync(LAYOUT_FILE)) return res.json({ version: 1, empty: true });
+    const raw = fs.readFileSync(LAYOUT_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    const check = validateLayout(parsed);
+    if (!check.ok) {
+      // FR-019: fall back to computed AND say so. A 500 would be indistinguishable
+      // from the server being down, and the HUD would render identically either way.
+      return res.json({ version: 1, empty: true, warning: `saved layout rejected: ${check.error}` });
+    }
+    return res.json(parsed);
+  } catch (e) {
+    return res.json({ version: 1, empty: true, warning: `saved layout unreadable: ${e.message}` });
+  }
+});
+
+app.put('/api/layout', (req, res) => {
+  const body = req.body;
+  // FR-033: bound per-route. The global express.json({limit:'4mb'}) is far too
+  // permissive for a layout file and must not be relied on as the bound.
+  const size = JSON.stringify(body ?? null).length;
+  if (size > LAYOUT_MAX_BYTES) {
+    return res.status(400).json({ error: `payload ${size} bytes exceeds ${LAYOUT_MAX_BYTES}` });
+  }
+  const check = validateLayout(body);
+  if (!check.ok) return res.status(400).json({ error: check.error });
+
+  // Validate before touching disk, then write atomically: a crash mid-write must not
+  // leave a truncated file that fails every subsequent read.
+  try {
+    fs.mkdirSync(path.dirname(LAYOUT_FILE), { recursive: true });
+    const tmp = `${LAYOUT_FILE}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(body, null, 2), 'utf8');
+    fs.renameSync(tmp, LAYOUT_FILE);
+    return res.json({ saved: true, savedAt: new Date().toISOString() });
+  } catch (e) {
+    return res.status(507).json({ error: `write failed: ${e.message}` });
+  }
+});
+
+app.delete('/api/layout', (req, res) => {
+  // FR-017: discardable. Without this a bad saved layout is unremovable from the UI,
+  // since "reset to computed" only covers the current session.
+  try {
+    if (fs.existsSync(LAYOUT_FILE)) fs.unlinkSync(LAYOUT_FILE);
+    return res.json({ discarded: true });
+  } catch (e) {
+    return res.status(507).json({ error: `discard failed: ${e.message}` });
+  }
+});
+
 app.put('/api/testbed/raw', (req, res) => {
   const { content } = req.body;
   if (!content) return res.status(400).json({ error: 'Expected { content: "yaml string" }' });

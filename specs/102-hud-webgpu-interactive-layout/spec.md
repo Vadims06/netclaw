@@ -133,6 +133,15 @@ Test split | `src/orgchart/` pure and tested; `src/orgchart-render/` has no cove
   would destroy the value of the one that matters — hence FR-051's requirement that it fire only
   on genuine unsaved change.
 
+- Q: GlitchPass has no node equivalent — reimplement or drop? → **A: DROP** (operator delegated the
+  call, 2026-08-07). It is decorative, encodes no state, and fires periodically; on an operations
+  display a random image displacement can read as a rendering fault or a data problem. FR-025
+  requires every visual channel to encode real state, so reimplementing the one effect that
+  violates that rule is effort spent against the feature.
+
+  **This is a visible change nobody asked for**, so it is recorded as a decision rather than
+  absorbed: the HUD will no longer glitch. All six other effects survive the port.
+
 ### Decisions taken without asking (reasonable defaults, recorded)
 
 - **Dragging moves a node, never its band membership or its edges.** A peer dragged below the

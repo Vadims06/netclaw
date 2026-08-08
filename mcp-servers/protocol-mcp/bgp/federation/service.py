@@ -951,6 +951,17 @@ class FederationService:
                         # FR-023: no endpoint → never dialled. This pre-existing skip is
                         # what makes forget_peer_endpoint (US4) take effect with no
                         # restart, since list_peers() is re-read every iteration.
+                        #
+                        # State MUST NOT be left as "reconnecting" here. Feature 100
+                        # moved _health_for() above this check, which had the side
+                        # effect of initialising every endpoint-less peer to
+                        # "reconnecting" — a claim that we are trying to reach it. We
+                        # are not: it is skipped entirely. The HUD surfaces
+                        # channel_state directly, so five endpoint-less peers were
+                        # rendering as actively failing when nothing is wrong with them
+                        # beyond having no address on file. "unknown" is the honest
+                        # value and restores the pre-100 reading.
+                        h["state"] = "unknown"
                         h["connected_since"] = None
                         continue
                     if now < h["next_retry_at"]:
