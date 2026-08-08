@@ -19,7 +19,17 @@ import {
   pickableObjects, chartNodes, tickOrgChart, activateNode,
   mountA11y, toggleNodeExpansion,
   setSelectedNode, clearSelectedNode,
+  applyLayoutPositions, previewNodePosition,
 } from './orgchart-render/index.js';
+// Feature 102: layout state. Pure modules — every decision about where things go
+// and what may be persisted lives here, tested, not in the render layer.
+import { attachDrag } from './orgchart-render/drag.js';
+import { PRESETS, PRESET_LABELS } from './orgchart/presets.js';
+import {
+  createLayoutStore, setPosition, setPreset, resetPreset, setCamera,
+  markSaved, isDirty,
+} from './orgchart/layout-store.js';
+import { toPayload, applyPayload, clampCamera } from './orgchart/layout-payload.js';
 import {
   createChartCamera, createChartControls, resizeChartCamera, frameChart,
 } from './orgchart-render/camera.js';
@@ -76,6 +86,9 @@ const state = {
   mouse: new THREE.Vector2(),
   // Feature 101 (FR-041/042/043): poll-outcome memory for freeze-and-flag.
   feed: createFeedState(),
+  // Feature 102: per-preset arrangement + dirty tracking.
+  layout: createLayoutStore('orgchart'),
+  dragging: null,
   raycaster: new THREE.Raycaster(),
   socket: null,
   clock: new THREE.Clock(),
@@ -2867,6 +2880,26 @@ async function boot() {
     state.orgLayout = mountOrgChart(state.scene, state.n2n, state.orgCatalog, makeLabel);
     frameChart(state.camera, state.controls, chartNodes());
 
+    // ── Feature 102: interactive layout ──────────────────────────────────
+    await restoreSavedLayout();
+    applyLayoutPositions(state.layout);
+    mountLayoutControls();
+    state.dragging = attachDrag({
+      domElement: state.renderer.domElement,
+      camera: state.camera,
+      controls: state.controls,
+      pickables: () => pickableObjects(),
+      onDragMove: (id, pos) => previewNodePosition(id, pos),
+      onDragged: (id, pos) => {
+        // Operator intent is recorded against the ACTIVE preset only (FR-049),
+        // and pinned under `force` so a later solve leaves it alone (FR-041).
+        setPosition(state.layout, id, pos);
+        if (state.layout.activePreset === 'force') state.layout.pinned.force.add(id);
+        applyLayoutPositions(state.layout);
+        renderDirtyIndicator();
+      },
+    });
+
     // Keyboard + screen-reader access (FR-032). A WebGL canvas has no
     // focusable elements, so the chart needs a real DOM tree over it.
     mountA11y(document.getElementById('scene-root'), {
@@ -2962,6 +2995,147 @@ async function boot() {
   } catch (error) {
     dom.loadingText.textContent = `Boot failure: ${error.message}`;
     throw error;
+  }
+}
+
+/**
+ * Feature 102 (US2/US3): preset dropdown, save control, unsaved indicator.
+ *
+ * Deliberately a small floating control cluster rather than a panel — FR-028
+ * forbids altering the chat interface or the right-hand information bar.
+ */
+function mountLayoutControls() {
+  if (document.getElementById('layout-controls')) return;
+  const box = document.createElement('div');
+  box.id = 'layout-controls';
+  box.style.cssText = 'position:fixed;top:96px;left:50%;transform:translateX(-50%);z-index:60;'
+    + 'display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:8px;'
+    + 'background:rgba(12,20,30,.82);border:1px solid rgba(120,180,240,.28);'
+    + 'font:12px/1.3 ui-monospace,monospace;color:#cfe6ff';
+
+  const sel = document.createElement('select');
+  sel.id = 'layout-preset';
+  sel.style.cssText = 'background:#0d1621;color:#cfe6ff;border:1px solid #2b4257;'
+    + 'border-radius:4px;padding:3px 6px;font:inherit';
+  for (const id of PRESETS) {
+    const o = document.createElement('option');
+    o.value = id; o.textContent = PRESET_LABELS[id];
+    sel.appendChild(o);
+  }
+  sel.value = state.layout.activePreset;
+  sel.addEventListener('change', () => {
+    setPreset(state.layout, sel.value);
+    applyLayoutPositions(state.layout);
+    renderDirtyIndicator();
+  });
+
+  const reset = mkButton('Reset', 'Discard manual positions for this preset only', () => {
+    resetPreset(state.layout);
+    applyLayoutPositions(state.layout);
+    renderDirtyIndicator();
+  });
+  const save = mkButton('Save', 'Save this arrangement and viewpoint', saveLayout);
+  const discard = mkButton('Discard saved', 'Delete the saved layout on the server', discardLayout);
+
+  const dirty = document.createElement('span');
+  dirty.id = 'layout-dirty';
+  dirty.style.cssText = 'color:#ffd27a;min-width:74px';
+
+  box.append(document.createTextNode('Layout'), sel, reset, save, discard, dirty);
+  document.body.appendChild(box);
+  renderDirtyIndicator();
+}
+
+function mkButton(label, title, onClick) {
+  const b = document.createElement('button');
+  b.textContent = label; b.title = title;
+  b.style.cssText = 'background:#16283a;color:#cfe6ff;border:1px solid #2b4257;'
+    + 'border-radius:4px;padding:3px 8px;font:inherit;cursor:pointer';
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+/**
+ * FR-052: unsaved state must be visible ON SCREEN, not only at unload — browsers
+ * suppress the unload dialog on tab discard, crash, OS shutdown and without prior
+ * interaction, so the indicator is the primary signal and the dialog is a backstop.
+ */
+function renderDirtyIndicator() {
+  const el = document.getElementById('layout-dirty');
+  if (el) el.textContent = isDirty(state.layout) ? '● unsaved' : '';
+}
+
+/** FR-051: fires ONLY on genuine unsaved change — a warning that cries wolf gets dismissed. */
+window.addEventListener('beforeunload', (e) => {
+  if (!isDirty(state.layout)) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+async function saveLayout() {
+  // Camera pose travels with the arrangement (FR-018): restoring positions without
+  // the framing they were designed for delivers half the feature.
+  setCamera(state.layout, {
+    position: { ...state.camera.position },
+    target: { ...state.controls.target },
+    zoom: state.camera.zoom,
+  });
+  const payload = toPayload(state.layout, new Date().toISOString());
+  try {
+    const res = await fetch('/api/layout', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    markSaved(state.layout);          // FR-053: only a SUCCESSFUL save clears dirty
+  } catch (e) {
+    // FR-035: keep the arrangement in memory and keep it marked unsaved. A failed
+    // write must never present as a successful one.
+    console.error('layout save failed', e);
+    alert(`Layout save failed: ${e.message}\nYour arrangement is still here and still unsaved.`);
+  }
+  renderDirtyIndicator();
+}
+
+async function discardLayout() {
+  try {
+    await fetch('/api/layout', { method: 'DELETE' });
+  } catch (e) {
+    console.error('layout discard failed', e);
+  }
+  state.layout = createLayoutStore('orgchart');
+  applyLayoutPositions(state.layout);
+  renderDirtyIndicator();
+}
+
+/** FR-016/019/047/048: tolerant restore. */
+async function restoreSavedLayout() {
+  try {
+    const res = await fetch('/api/layout');
+    if (!res.ok) return;
+    const body = await res.json();
+    if (body?.empty) {
+      if (body.warning) console.warn('saved layout ignored:', body.warning);
+      return;
+    }
+    const known = (chartNodes() || []).map((n) => n.id);
+    const { dropped } = applyPayload(state.layout, body, known);
+    if (dropped.length) console.info(`saved layout: ignored ${dropped.length} stale node id(s)`);
+    const cam = clampCamera(state.layout.camera);
+    if (cam) {
+      state.camera.position.set(cam.position.x, cam.position.y, cam.position.z);
+      state.controls.target.set(cam.target.x, cam.target.y, cam.target.z);
+      state.camera.zoom = cam.zoom;
+      state.camera.updateProjectionMatrix();
+      state.controls.update();
+    }
+  } catch (e) {
+    // FR-019: fall back to computed and say so, never render a broken scene.
+    console.warn('saved layout unavailable, using computed layout:', e.message);
   }
 }
 

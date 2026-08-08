@@ -17,6 +17,8 @@ import { computeLayout, appendMember } from '../orgchart/layout.js';
 import { buildNodes, animateNodes, applyHighlight, TREATMENTS } from './nodes.js';
 import { buildBands } from './bands.js';
 import { buildLinks, animateFlows } from './links.js';
+import { ringLayout, gridLayout } from '../orgchart/presets.js';
+import { forceLayout } from '../orgchart/force-layout.js';
 import { classifyHealth } from '../orgchart/health.js';
 import { toggleExpansion, collapseAll, isExpanded, expandedCount } from './expansion.js';
 import { buildA11yOverlay } from './a11y.js';
@@ -299,6 +301,111 @@ export function clearSelectedNode() {
 
 export function selectedNodeId() {
   return chart.selectedNodeId;
+}
+
+/**
+ * Compute positions for a preset (feature 102, US2).
+ *
+ * `orgchart` returns null meaning "use what computeLayout produced" — it is not a
+ * preset implementation, it is the absence of one (FR-010). `freeform` likewise has
+ * no geometry: it starts from the org chart and everything after is the operator's.
+ *
+ * @returns {{[nodeId:string]: {x,y,z}}|null}
+ */
+export function presetPositions(presetId, store) {
+  const nodes = chart.layout?.nodes || [];
+  if (presetId === 'ring') return ringLayout(nodes);
+  if (presetId === 'grid') return gridLayout(nodes);
+  if (presetId === 'force') {
+    // Solved ONCE here, off the render loop, and the result is applied as plain
+    // positions (FR-040). There is no tick loop to leave running.
+    const links = [];
+    const border = nodes.find((n) => n.kind === 'border');
+    if (border) for (const n of nodes) if (n !== border) links.push([border.id, n.id]);
+    const pinnedPositions = {};
+    for (const id of (store?.pinned?.force || [])) {
+      const p = store.positions?.force?.[id];
+      if (p) pinnedPositions[id] = p;
+    }
+    return forceLayout({
+      nodes: nodes.map((n) => ({ id: n.id })),
+      links,
+      pinned: [...(store?.pinned?.force || [])],
+      pinnedPositions,
+    });
+  }
+  return null;
+}
+
+/**
+ * Move meshes, labels and links to the positions the store and preset dictate.
+ *
+ * Precedence: an operator-placed position always wins over the preset, which always
+ * wins over computeLayout. That ordering IS the FR-002/FR-027 guarantee — the system
+ * never overrides where the operator put something.
+ *
+ * @param {object} store layout-store
+ */
+export function applyLayoutPositions(store) {
+  if (!chart.entries?.length) return;
+  const preset = store?.activePreset || 'orgchart';
+  chart.lastAppliedPreset = preset;
+  const presetMap = presetPositions(preset, store);
+  const manual = store?.positions?.[preset] || {};
+
+  for (const entry of chart.entries) {
+    const id = entry.node.id;
+    const next = manual[id] || presetMap?.[id] || entry.node.computedPosition || null;
+    if (!next) continue;
+    // Remember where computeLayout originally put it, so returning to the org chart
+    // preset is possible without recomputing the whole layout.
+    if (!entry.node.computedPosition) {
+      entry.node.computedPosition = { ...entry.node.position };
+    }
+    entry.node.position = { x: next.x, y: next.y, z: next.z ?? 0 };
+    entry.mesh.position.set(next.x, next.y, next.z ?? 0);
+    if (entry.label) {
+      entry.label.position.set(next.x, next.y - (entry.baseScale * 1.6 + 1.4), next.z ?? 0);
+    }
+  }
+  rebuildLinks();
+
+  // Bands and the trust boundary are ORG-CHART FURNITURE: horizontal strips at fixed
+  // Y positions that only mean something when nodes are arranged in those strips.
+  // Under Ring/Grid/force the nodes have moved but the bands cannot follow — they
+  // have no meaningful position in a radial or uniform arrangement — so they were
+  // left cutting across the scene labelling nothing. Hide them instead.
+  //
+  // This does not lose information: band membership is still carried by node form
+  // and colour (feature 101's six peer states), and by the detail panel. Only the
+  // strip graphic goes away, and only where it would be actively misleading.
+  chart.lastAppliedPreset = preset;
+  const bandsMeaningful = preset === 'orgchart' || preset === 'freeform';
+  if (chart.bands?.group) chart.bands.group.visible = bandsMeaningful;
+
+  if (chart.selectedNodeId) setSelectedNode(chart.selectedNodeId);
+}
+
+/** Links are geometry built from positions, so they must be rebuilt when those move. */
+function rebuildLinks() {
+  if (!chart.root || !chart.layout) return;
+  if (chart.links) {
+    chart.root.remove(chart.links.group);
+    chart.links.dispose?.();
+  }
+  const preset = chart.lastAppliedPreset || 'orgchart';
+  const categoryRouting = preset === 'orgchart' || preset === 'freeform';
+  chart.links = buildLinks(chart.layout.nodes, chart.layout.categories, categoryRouting);
+  chart.root.add(chart.links.group);
+}
+
+/** Live preview during a drag — mesh and label only, links on release. */
+export function previewNodePosition(nodeId, pos) {
+  const entry = chart.entries.find((e) => e.node.id === nodeId);
+  if (!entry) return;
+  entry.mesh.position.set(pos.x, pos.y, pos.z ?? 0);
+  if (entry.label) entry.label.position.set(pos.x, pos.y - (entry.baseScale * 1.6 + 1.4), pos.z ?? 0);
+  if (chart.selectedNodeId === nodeId) setSelectedNode(nodeId);
 }
 
 export function tickOrgChart(elapsed, camera) {
