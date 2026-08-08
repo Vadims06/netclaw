@@ -2,8 +2,40 @@
 
 **Feature Branch**: `102-hud-webgpu-interactive-layout`
 **Created**: 2026-08-07
-**Status**: Draft — both clarifications resolved 2026-08-07 (server-side persistence; hard switch to `WebGPURenderer`).
+**Status**: **Layout half implemented and merged** (US1 drag, US2 presets, US3 save/restore).
+**US4 renderer migration and US5 showcase are DEFERRED to a follow-on spec** — see "Scope split"
+below. The deferral is a verification constraint, not a change of mind.
 **Input**: Operator request, 2026-08-07 — "work on 102 - the amazing show off polish - also for 102 ADD the ability to click / drag / reposition the layouts maybe offer a drop down default layout; some layout options; free-form; SAVE layout?"
+
+## Scope split (2026-08-08)
+
+US1–US3 shipped. US4 (WebGPU migration) and US5 (ClusteredLighting + compute particles) were cut
+from this feature after a measurement, not a preference.
+
+**WebGPU has no adapter on the verification host.** Probed directly against the running HUD:
+
+```json
+{"webgpu": false, "reason": "no adapter"}
+```
+
+`navigator.gpu` exists but `requestAdapter()` returns null — WSL2, no `/dev/dri`, and the HUD
+renders through `ANGLE (SwiftShader driver)`. Two consequences made proceeding unwise:
+
+- **US5 is unverifiable here at all.** ClusteredLighting and compute particles need the WebGPU
+  backend, so FR-024's "present on WebGPU, absent on WebGL" cannot be exercised, and T042's
+  backend-detection API cannot be confirmed rather than guessed.
+- **US4 would have been a rewrite with two blindfolds.** The hard-switch decision (FR-036) already
+  removed the live WebGL build that would otherwise be the A/B reference — an accepted risk. What
+  was not known at decision time is that this host also cannot run the *target* backend. Replacing
+  a working 7-pass chain and 4 shaders under both constraints, judged only against screenshots, is
+  how a subtly broken HUD ships unnoticed.
+
+The operator's own browser may well support WebGPU; the blocker is that **the implementer cannot be
+the verifier**. The follow-on spec should establish who verifies before any porting begins.
+
+Everything US4/US5 needs is already researched and survives the deferral: the 5-of-7 node-equivalent
+port map, `ClusteredLighting`'s one-line install, the `three/webgpu` + `three/tsl` export surface,
+and the GlitchPass drop decision (research R1–R3, contracts §3).
 
 ## Problem Statement
 
