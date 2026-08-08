@@ -37,9 +37,19 @@ test('ring: every node gets a position, Border at the centre', () => {
   assert.deepEqual(out.border, { x: 0, y: RING.y, z: 0 });
 });
 
+test('ring: is drawn on the XY plane the chart actually uses', () => {
+  // The first implementation built the ring in XZ, which collapses to a horizontal
+  // line from a camera looking down -Z. The test asserted the same wrong plane, so
+  // it passed while the feature was visibly broken. Assert the plane explicitly.
+  const out = ringLayout(NODES);
+  assert.ok(Object.values(out).every((p) => p.z === 0), 'every node must sit at z=0');
+  const ys = new Set(Object.values(out).map((p) => p.y));
+  assert.ok(ys.size > 1, 'a ring must vary in Y, not just X');
+});
+
 test('ring: kinds occupy distinct radii, peers closest to the Border', () => {
   const out = ringLayout(NODES);
-  const r = (id) => Math.hypot(out[id].x, out[id].z);
+  const r = (id) => Math.hypot(out[id].x, out[id].y - RING.y);
   assert.ok(Math.abs(r('as65006-6.6.6.6') - RING.peerRadius) < 0.5);
   assert.ok(Math.abs(r('r/cml') - RING.memberRadius) < 0.5);
   assert.ok(Math.abs(r('r/phone') - RING.edgeRadius) < 0.5);
@@ -51,7 +61,7 @@ test('ring: nodes of one kind do not collide', () => {
   const peers = ['as65006-6.6.6.6', 'as65099-10.255.255.1', 'as65003-3.3.3.3'].map((i) => out[i]);
   for (let i = 0; i < peers.length; i += 1)
     for (let j = i + 1; j < peers.length; j += 1)
-      assert.ok(Math.hypot(peers[i].x - peers[j].x, peers[i].z - peers[j].z) > 1);
+      assert.ok(Math.hypot(peers[i].x - peers[j].x, peers[i].y - peers[j].y) > 1);
 });
 
 test('grid: uniform rows, bands ignored', () => {

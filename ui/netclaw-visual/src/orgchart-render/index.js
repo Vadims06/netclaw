@@ -349,6 +349,7 @@ export function presetPositions(presetId, store) {
 export function applyLayoutPositions(store) {
   if (!chart.entries?.length) return;
   const preset = store?.activePreset || 'orgchart';
+  chart.lastAppliedPreset = preset;
   const presetMap = presetPositions(preset, store);
   const manual = store?.positions?.[preset] || {};
 
@@ -368,6 +369,20 @@ export function applyLayoutPositions(store) {
     }
   }
   rebuildLinks();
+
+  // Bands and the trust boundary are ORG-CHART FURNITURE: horizontal strips at fixed
+  // Y positions that only mean something when nodes are arranged in those strips.
+  // Under Ring/Grid/force the nodes have moved but the bands cannot follow — they
+  // have no meaningful position in a radial or uniform arrangement — so they were
+  // left cutting across the scene labelling nothing. Hide them instead.
+  //
+  // This does not lose information: band membership is still carried by node form
+  // and colour (feature 101's six peer states), and by the detail panel. Only the
+  // strip graphic goes away, and only where it would be actively misleading.
+  chart.lastAppliedPreset = preset;
+  const bandsMeaningful = preset === 'orgchart' || preset === 'freeform';
+  if (chart.bands?.group) chart.bands.group.visible = bandsMeaningful;
+
   if (chart.selectedNodeId) setSelectedNode(chart.selectedNodeId);
 }
 
@@ -378,7 +393,9 @@ function rebuildLinks() {
     chart.root.remove(chart.links.group);
     chart.links.dispose?.();
   }
-  chart.links = buildLinks(chart.layout.nodes, chart.layout.categories);
+  const preset = chart.lastAppliedPreset || 'orgchart';
+  const categoryRouting = preset === 'orgchart' || preset === 'freeform';
+  chart.links = buildLinks(chart.layout.nodes, chart.layout.categories, categoryRouting);
   chart.root.add(chart.links.group);
 }
 

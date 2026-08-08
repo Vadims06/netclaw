@@ -49,7 +49,15 @@ export function styleForNode(node) {
  * @param {Array<object>} categories
  * @returns {{group: THREE.Group, dispose: Function}}
  */
-export function buildLinks(layoutNodes, categories) {
+/**
+ * Feature 102: member links elbow through their category header, which is org-chart
+ * furniture pinned at a fixed position. Under Ring/Grid/force the members move but
+ * the headers cannot, so the elbows stretch across the whole scene to waypoints that
+ * no longer mean anything. Route directly instead — the link still says exactly what
+ * it said before (this member reports to the Border), just without a detour through
+ * a landmark that is no longer there.
+ */
+export function buildLinks(layoutNodes, categories, useCategoryRouting = true) {
   const group = new THREE.Group();
   group.name = 'orgchart-links';
   const disposables = [];
@@ -73,7 +81,7 @@ export function buildLinks(layoutNodes, categories) {
     // Members route via their category header so the chart reads as a chart —
     // an elbow through the column, not 100 straight lines to one point.
     let points;
-    if (node.kind === 'member') {
+    if (node.kind === 'member' && useCategoryRouting) {
       const cat = (categories || []).find((c) => c.name === node.category);
       const via = cat
         ? new THREE.Vector3(cat.position.x, cat.position.y + 2, cat.position.z)

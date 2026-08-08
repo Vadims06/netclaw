@@ -65,7 +65,7 @@ export function ringLayout(layoutNodes) {
   const byKind = { peer: [], member: [], edge: [] };
   for (const n of nodes) {
     if (n.kind === 'border') {
-      out[n.id] = { x: 0, y: RING.y, z: 0 };
+      out[n.id] = { x: 0, y: RING.y, z: 0 };   // Border at the centre
     } else if (byKind[n.kind]) {
       byKind[n.kind].push(n);
     }
@@ -79,10 +79,14 @@ export function ringLayout(layoutNodes) {
       // Start at -90° so the first node sits at the top, matching the org chart's
       // convention that "north" is where external things live.
       const angle = (-Math.PI / 2) + (i / Math.max(1, ring.length)) * Math.PI * 2;
+      // The chart lives on the XY plane — computeLayout sets z:0 for every node and
+      // the camera looks down -Z. Building the ring in XZ (the instinct from a
+      // ground-plane scene) collapses it to a horizontal line from the camera's
+      // viewpoint, which is exactly what shipped first.
       out[n.id] = {
         x: round(Math.cos(angle) * r),
-        y: RING.y,
-        z: round(Math.sin(angle) * r),
+        y: round(RING.y + Math.sin(angle) * r),
+        z: 0,
       };
     });
   }
