@@ -54,7 +54,13 @@ Test split | `src/orgchart/` pure and tested; `src/orgchart-render/` has no cove
 
 
 - Q: Which layout presets ship? → **A: Five — Org chart (default), Ring, Grid, Force-directed,
-  Free-form.** Ring places peers and members on concentric circles around the Border; Grid is
+  Free-form.**
+
+  **Naming convention, fixed here because one of these is a wire value.** The `PresetId`
+  identifiers are the literal strings `'orgchart'`, `'ring'`, `'grid'`, `'force'`, `'freeform'` —
+  they are persisted verbatim as JSON keys in the saved layout. Prose in this spec writes
+  "free-form" and "org chart" for readability, but **the hyphenated forms are never valid
+  identifiers**. Writing `'free-form'` as a key is a bug, not a style choice. Ring places peers and members on concentric circles around the Border; Grid is
   uniform rows ignoring bands; Force-directed positions by link topology; Free-form is a blank
   slate the operator arranges.
 

@@ -34,6 +34,8 @@ position map is meaningful rather than a bug.
   activePreset: PresetId,
   positions: { [PresetId]: { [nodeId]: {x, y, z} } },   // sparse — only moved nodes
   pinned:    { [PresetId]: Set<nodeId> },               // FR-041, force preset only
+                                                       // `pinned` is the field name; prose may
+                                                       // say "pin"/"pinning" for the action
   camera:    { position: {x,y,z}, target: {x,y,z}, zoom: number } | null,
   dirty:     boolean,
 }

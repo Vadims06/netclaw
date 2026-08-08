@@ -123,6 +123,7 @@ ui/netclaw-visual/
     └── orgchart-render/            # three.js — no automated coverage
         ├── index.js                # apply positions from the store, not computeLayout alone
         ├── drag.js                 # NEW  raycast drag, pointer capture, camera restore
+        ├── links.js                # US1: links follow moved nodes, incl. member elbow routing
         ├── renderer.js             # NEW  WebGPURenderer + node post-processing chain
         └── nodes.js                # 4 ShaderMaterials -> TSL node materials
 ```
