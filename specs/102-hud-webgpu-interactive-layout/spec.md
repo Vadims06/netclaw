@@ -53,6 +53,80 @@ Test split | `src/orgchart/` pure and tested; `src/orgchart-render/` has no cove
   which is exactly why they were committed. They are the reference implementation now.
 
 
+- Q: Which layout presets ship? → **A: Five — Org chart (default), Ring, Grid, Force-directed,
+  Free-form.** Ring places peers and members on concentric circles around the Border; Grid is
+  uniform rows ignoring bands; Force-directed positions by link topology; Free-form is a blank
+  slate the operator arranges.
+
+  **Force-directed is the one that needs guarding, and it is guarded rather than dropped.** A
+  running simulation moves nodes continuously, which is exactly what FR-027 forbids the system
+  doing. Three constraints reconcile them (FR-038..041): it must be **deterministic** (same data →
+  same layout, or the HUD looks different on every load and spatial memory is impossible), it must
+  **settle and then stop** rather than simulate forever, and a node the operator drags is **pinned**
+  and excluded from further solving. With those, force-directed is a one-shot arrangement the
+  operator asked for — not the system rearranging things behind them.
+
+  Recorded honestly: this is the only preset requiring a solver, and it carries tuning, stability
+  and settling-time risk the other four do not. It is scoped to P2 alongside its siblings rather
+  than promoted for being impressive.
+
+- Q: How is a node drag disambiguated from a camera orbit? → **A: Raycast decides.** Pointer-down
+  that hits a node begins a drag and suspends `OrbitControls` for its duration; pointer-down on
+  empty space orbits exactly as today. No modifier, no mode toggle.
+
+  Chosen because it needs no new UI and nothing to remember, and it degrades safely — a missed
+  raycast simply yields today's camera behaviour. It also matches how 3D editors already behave,
+  so it needs no explaining.
+
+  Two failure modes this creates, and the requirements that close them: a drag that ends outside
+  the canvas or is interrupted must still re-enable the camera, or the camera locks up permanently
+  (FR-045); and since select and drag now share one gesture, a movement threshold is what separates
+  them (FR-044).
+
+  Recorded limitation: rearranging becomes **pointer-only**. Keyboard and screen-reader users keep
+  full navigation and inspection (FR-029) but cannot reposition nodes. Accepted rather than
+  hidden — the arrangement is presentation, and every state it conveys remains available through
+  the a11y tree and the detail panel.
+
+- Q: Does a saved layout include the camera? → **A: Yes — position, target and zoom are saved and
+  restored with the arrangement.** In practice the arrangement and the viewpoint are one thing:
+  restoring positions without the framing they were designed for delivers half the feature, and the
+  Ring and Grid presets each want a different camera than the org chart does.
+
+  Still only geometry, so FR-018's "no federation state, no credentials" guarantee is untouched. But
+  it adds a way to strand yourself: a saved camera outside the constrained pan/zoom range, or aimed
+  at nothing, would restore to an empty view with no obvious recovery. FR-047/048 close that.
+
+- Q: What happens to manual positions when switching presets? → **A: Remembered per preset.**
+  Dragged positions are stored against the preset they were made in; switching away and back
+  restores them, and Free-form keeps its own set.
+
+  Chosen because it makes a five-item dropdown safe to explore, which is what it has to be to earn
+  its place. Nothing is ever destroyed, so FR-014's unresolved "warned about **or** undoable"
+  either/or disappears — neither a confirm dialog nor an undo stack is needed, because there is no
+  destructive act to guard.
+
+  It also gives "Org chart" a second job: it is the reset, without being a reset that costs you
+  anything. And it composes with FR-041's pinning — a node pinned in Force-directed stays pinned
+  in Force-directed, not everywhere.
+
+- Q: What triggers a save? → **A: Explicit save control, plus a browser warning on unload when
+  there are unsaved changes.** Nothing is written until the operator asks for it.
+
+  Keeps writes predictable and rare — one request per deliberate save rather than one per drag —
+  and keeps the operator in control of what gets persisted, which matters more now that persistence
+  is server-side and shared across browsers.
+
+  **Recorded honestly: the unload warning is a mitigation, not a guarantee.** Browsers ignore custom
+  text, require prior interaction with the page, and suppress the dialog in several cases (tab
+  discard, crash, OS shutdown, mobile background-kill). Work *can* still be lost. That is accepted
+  rather than papered over, and it is why FR-052 requires the unsaved state to be *visible* on
+  screen — a dirty indicator an operator can see beats a dialog they may never get.
+
+  A warning that fires when nothing has changed trains people to dismiss it reflexively, which
+  would destroy the value of the one that matters — hence FR-051's requirement that it fire only
+  on genuine unsaved change.
+
 ### Decisions taken without asking (reasonable defaults, recorded)
 
 - **Dragging moves a node, never its band membership or its edges.** A peer dragged below the
@@ -98,8 +172,8 @@ three are still exactly where they were put.
 
 ### User Story 2 — Choose a layout preset (Priority: P1)
 
-An operator picks from a small set of named arrangements — the current top-down org chart plus
-alternatives — and the scene rearranges to it.
+An operator picks from five named arrangements — **Org chart** (today's computed default), **Ring**,
+**Grid**, **Force-directed**, **Free-form** — and the scene rearranges to it.
 
 **Why this priority**: the operator asked for a dropdown, and presets are what make free-form
 recoverable. Without "reset to computed", a dragged-apart scene is unrecoverable, which would
@@ -114,12 +188,21 @@ distinct, readable arrangement and the default is byte-identical to today's.
    is identical to what 072/101 compute today.
 2. **Given** any preset, **Then** band membership, health treatments, peer states and link
    topology are unchanged — only positions differ.
-3. **Given** nodes have been dragged, **When** a preset is chosen, **Then** the manual positions
+3. **Given** nodes dragged in one preset, **When** the operator switches to another preset and back,
+   **Then** those positions are exactly as left — switching is non-destructive.
+3a. **Given** nodes have been dragged, **When** a preset is chosen, **Then** the manual positions
    are replaced, and the operator was warned first or can undo it.
 4. **Given** a preset, **Then** labels do not collide at the default zoom. (Spec 101 shipped a
    label-collision regression that only a screenshot caught; presets multiply that risk.)
 5. **Given** ~40 nodes, **When** switching presets, **Then** the transition does not drop frames
    below the established budget.
+6. **Given** the Force-directed preset, **When** selected twice on unchanged data, **Then** it
+   produces the **same** arrangement both times — a layout that differs every load cannot build
+   spatial memory, which is the whole point of the fixed-position premise.
+7. **Given** the Force-directed preset, **When** it has settled, **Then** the simulation **stops**
+   and nodes hold still. Perpetual motion would violate FR-027 and burn frame budget forever.
+8. **Given** a node dragged after a Force-directed solve, **Then** it stays where placed and is
+   excluded from any later solve.
 
 ---
 
@@ -132,11 +215,19 @@ effort of arranging worth spending. Gated on Q1.
 
 **Acceptance Scenarios**:
 
-1. **Given** an arrangement, **When** saved and the page reloaded, **Then** it is restored.
+1. **Given** an arrangement, **When** saved and the page reloaded, **Then** both the node positions
+   and the camera view are restored as saved.
+2. **Given** a saved camera pose outside the configured pan/zoom constraints, **When** restored,
+   **Then** it is clamped into range rather than honoured, and the chart remains readable.
 2. **Given** a saved layout, **When** a member that did not exist at save time has enrolled,
    **Then** it appears at its computed position rather than being hidden or crashing the restore.
 3. **Given** a saved layout, **When** a member in it no longer exists, **Then** the stale entry
    is ignored silently.
+3a. **Given** unsaved arranging, **When** the operator attempts to leave the page, **Then** the
+   browser warns. **Given** no unsaved changes, **Then** it does not.
+3b. **Given** unsaved arranging, **Then** that fact is visible on screen without leaving the page.
+3c. **Given** a save that fails, **Then** the arrangement is retained in memory and still shows as
+   unsaved — a failed write must never present as a successful one.
 4. **Given** a saved layout, **Then** the operator can discard it and return to computed.
 5. **Given** saved layout data, **Then** it contains only node identifiers and positions — never
    federation state, never credentials.
@@ -211,6 +302,19 @@ necessary, and unavailable to any WebGL fallback viewer.
 - **FR-006**: 101's selection ring and label MUST track the node's current position.
 - **FR-007**: Overlapping nodes MUST NOT snap, merge, or reorder.
 - **FR-008**: A drag MUST be distinguishable from a click, so dragging does not also select.
+- **FR-043**: Drag initiation MUST be decided by raycast: a pointer-down that hits a pickable node
+  begins a drag and suspends camera control; a pointer-down that hits nothing MUST fall through to
+  `OrbitControls` unchanged. No modifier key and no mode toggle.
+- **FR-044**: Select and drag share one gesture, so a **movement threshold** MUST separate them:
+  below it the interaction resolves as a click (select), at or above it as a drag. A node MUST NOT
+  be both selected and repositioned by one gesture.
+- **FR-045**: Camera control MUST be restored on **every** drag termination — normal release,
+  pointer leaving the canvas or window, loss of pointer capture, or an interrupted/cancelled drag.
+  A drag that ends abnormally MUST NOT leave the camera permanently frozen, which is the worst
+  outcome available here: the operator loses navigation with no visible cause and no way back
+  except a reload.
+- **FR-046**: Hover feedback MUST continue to work for pickable nodes, and MUST NOT be left stuck
+  on a node after a drag begins or ends.
 
 ### Presets (US2)
 
@@ -220,18 +324,54 @@ necessary, and unavailable to any WebGL fallback viewer.
 - **FR-011**: Switching presets MUST NOT change any data-derived property — only positions.
 - **FR-012**: There MUST be a way back to the computed layout from any arranged state.
 - **FR-013**: No preset may produce colliding labels at the default zoom.
-- **FR-014**: Replacing manual positions MUST be either warned about or undoable.
+- **FR-038**: The preset set MUST be exactly: Org chart (default), Ring, Grid, Force-directed,
+  Free-form.
+- **FR-039**: Force-directed MUST be **deterministic** — the same topology and node set MUST
+  produce the same arrangement on every run. Any randomness MUST be seeded from stable node
+  identity, never from a clock or `Math.random()`.
+- **FR-040**: Force-directed MUST reach a stable state and **stop simulating**, within a bounded
+  time. It MUST NOT run continuously, both because FR-027 forbids ongoing system-initiated
+  movement and because a permanent solver competes with the render budget SC-005 caps.
+- **FR-041**: A node the operator has dragged MUST be **pinned** — excluded from force-directed
+  solving, and left where placed. Operator intent outranks the solver.
+- **FR-042**: Ring and Grid MUST be derived from the data `computeLayout` already produces (bands,
+  categories, ordering). Neither may introduce a second source of truth for grouping.
+- **FR-014**: Switching presets MUST NOT destroy manual positions. Each preset MUST retain its own
+  set of operator-placed positions, restored when that preset is next selected. Because nothing is
+  destroyed, no confirmation prompt and no undo stack are required.
+- **FR-049**: Manual positions MUST be scoped **per preset**, not globally. A node dragged in
+  Free-form MUST NOT move in Org chart, and a node pinned under Force-directed (FR-041) MUST be
+  pinned only there.
+- **FR-050**: Selecting the Org chart preset MUST restore the computed layout for any node not
+  manually placed **within that preset**, giving the operator a non-destructive way back to the
+  default from any arranged state (satisfying FR-012 without discarding work).
 
 ### Save / restore (US3)
 
-- **FR-015**: An operator MUST be able to save the current arrangement and have it restored later.
+- **FR-015**: An operator MUST be able to save the current arrangement through an explicit control,
+  and have it restored later. Arrangements MUST NOT be written automatically.
+- **FR-051**: The HUD MUST track unsaved changes and warn on page unload **only when changes are
+  genuinely unsaved**. A warning that fires spuriously trains the operator to dismiss it, which
+  destroys the value of the one that matters.
+- **FR-052**: Unsaved state MUST be visible on screen, not only at unload. Browsers suppress unload
+  dialogs in several cases (tab discard, crash, OS shutdown, no prior interaction), so a visible
+  indicator is the primary signal and the dialog is a backstop.
+- **FR-053**: A successful save MUST clear the unsaved-change state; a failed save MUST NOT
+  (reinforcing FR-035 — a failed write must not look like a successful one).
 - **FR-016**: A saved layout MUST tolerate nodes added since it was saved (place at computed
   position) and nodes removed since (ignore silently). It MUST NOT fail closed on either.
 - **FR-017**: A saved layout MUST be discardable.
-- **FR-018**: Saved data MUST contain only node identifiers and positions — no federation state,
+- **FR-018**: Saved data MUST contain only node identifiers, positions, and the camera pose
+  (position, target, zoom) — no federation state,
   no credentials, no inventory.
 - **FR-019**: A corrupt or unreadable saved layout MUST fall back to computed and say so, never
   render a broken scene.
+- **FR-047**: A restored camera pose MUST be clamped to the camera's existing configured pan and
+  zoom constraints. A pose outside them MUST be corrected, not honoured — spec 072 constrained the
+  camera deliberately so the hierarchy always reads, and a saved layout must not be a way around it.
+- **FR-048**: If a restored camera would show nothing (empty view, or a target no longer near any
+  node), the HUD MUST fall back to framing the chart. Restoring into a blank screen with no visible
+  cause is worse than ignoring the saved viewpoint.
 - **FR-032**: Layout persistence MUST be the ONLY addition to `server.js`. `/api/n2n` and
   `/api/graph` MUST NOT change. A scoped exception, not a general licence.
 - **FR-033**: The endpoint MUST reject any payload that is not node identifiers plus numeric
@@ -309,8 +449,9 @@ necessary, and unavailable to any WebGL fallback viewer.
 ## Out of Scope
 
 - **WebXR / VR walkthrough.** Newly possible with WebGPU in r185, but a distinct feature.
-- **Automatic layout algorithms** (force-directed, hierarchical solvers). Presets are a fixed
-  named set; solving layout is its own problem.
+- **Hierarchical / orthogonal layout solvers** (Sugiyama, tree routing, edge-crossing
+  minimisation). Force-directed is in scope as one bounded, deterministic, stop-when-settled
+  preset; general graph drawing is not.
 - **Collaborative or shared layouts** — multiple operators seeing each other's arrangements.
 - **Changing `/api/n2n` or `/api/graph`.** Still forbidden (FR-032); the `server.js` exception
   covers layout persistence and nothing else.
