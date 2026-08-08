@@ -97,8 +97,8 @@ specs/102-hud-webgpu-interactive-layout/
 ├── data-model.md        # Phase 1 — layout state, preset memory, save payload
 ├── quickstart.md        # Phase 1 — how to verify each half
 ├── contracts/
-│   ├── layout-api.md    # Phase 1 — GET/PUT /api/layout, validation rules
-│   └── preset-contract.md   # Phase 1 — the five presets, solver constraints
+│   └── layout-api.md    # Phase 1 — GET/PUT /api/layout, validation, renderer port map,
+│                        #           preset/solver constraints
 └── tasks.md             # Phase 2 (/speckit.tasks)
 ```
 
