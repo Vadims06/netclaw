@@ -2,7 +2,10 @@
 
 **Feature Branch**: `101-hud-threejs-modernization`
 **Created**: 2026-08-06
-**Status**: Draft — renderer decision resolved 2026-08-06 (stay on WebGLRenderer; WebGPU deferred to spec 102). Ready for `/speckit.plan`.
+**Status**: **Merged** (PR #233, 2026-08-07). All five stories shipped. Closeout: FR-024 now met
+(a favicon was declared — the 404 that kept the console non-empty was simply an undeclared icon).
+Remaining open: T044 milestone blog post (offered, never published unprompted), and a cosmetic
+residual where the two longest peer labels can still overlap at default zoom.
 **Input**: Operator request, 2026-08-06 — "I can't click on Nate / eN2N netclaws in the HUD for details, they are not clickable"; then "anything else you think the HUD needs work on especially using three.js latest and greatest stuff"; then "proceed with fix, and 2-5; and bring in some really showboat three.js stuff we couldn't do in .170 with .185.1".
 
 ## Problem Statement
