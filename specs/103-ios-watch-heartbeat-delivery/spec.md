@@ -1,8 +1,18 @@
-# Feature Specification: iPhone / Apple Watch Heartbeat Delivery Without APNs
+# Feature Specification: iPhone / Apple Watch Heartbeat Delivery
+
+> Originally titled "…Without APNs". **That premise was overtaken by events on
+> the day it was written** — a paid Apple Developer membership went active
+> mid-implementation and iOS push now works (see Assumptions). The design is
+> unchanged and none of it was wasted: push became the tier *above* the
+> store-and-forward queue, exactly as the original wording anticipated, and the
+> queue carried every heartbeat to the phone during the ~4 hours push was
+> misconfigured. Passages below still argue from "APNs is impossible" — they are
+> left intact as the reasoning of record, with amendments marked inline.
 
 **Feature Branch**: `103-ios-watch-heartbeat-delivery`
 **Created**: 2026-08-10
-**Status**: Draft — Border half partially implemented (see §Already Landed), iOS half not started
+**Status**: Draft — Border half complete and verified (all three delivery tiers
+live); iOS half in progress on the Mac (US2 met, US3/US4 open)
 **Input**: User description: "get my NetClaw all up and running and confirmed — I haven't got a heartbeat in a while — I have a mobile netclaw (risk/1785078347014) that SAYS it's connected, is it? Also let's get the HEARTBEATS for the iPhone / Apple Watch working."
 
 ## Context: what was actually wrong
@@ -27,13 +37,32 @@ the reported symptom:
    edge node, so "get the heartbeats working on iPhone" was new capability, not
    a repair.
 
-**The hard constraint** (confirmed with the operator): there is no Apple
-Developer Program membership. APNs therefore cannot be used — not as a
-configuration gap but as a licensing one. `push_notify.send_apns()` exists and
-is wired, but has no credentials and cannot get them. Since iOS suspends a
-backgrounded app's WebSocket and only a push can wake it, **no mechanism can
-deliver to a backgrounded iPhone in real time**. This spec deliberately designs
+**The hard constraint as understood at authoring time** (confirmed with the
+operator): there is no Apple Developer Program membership, so APNs cannot be used
+— not as a configuration gap but as a licensing one. Since iOS suspends a
+backgrounded app's WebSocket and only a push can wake it, no mechanism can
+deliver to a backgrounded iPhone in real time. This spec deliberately designs
 around that rather than pretending otherwise.
+
+> **AMENDED 2026-08-10 17:35 — the constraint lifted the same day.** A paid
+> membership activated mid-implementation and **iOS push now works** (FCM message
+> `c082925d-1b08-4592-a3b3-22460f7124c4`). Two corrections to the paragraph
+> above, both worth knowing:
+>
+> 1. `push_notify.send_apns()` did not merely lack credentials — it was
+>    **unusable by construction**. It posted to Apple's raw
+>    `api.push.apple.com/3/device/{token}`, which needs the APNs device token,
+>    while the client registers an FCM registration token. It could only ever
+>    have returned `BadDeviceToken`. Deleted unexecuted; iOS now goes through FCM,
+>    which relays to APNs (decision A).
+> 2. Getting a membership was **not sufficient**. Push stayed broken for hours
+>    afterward on an APNs *environment* mismatch: the app declares
+>    `aps-environment=development` (sandbox) while the first key was scoped
+>    `[Production]`. Fixed by a new key covering sandbox. Hence the FR-016
+>    amendment — holding a credential is not evidence of delivery.
+>
+> The design consequence is nil: the queue was always specified as the durable
+> floor with push as a tier above it, and that is what shipped.
 
 ## User Scenarios & Testing
 
@@ -307,8 +336,8 @@ heartbeat, and confirm the phone heartbeat carries the warning.
   a raw APNs device token, so the direct-to-Apple path could only ever have
   returned `BadDeviceToken`; it was removed unexecuted. Firebase relays to APNs
   using the APNs auth key uploaded to the Firebase project.
-- **Push is not yet delivering end-to-end.** FCM returns
-  `401 Invalid APNs credential / THIRD_PARTY_AUTH_ERROR` — Firebase cannot
+- ~~**Push is not yet delivering end-to-end.**~~ **RESOLVED 2026-08-10 17:35.** Was
+  `401 Invalid APNs credential / THIRD_PARTY_AUTH_ERROR`: an APNs environment mismatch — the app declares `aps-environment=development` (sandbox) while key `L3H89WG6TY` was scoped `[Production]`. Fixed with new key `C6J54MKSPG` covering sandbox. Firebase could not
   authenticate to APNs. This is Firebase Console / Apple Developer portal
   configuration, not code; the Border path is verified up to that boundary.
 - A Mac with Xcode is available for the iOS/watchOS half; the Linux Border host

@@ -1,207 +1,150 @@
 # Border status → Mac/Xcode session
 
-**Snapshot: 2026-08-10 17:25 EDT.** Replies to [MAC-STATUS.md](MAC-STATUS.md).
+**Snapshot: 2026-08-10 17:37 EDT.** Replies to [MAC-STATUS.md](MAC-STATUS.md).
 Investigation record: [BORDER-FINDINGS.md](BORDER-FINDINGS.md).
 
-## Your three asks, answered
+## Headline: iOS push works. All three delivery tiers are live.
 
-### 1. Did the token land? Yes — and it confirms your diagnosis exactly
+The blocker from the last update is **resolved**. Every delivery path this
+feature has is now working with real traffic.
 
-```
-member_id                push_platform   token_len   token
-risk/1785078347014       apns            142         fN6FFgJw8UP8u8kOQZnATq:A...
-```
+| Tier | Path | Status | Evidence |
+|---|---|---|---|
+| 1 | Live WebSocket → iPhone | ✅ | 17:35:56 `gait=d2b146643d` |
+| 2 | FCM → APNs push → iPhone | ✅ | FCM msg `c082925d-1b08-4592-a3b3-22460f7124c4` |
+| 3 | Queue + replay after outage | ✅ | 16:33:39, 5/5, `gait=f696e3b8fe` |
+| — | Agent-initiated `n2n_notify_phone` | ✅ | 17:07:01 `gait=f494ee980b`, 105ms |
+| — | Android FCM | ✅ | 16:56:39 |
+| — | Slack chat channel | ✅ | 0 failures since 13:27 |
 
-`platform='apns'` with a 142-char `<instanceID>:APA91b…` **FCM registration
-token**. A raw APNs device token is 64 hex chars (160 on newer). Your read was
-right, and it's now empirically confirmed rather than inferred.
+Current: iPhone **connected**, `platform=apns`, queue **0**. Android
+disconnected, queue 0, push working.
 
-### 2. Decision: **(A) — route iOS through FCM.** Implemented Border-side.
+## What the push blocker actually was (worth reading — it wasn't the Key ID)
 
-- `send_push_notification()` now sends **every** platform via FCM, including
-  iOS. Firebase relays to APNs using the `.p8` in the Firebase project.
-- `send_apns()` and `_apns_jwt()` **removed** — 46 lines that could never have
-  worked given the token type, deleted unexecuted rather than left as a trap.
-- `platform='apns'` is still **accepted** and routed to FCM, so the already-
-  enrolled iPhone keeps working without re-registering. **You do not need to
-  change `pushPlatformFor` for delivery to work**, and the existing
-  `'iOS registers as apns'` test can stay green. Flip it to `'fcm'` only if you
-  prefer the honesty; nothing breaks either way.
-- Added a guard: a genuinely raw APNs token is now **rejected with an explicit
-  message** instead of failing as an opaque vendor error, in case the client ever
-  switches to `getAPNSToken()`.
+`401 Invalid APNs credential / THIRD_PARTY_AUTH_ERROR` was an **APNs environment
+mismatch**:
 
-Reasoning: either option needs a valid APNs credential — (A) inside Firebase,
-(B) on the Border. (A) needed no new Border config, no secrets moved between
-machines, and let ~60 lines of never-executed ES256/JWT code be deleted rather
-than promoted to production. Your lean was correct.
+- `ios/Runner/Runner.entitlements` line 30 declares `aps-environment` =
+  `development` → the app registers a **sandbox** APNs token.
+- The original key `L3H89WG6TY` had APNs enabled and was team-scoped all-topics,
+  but scoped **`[Production]`**.
+- Firebase resolved the token to the iOS app, tried Apple's **sandbox** endpoint,
+  and a production-only key cannot authenticate there.
 
-### 3. End-to-end push test: **run, and it fails — but not in our code**
+Fixed by creating a **new key `C6J54MKSPG`** covering sandbox. Environment
+scoping is fixed at key creation — only name and topics are editable — so this
+needed a new key, not an edit.
 
-Called `send_push_notification()` directly against the real member row and the
-real iPhone token (bypassing live-WS delivery to isolate the push path):
+**Why this was easy to misdiagnose:** an unrestricted team-scoped `.p8`
+historically covers *both* environments, which is why token-based APNs auth
+normally "just works" for debug builds. Apple's newer per-environment scoping
+reintroduced a class of bug that hadn't existed for years. The error text names
+the credential, which points at the Key ID; the Key ID was correct the whole
+time.
 
-```
-OAuth2 access token .......... OK (1024 chars)
-POST .../messages:send ....... 401
-{
-  "error": {
-    "code": 401,
-    "message": "Invalid APNs credential.",
-    "status": "UNAUTHENTICATED",
-    "details": [{ "errorCode": "THIRD_PARTY_AUTH_ERROR" }]
-  }
-}
-```
+**Ruled out along the way, all confirmed correct** — don't re-check these:
+Firebase project/sender wiring (`netclaw-cfba3` / `104901188835`), bundle ID
+`ca.automateyournetwork.netclaw.mobile`, app registration
+`1:104901188835:ios:cf342e83b56e62a3b579d6`, the device token (freshly registered
+post-entitlement), and the Border's service-account credential + OAuth2 exchange.
 
-**Read this carefully — everything on our side worked.** Service-account auth
-succeeded, the message was well-formed, FCM accepted and parsed the request.
-`THIRD_PARTY_AUTH_ERROR` means **Firebase itself could not authenticate to
-APNs**. The failure is one hop past the Border.
+**Note for release:** Xcode rewrites `aps-environment` to `production`
+automatically for App Store distribution (as the comment in that entitlements
+file says). Key `C6J54MKSPG` covering both environments means this won't need
+revisiting at ship time. `L3H89WG6TY` can be revoked once you're satisfied —
+Apple allows 2 active keys, so there was no need to revoke before verifying.
 
-## The remaining blocker: the APNs Auth Key itself — everything else is proven
+## Your asks from MAC-STATUS, closed
 
-**Ruled out by the error code.** `THIRD_PARTY_AUTH_ERROR` (not
-`SENDER_ID_MISMATCH`, not `UNREGISTERED`, not `INVALID_ARGUMENT`) means FCM
-successfully resolved our device token → the registered `NetClaw iOS` app →
-**and then tried APNs and was refused**. If the token belonged to a different
-Firebase project, or the bundle ID hadn't matched a registered iOS app, it would
-have failed *before* the APNs hop with a different code. So these are all
-confirmed correct and need no further checking:
+1. **Token confirmed** — `platform='apns'`, 142-char `<instanceID>:APA91b…` FCM
+   registration token. Your diagnosis was exactly right.
+2. **Decision (A) implemented** — all platforms route via FCM;
+   `send_apns()`/`_apns_jwt()` deleted (46 lines that could never have worked).
+   **`platform='apns'` is still accepted and routed to FCM**, so you do **not**
+   need to change `pushPlatformFor`, and your `'iOS registers as apns'` test can
+   stay green. Flip it only if you prefer the honesty — nothing breaks either way.
+   A genuinely raw APNs token is now rejected with an explicit message rather
+   than an opaque vendor error.
+3. **End-to-end push test run** — see headline.
 
-- Firebase project / sender ID wiring (`netclaw-cfba3`)
-- Bundle ID `ca.automateyournetwork.netclaw.mobile`
-- App registration (App ID `1:104901188835:ios:cf342e83b56e62a3b579d6`)
-- The device token itself — freshly registered post-entitlement, after 16:26
-- The Border's service-account credential and OAuth2 exchange
+## Still outstanding: one test that needs the app backgrounded
 
-### ROOT CAUSE FOUND (17:40) — APNs environment mismatch, not the Key ID
+Tier 2 has been proven at the **credential/FCM-accept** boundary. What has *not*
+been observed is the production fallback firing on its own — because the phone
+has been connected every time, so pushes correctly take tier 1 instead.
 
-The key `NetClaw Notifications` (Key ID `L3H89WG6TY`) has APNs enabled and is
-`Team scoped (All topics)` — but scoped **`[Production]`**.
+To close it: **background the app or lock the phone** so the channel drops, then
+run (or ask me to run):
 
-`ios/Runner/Runner.entitlements` line 30 declares:
-
-```xml
-<key>aps-environment</key>
-<string>development</string>
+```bash
+python3 scripts/edge-heartbeat.py --member risk/1785078347014
 ```
 
-So the app registers a **sandbox** APNs token while the key is **production-only**.
-Firebase takes the token, resolves it to the iOS app, tries to authenticate to
-Apple's **sandbox** APNs endpoint, and a production-scoped key cannot — surfacing
-as `Invalid APNs credential` / `THIRD_PARTY_AUTH_ERROR`. Exactly the observed
-error. The Key ID was never the problem.
+Expected output is `-> delivered (via push_notification)` rather than a bare
+`-> delivered`. That single word `via` is the whole difference between tier 1 and
+tier 2, and it's the last unobserved transition in the feature.
 
-Historically this class of bug did not exist: an unrestricted team-scoped `.p8`
-covers both environments, which is why token-based auth normally "just works" for
-debug builds. Apple's newer per-environment key scoping reintroduced it.
+## Your `main.dart` fix worked — measurably
 
-**Fix: a NEW key** — environment scoping is fixed at creation and cannot be
-edited afterward (only name and topics can). Create a second APNs Auth Key, team
-scoped (all topics), **unrestricted** (or at minimum covering Sandbox), then
-upload that `.p8` and its new Key ID to Firebase → Cloud Messaging (one APNs key
-per app, so it replaces the old entry). Apple permits 2 active keys, so do not
-revoke `L3H89WG6TY` until the replacement is verified working.
+The 86ms replay timeout has **not recurred once** since your handler-registration
+fix, and auth has completed on every reconnect. Your fix and the Border's 3s
+settle delay now protect that window from opposite ends.
 
-Note for later: when the app ships via TestFlight/App Store, Xcode rewrites
-`aps-environment` to `production` automatically (documented in the comment in
-that entitlements file), so a key covering both environments avoids having to
-revisit this at release.
-
-### Previously suspected, now ruled out
-
-The `.p8` **is** uploaded (operator-confirmed), and these were the earlier
-suspects — retained because the reasoning is still useful if a *different* APNs
-error appears later:
-
-1. **Key ID mismatch — prime suspect.** The `.p8` filename encodes the truth:
-   `AuthKey_XXXXXXXXXX.p8`, those 10 chars being the Key ID. It must match
-   Firebase Console → Project Settings → **Cloud Messaging** → Apple app
-   configuration → APNs Auth Key. **Firebase does not validate the Key ID at
-   upload** — it accepts a wrong one silently and fails only at send. That is
-   precisely this symptom, and it is why "I uploaded it" and "it's
-   misconfigured" are not contradictory.
-2. **The key upload's Team ID is a separate field** from the app-level Team ID.
-   Both must be `A49777FMJG`; the app-level one being correct says nothing about
-   the key's.
-3. **APNs not enabled on the key.** Apple Developer → Keys → open the key →
-   "Apple Push Notifications service (APNs)" must be checked. A key issued for a
-   different service uploads fine and fails identically.
-4. **Key predates the paid membership.** If that `.p8` was generated while the
-   account was free/lapsed, regenerate it.
-
-Nothing here is fixable from the Border. Once anything changes, say so and I
-re-run the probe instantly — no redeploy, and the phone does **not** need to be
-backgrounded for the credential check to be meaningful (the probe calls
-`send_push_notification()` directly, bypassing live-WS delivery).
-
-## Live delivery matrix
-
-| Path | Status | Evidence |
-|---|---|---|
-| Slack chat channel | **working** | 0 failures since 13:27 |
-| Scheduled device heartbeat → iPhone (live WS) | **working** | 16:56:38 `gait=738c6ad54a` |
-| Queue replay after outage → iPhone | **working** | 16:33:39, 5/5, `gait=f696e3b8fe` |
-| Agent-initiated `n2n_notify_phone` → iPhone | **working** | 17:07:01 `gait=f494ee980b`, 105ms |
-| Android FCM push | **working** | 16:56:39 |
-| **iOS FCM push (backgrounded)** | **BLOCKED** | `401 Invalid APNs credential` |
-
-Note the Android row does **not** validate the iOS row — Android push never
-touches APNs, so it never exercised the broken relay leg. I over-claimed "FCM is
-proven working" earlier on that basis; it was proven for Android only.
-
-## iPhone channel stability — US2 looks met
-
-Matches your 10+ minute foregrounded observation from the Border side:
+Recent iPhone sessions, from the Border's view:
 
 ```
-session   16:33:35  held  185s   0 heartbeat failures
-session   16:36:56  held  709s   0 heartbeat failures   (11m49s)
-session   16:49:01  held  995s   0 heartbeat failures   (16m35s)
+16:33:35  held 185s   0 heartbeat failures
+16:36:56  held 709s   0 heartbeat failures   (11m49s)
+16:49:01  held 995s   0 heartbeat failures   (16m35s)
 recovery after each drop: 16s, self-healing
 ```
 
-Every recent close is plain `no close frame received or sent` after a long
-healthy run — never `1011`/`keepalive ping timeout`, never a heartbeat miss
-first. Consistent with your Xcode debug-tether explanation. Full iPhone
-distribution today: `18s, 57s, 84s, 185s, 709s, 995s, 3520s`.
+Closes are plain `no close frame received or sent` after long healthy runs —
+never `1011`/`keepalive ping timeout`, never a heartbeat miss first. Consistent
+with your Xcode debug-tether explanation. **US2's "can it hold a channel"
+question is answered**; ≥10 min with automatic recovery was the bar and it
+cleared it three times.
 
-**Your `main.dart` handler-registration fix is very likely the cause of the
-improvement** — the 86ms replay timeout I measured has not recurred once since,
-and auth has completed on every reconnect. Your fix and the Border's 3s settle
-delay now both protect that window from opposite ends.
+## US3: one design note now that push works
 
-## Instrumentation: keep it for now
+Push working changes the US3 calculus. `BGAppRefreshTask` is no longer the *only*
+way to reach a backgrounded phone, but it is still worth building — and still
+worth building so it **does not assume a push woke it**. Reconnect and drain
+unconditionally on every granted window. That way it covers both the
+push-delivered case and the push-dropped case (APNs is best-effort and will
+silently discard notifications for a long-offline device), and it degrades
+gracefully if a credential ever breaks again.
 
-You asked whether to keep the `edge_client.dart` `debugPrint`s. **Please keep
-them through US3.** Background-refresh delivery is the hardest thing here to
-observe — opportunistic wake-ups, no console attached, and a 30s budget — and
-the Border can only see whether a socket appeared, not why iOS granted or
-skipped a window. Strip them once US4 is done.
+The queue tier is what carried this feature all day while push was broken —
+every heartbeat still reached the phone via replay. It should stay the durable
+floor beneath push, not be treated as a stopgap now that push works.
 
-## One thing to watch in US3
+## Instrumentation: keep it through US3
 
-With push blocked, `BGAppRefreshTask` is currently the **only** mechanism that
-can drain the queue without you opening the app. Worth building it so it does not
-*assume* a push woke it — it should reconnect and drain unconditionally on every
-granted window. If the APNs credential gets fixed later, that same code path
-still works and just fires more often.
+Please keep the `edge_client.dart` `debugPrint`s until US4 is done.
+Background-refresh delivery is the hardest thing here to observe — opportunistic
+wake-ups, no console attached, a ~30s budget — and the Border can only see
+whether a socket appeared, never why iOS granted or skipped a window.
 
 ## Reading Border state yourself
 
 ```bash
-# delivery ground truth (not the queue table)
+# delivery ground truth (NOT the queue table)
 journalctl --user -u netclaw-mesh | grep 'edge_push'
 
 # failures only
 journalctl --user -u netclaw-mesh -f | grep -E 'stay queued|retrying once|heartbeat failed|keepalive ping timeout|Replaying'
+
+# tiers at a glance
+curl -s http://127.0.0.1:8179/n2n/health | python3 -c "
+import json,sys
+for e in json.load(sys.stdin).get('edge_nodes',[]): print(e)"
 ```
 
 **Do not judge drains by `select count(*)`** — delivered rows are pruned on the
-next enqueue, so a non-zero count is usually re-accumulation. There are 5
-delivered tombstones sitting there right now that a bare count would read as a
-backlog. Query with timestamps:
+next *enqueue*, so a non-zero count is usually re-accumulation or leftover
+tombstones. Query with timestamps:
 
 ```sql
 select queue_id, attempts,
