@@ -1,7 +1,60 @@
 # Border-side findings for the iOS drop investigation
 
-Observed on the Linux/WSL Border host, 2026-08-10 13:38–15:05. Written for the
+Observed on the Linux/WSL Border host, 2026-08-10 13:38–15:30. Written for the
 Mac/Xcode session — this is evidence you cannot see from the phone side.
+
+> **READ THIS FIRST — single root-cause hypothesis (added 15:30).**
+> **The Dart client's receive loop starts too late after the WebSocket opens, so
+> it misses the first inbound frame(s).** One bug explains every symptom below.
+> See §"The convergence" — start there, not at the top.
+
+## The convergence — one race explains all of it
+
+`FederationService.accept_edge_ws()` does this, in this exact order:
+
+```python
+ch = EdgeChannel(ws, ...)
+ch.nonce = nonce
+await ch.notify("n2n/edge/challenge", {"nonce": nonce.hex()})   # ← FIRST frame, immediately
+await ch.start()
+logger.info("Accepted edge WS dial-in (awaiting device auth)")
+```
+
+**The very first thing the Border sends is an inbound notification the client
+must already be listening for.** The device cannot authenticate until it receives
+`n2n/edge/challenge` and signs the nonce back via `in2n/hello` (or
+`in2n/enroll`). If the client's read loop or handler map isn't live the instant
+the socket opens, that frame is gone and there is no retransmit — the connection
+then sits in `awaiting device auth` forever and eventually disappears.
+
+This single defect predicts all four observed symptoms:
+
+| Symptom | Explanation |
+|---|---|
+| Connection stuck in `awaiting device auth`, no `auth_failure_bucket` row (15:23:51) | Missed the challenge frame. Never *failed* verification — never *attempted* it. |
+| Queue replay timed out 30s after being dispatched 86ms post-accept (13:57:10) | Missed an early inbound `n2n/edge/message`. |
+| Ordinary pushes on that *same* connection succeeded at 14:26 and 14:44 | Read loop was live by then. |
+| Replay succeeded at 13:38:37 | Won the race that time. It is intermittent, not deterministic. |
+
+**Where to look**: between "WebSocket open" and "read loop / handler map live" in
+`edge_client.dart`. Anything `await`ed between those two points — secure-storage
+reads for the enrollment key, `mobile_scanner` teardown, a `Future` chain before
+subscribing to the socket stream — is a frame you can lose. The fix is to
+subscribe to the inbound stream *before* anything else, and buffer whatever
+arrives until handlers are ready.
+
+**Empirical confirmation available**: `auth_failure_bucket` is **empty**. If the
+client were sending a malformed or wrongly-signed `in2n/hello`, there would be a
+row. There is no row, on any attempt. It is not an auth-credential problem.
+
+### Border-side mitigation already shipped (does not remove the need for the fix)
+
+`_flush_edge_queue()` now waits `N2N_EDGE_REPLAY_SETTLE_S` (default **3.0s**)
+after channel registration before dispatching, and retries once after the same
+delay before giving up. That covers the *replay* half of the race. It **cannot**
+cover the auth half — the nonce challenge is sent before the channel is even
+registered, so the client genuinely must listen first. Commit: see git log for
+`fix(103)`.
 
 ## TL;DR — three things that should change your instrumentation
 
