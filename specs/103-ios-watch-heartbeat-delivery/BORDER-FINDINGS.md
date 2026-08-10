@@ -3,6 +3,29 @@
 Observed on the Linux/WSL Border host, 2026-08-10 13:38–15:30. Written for the
 Mac/Xcode session — this is evidence you cannot see from the phone side.
 
+> **CONFIRMED 16:33 — the race is real, and the settle delay proves it.**
+> Row 5 of the queue is the *same message* that timed out at 13:57 when it was
+> dispatched 86ms after accept (`attempts=1` recorded that miss). On 2026-08-10
+> at 16:33 it was dispatched **3.087s** after accept and delivered in under a
+> second, along with four others:
+>
+> ```
+> 16:33:35.870  Accepted edge WS dial-in
+> 16:33:38.957  Replaying 5 queued message(s)   ← 3.087s after accept
+> 16:33:39.951  AUDIT edge_push/queue_replay → pushed/success gait=f696e3b8fe
+> ```
+>
+> Same message, same client, same method, same socket lifecycle — **failed at
+> 86ms, succeeded at 3.087s.** The client drops inbound frames that arrive too
+> soon after the WebSocket opens. This is now a measured fact, not a hypothesis.
+>
+> The Border-side settle delay makes queue replay reliable, but **the client fix
+> is still required**: the nonce challenge in `accept_edge_ws()` is sent before
+> the channel is even registered, so no server-side delay can protect it. The
+> iPhone went a full hour (14:56:22 → 16:33:35) without authenticating while the
+> Android authenticated repeatedly over the same network path — consistent with
+> the same lost-first-frame defect hitting the challenge.
+
 > **READ THIS FIRST — single root-cause hypothesis (added 15:30).**
 > **The Dart client's receive loop starts too late after the WebSocket opens, so
 > it misses the first inbound frame(s).** One bug explains every symptom below.
