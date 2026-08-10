@@ -59,30 +59,45 @@ succeeded, the message was well-formed, FCM accepted and parsed the request.
 `THIRD_PARTY_AUTH_ERROR` means **Firebase itself could not authenticate to
 APNs**. The failure is one hop past the Border.
 
-## The remaining blocker is Firebase Console config (your side)
+## The remaining blocker: the APNs Auth Key itself — everything else is proven
 
-I cannot fix this from Linux — it's the Firebase project and the Apple portal.
-In rough order of likelihood:
+**Ruled out by the error code.** `THIRD_PARTY_AUTH_ERROR` (not
+`SENDER_ID_MISMATCH`, not `UNREGISTERED`, not `INVALID_ARGUMENT`) means FCM
+successfully resolved our device token → the registered `NetClaw iOS` app →
+**and then tried APNs and was refused**. If the token belonged to a different
+Firebase project, or the bundle ID hadn't matched a registered iOS app, it would
+have failed *before* the APNs hop with a different code. So these are all
+confirmed correct and need no further checking:
 
-1. **Key ID / Team ID mistyped alongside the uploaded `.p8`.** Firebase asks for
-   both when you upload the key, and it does not validate them at upload time —
-   a wrong Key ID surfaces *only* as this error, at send time. Most common cause.
-   Firebase Console → Project Settings → Cloud Messaging → iOS app → APNs Auth
-   Key. Team ID should be `A49777FMJG` per your MAC-STATUS.
-2. **Bundle ID mismatch.** The Firebase iOS app's bundle ID must be exactly
-   `ca.automateyournetwork.netclaw.mobile`. Note you renamed the *watch
-   complication* bundle ID this session (`…watchcomplication` →
-   `…wcomplication`); worth confirming the main app's ID in
-   `GoogleService-Info.plist` still matches the Firebase app registration.
-3. **`.p8` uploaded to the wrong Firebase app** — e.g. an Android app entry, or a
-   second iOS app in the same project.
-4. **Key revoked or replaced** in the Apple Developer portal after upload.
-5. **Key lacks the APNs service enrolment** (Keys → the key must have "Apple Push
-   Notifications service (APNs)" checked).
+- Firebase project / sender ID wiring (`netclaw-cfba3`)
+- Bundle ID `ca.automateyournetwork.netclaw.mobile`
+- App registration (App ID `1:104901188835:ios:cf342e83b56e62a3b579d6`)
+- The device token itself — freshly registered post-entitlement, after 16:26
+- The Border's service-account credential and OAuth2 exchange
 
-Once you've changed anything there, tell me and I'll re-run the exact same probe
-immediately — no redeploy needed on my side, and the phone doesn't need to be
-backgrounded for the credential check to be meaningful.
+The `.p8` **is** uploaded (operator-confirmed). So the fault is the credential's
+identity or entitlement, in this order:
+
+1. **Key ID mismatch — prime suspect.** The `.p8` filename encodes the truth:
+   `AuthKey_XXXXXXXXXX.p8`, those 10 chars being the Key ID. It must match
+   Firebase Console → Project Settings → **Cloud Messaging** → Apple app
+   configuration → APNs Auth Key. **Firebase does not validate the Key ID at
+   upload** — it accepts a wrong one silently and fails only at send. That is
+   precisely this symptom, and it is why "I uploaded it" and "it's
+   misconfigured" are not contradictory.
+2. **The key upload's Team ID is a separate field** from the app-level Team ID.
+   Both must be `A49777FMJG`; the app-level one being correct says nothing about
+   the key's.
+3. **APNs not enabled on the key.** Apple Developer → Keys → open the key →
+   "Apple Push Notifications service (APNs)" must be checked. A key issued for a
+   different service uploads fine and fails identically.
+4. **Key predates the paid membership.** If that `.p8` was generated while the
+   account was free/lapsed, regenerate it.
+
+Nothing here is fixable from the Border. Once anything changes, say so and I
+re-run the probe instantly — no redeploy, and the phone does **not** need to be
+backgrounded for the credential check to be meaningful (the probe calls
+`send_push_notification()` directly, bypassing live-WS delivery).
 
 ## Live delivery matrix
 
