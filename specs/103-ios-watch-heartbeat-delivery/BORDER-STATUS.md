@@ -68,22 +68,29 @@ Apple allows 2 active keys, so there was no need to revoke before verifying.
    than an opaque vendor error.
 3. **End-to-end push test run** — see headline.
 
-## Still outstanding: one test that needs the app backgrounded
+## Tier 2 CLOSED — observed firing on its own in production (17:56:48)
 
-Tier 2 has been proven at the **credential/FCM-accept** boundary. What has *not*
-been observed is the production fallback firing on its own — because the phone
-has been connected every time, so pushes correctly take tier 1 instead.
+The last unobserved transition happened by itself, no test harness involved. The
+systemd timer fired on its normal 30-minute cadence, found both devices
+disconnected, live delivery failed, and the push fallback took over:
 
-To close it: **background the app or lock the phone** so the channel drops, then
-run (or ask me to run):
-
-```bash
-python3 scripts/edge-heartbeat.py --member risk/1785078347014
+```
+17:56:48  edge-heartbeat: risk/1785078347014 -> delivered (via push_notification)
+17:56:48  edge-heartbeat: risk/1785267858182 -> delivered (via push_notification)
 ```
 
-Expected output is `-> delivered (via push_notification)` rather than a bare
-`-> delivered`. That single word `via` is the whole difference between tier 1 and
-tier 2, and it's the last unobserved transition in the feature.
+`via push_notification` rather than a bare `-> delivered` is the whole
+distinction between tier 1 and tier 2. Both devices took the push path, and
+`queued=0` on both afterward — push succeeded, so nothing needed to fall through
+to tier 3.
+
+**Every delivery path in this feature is now verified in production**, on real
+traffic, through the real code paths. The Border half of spec 103 is complete.
+
+One caveat kept honest per FR-016: FCM accepting and relaying is proven; whether
+each notification *visibly appeared* on the device is the operator's observation,
+not something the Border can assert. The mechanism is proven end-to-end; arrival
+counts are not instrumented.
 
 ## Your `main.dart` fix worked — measurably
 
