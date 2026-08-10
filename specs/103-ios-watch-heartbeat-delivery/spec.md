@@ -253,8 +253,11 @@ heartbeat, and confirm the phone heartbeat carries the warning.
 - **FR-015**: The watch companion MUST display the latest heartbeat and its age,
   and MUST visually distinguish an alarm-bearing heartbeat from a routine one.
 - **FR-016**: The system MUST NOT claim real-time delivery to a backgrounded
-  iOS device. Documentation and any status surface MUST state that background
-  delivery is opportunistic while no APNs credential exists.
+  iOS device until a push has actually been observed arriving on a backgrounded
+  device. Amended 2026-08-10: the original wording conditioned this on "while no
+  APNs credential exists", which a paid membership satisfied on paper while
+  delivery was still broken (`Invalid APNs credential` from FCM). Possessing a
+  credential is not evidence of delivery; an observed arrival is.
 - **FR-017**: The operator MUST be able to retire an abandoned edge enrollment
   without editing the database by hand.
 
@@ -292,9 +295,22 @@ heartbeat, and confirm the phone heartbeat carries the warning.
 
 ## Assumptions
 
-- **No Apple Developer Program membership, and none is being purchased for this
-  feature.** APNs is unavailable. If that changes, APNs becomes a tier above the
-  queue rather than a replacement for it.
+- ~~**No Apple Developer Program membership, and none is being purchased for
+  this feature.** APNs is unavailable.~~ **SUPERSEDED 2026-08-10**: a paid
+  membership went active mid-implementation. Push entitlement is wired and the
+  device now registers a push token. This does not invalidate the queue design —
+  per the original wording, APNs becomes *a tier above the queue rather than a
+  replacement for it*, which is exactly how it is implemented. See "Decision A"
+  below; iOS pushes are relayed by Firebase rather than sent to Apple directly.
+- **iOS push delivery goes through FCM, not Apple's raw API** (decision
+  2026-08-10, "Decision A"). The client registers an FCM registration token, not
+  a raw APNs device token, so the direct-to-Apple path could only ever have
+  returned `BadDeviceToken`; it was removed unexecuted. Firebase relays to APNs
+  using the APNs auth key uploaded to the Firebase project.
+- **Push is not yet delivering end-to-end.** FCM returns
+  `401 Invalid APNs credential / THIRD_PARTY_AUTH_ERROR` — Firebase cannot
+  authenticate to APNs. This is Firebase Console / Apple Developer portal
+  configuration, not code; the Border path is verified up to that boundary.
 - A Mac with Xcode is available for the iOS/watchOS half; the Linux Border host
   cannot build or debug the app.
 - The existing Flutter app (`mobile/netclaw-mobile/`, specs 066–073, 099) is

@@ -1,122 +1,155 @@
-# Border status report → Mac/Xcode session
+# Border status → Mac/Xcode session
 
-**Snapshot: 2026-08-10 16:41 EDT.** Live status, refreshed as things change.
-For the full investigation record see [BORDER-FINDINGS.md](BORDER-FINDINGS.md).
+**Snapshot: 2026-08-10 17:25 EDT.** Replies to [MAC-STATUS.md](MAC-STATUS.md).
+Investigation record: [BORDER-FINDINGS.md](BORDER-FINDINGS.md).
 
-## Right now: the phone is connected and healthy
+## Your three asks, answered
 
-| | |
-|---|---|
-| iPhone `risk/1785078347014` | **connected**, authenticated, queue depth **0** |
-| Current session | open since **16:36:56** |
-| Previous session | 16:33:35, held **185s** |
-| Heartbeat failures since 16:33 | **0** |
-| Android `risk/1785267858182` | not connected, queue 0 (FCM push works) |
-
-The phone is reconnecting on its own, answering the Border's 30s liveness
-checks, and receiving pushes. Nothing is broken on the Border side.
-
-## Queue replay is DONE — don't spend more time on it
-
-All 5 backlogged heartbeats delivered at **16:33:39**, audited
-`gait=f696e3b8fe`, queue depth now 0. Confirmed end-to-end twice (13:38 and
-16:33). US1 is closed.
-
-## The one measurement that should drive your instrumentation
-
-Queue row 5 was the **same message** that timed out at 13:57 when the Border
-dispatched it **86ms** after socket accept. At 16:33 the Border dispatched it
-**3.087s** after accept and it delivered in under a second.
+### 1. Did the token land? Yes — and it confirms your diagnosis exactly
 
 ```
-13:57:10.566  Accepted edge WS dial-in
-13:57:10.652  Replaying 1 queued message(s)      ← 86ms after accept
-13:57:40.663  FAILED (n2n/edge/message timed out — full 30s)
-
-16:33:35.870  Accepted edge WS dial-in
-16:33:38.957  Replaying 5 queued message(s)      ← 3.087s after accept
-16:33:39.951  pushed/success gait=f696e3b8fe     ← all 5, under a second
+member_id                push_platform   token_len   token
+risk/1785078347014       apns            142         fN6FFgJw8UP8u8kOQZnATq:A...
 ```
 
-Same message, same client, same method, same socket lifecycle.
+`platform='apns'` with a 142-char `<instanceID>:APA91b…` **FCM registration
+token**. A raw APNs device token is 64 hex chars (160 on newer). Your read was
+right, and it's now empirically confirmed rather than inferred.
 
-> **86ms fails. 3.087s works.** The Dart client drops inbound frames that
-> arrive too soon after the WebSocket opens. Measured, not theorised.
+### 2. Decision: **(A) — route iOS through FCM.** Implemented Border-side.
 
-**So look for something taking on the order of seconds** to become ready after
-socket open — not microseconds. Candidates:
+- `send_push_notification()` now sends **every** platform via FCM, including
+  iOS. Firebase relays to APNs using the `.p8` in the Firebase project.
+- `send_apns()` and `_apns_jwt()` **removed** — 46 lines that could never have
+  worked given the token type, deleted unexecuted rather than left as a trap.
+- `platform='apns'` is still **accepted** and routed to FCM, so the already-
+  enrolled iPhone keeps working without re-registering. **You do not need to
+  change `pushPlatformFor` for delivery to work**, and the existing
+  `'iOS registers as apns'` test can stay green. Flip it to `'fcm'` only if you
+  prefer the honesty; nothing breaks either way.
+- Added a guard: a genuinely raw APNs token is now **rejected with an explicit
+  message** instead of failing as an opaque vendor error, in case the client ever
+  switches to `getAPNSToken()`.
 
-- an `await` on secure storage before subscribing to the socket stream
-- a deferred `.listen()` on the WebSocket
-- handler-map registration sitting behind a `Future` chain
+Reasoning: either option needs a valid APNs credential — (A) inside Firebase,
+(B) on the Border. (A) needed no new Border config, no secrets moved between
+machines, and let ~60 lines of never-executed ES256/JWT code be deleted rather
+than promoted to production. Your lean was correct.
 
-The fix is to subscribe to inbound **first** and buffer whatever arrives until
-handlers are ready.
+### 3. End-to-end push test: **run, and it fails — but not in our code**
 
-## Why the client fix is still required
+Called `send_push_notification()` directly against the real member row and the
+real iPhone token (bypassing live-WS delivery to isolate the push path):
 
-The Border-side settle delay (`N2N_EDGE_REPLAY_SETTLE_S`, default 3s) protects
-**queue replay only**. It cannot protect authentication:
-
-```python
-# FederationService.accept_edge_ws()
-ch = EdgeChannel(ws, ...)
-ch.nonce = nonce
-await ch.notify("n2n/edge/challenge", {"nonce": nonce.hex()})   # ← FIRST frame
-await ch.start()                                                #   read loop starts AFTER
-logger.info("Accepted edge WS dial-in (awaiting device auth)")
+```
+OAuth2 access token .......... OK (1024 chars)
+POST .../messages:send ....... 401
+{
+  "error": {
+    "code": 401,
+    "message": "Invalid APNs credential.",
+    "status": "UNAUTHENTICATED",
+    "details": [{ "errorCode": "THIRD_PARTY_AUTH_ERROR" }]
+  }
+}
 ```
 
-The nonce challenge is the **very first frame**, sent before the channel is even
-registered, and there is **no retransmit**. A client that isn't listening at
-socket-open misses it, never sends `in2n/hello`, and hangs in
-`awaiting device auth` forever.
+**Read this carefully — everything on our side worked.** Service-account auth
+succeeded, the message was well-formed, FCM accepted and parsed the request.
+`THIRD_PARTY_AUTH_ERROR` means **Firebase itself could not authenticate to
+APNs**. The failure is one hop past the Border.
 
-Consistent with observation: the iPhone went a **full hour** (14:56:22 →
-16:33:35) without authenticating, while the Android authenticated repeatedly
-over the identical network path. **`auth_failure_bucket` is empty on every
-attempt** — it never *fails* auth, it never *attempts* it. That rules out a
-credential or enrollment problem, so the redeploy did not wipe the stored key.
+## The remaining blocker is Firebase Console config (your side)
 
-## Two red herrings — don't chase these
+I cannot fix this from Linux — it's the Firebase project and the Apple portal.
+In rough order of likelihood:
 
-1. **It is not iOS suspension.** The Android flaps identically (10s–96s holds,
-   same `no close frame received or sent`) on the same Flutter codebase. An
-   earlier `keepalive ping timeout` led me to an "app freezing" theory; the
-   Android data kills it.
-2. **`[n2n.edge[unauthenticated]]` on every close line is cosmetic** — the
-   channel logger is never relabelled after successful auth. The `deregistered`
-   line on the following row identifies the actual device.
+1. **Key ID / Team ID mistyped alongside the uploaded `.p8`.** Firebase asks for
+   both when you upload the key, and it does not validate them at upload time —
+   a wrong Key ID surfaces *only* as this error, at send time. Most common cause.
+   Firebase Console → Project Settings → Cloud Messaging → iOS app → APNs Auth
+   Key. Team ID should be `A49777FMJG` per your MAC-STATUS.
+2. **Bundle ID mismatch.** The Firebase iOS app's bundle ID must be exactly
+   `ca.automateyournetwork.netclaw.mobile`. Note you renamed the *watch
+   complication* bundle ID this session (`…watchcomplication` →
+   `…wcomplication`); worth confirming the main app's ID in
+   `GoogleService-Info.plist` still matches the Firebase app registration.
+3. **`.p8` uploaded to the wrong Firebase app** — e.g. an Android app entry, or a
+   second iOS app in the same project.
+4. **Key revoked or replaced** in the Apple Developer portal after upload.
+5. **Key lacks the APNs service enrolment** (Keys → the key must have "Apple Push
+   Notifications service (APNs)" checked).
 
-## Corrections to earlier Border-side reports
+Once you've changed anything there, tell me and I'll re-run the exact same probe
+immediately — no redeploy needed on my side, and the phone doesn't need to be
+backgrounded for the credential check to be meaningful.
 
-Recorded so they don't mislead anyone reading back through the history:
+## Live delivery matrix
 
-- **"Dies in 18–57s" was wrong** — over-generalized from two samples. Observed
-  holds since: 84s, 185s, and once **3520s (59 minutes)**.
-- **Several short drops attributed to the iPhone were actually the Android.**
-- **Source IP cannot distinguish the two devices** — both sit behind the same
-  NAT (`142.169.80.82`). Device identity is only knowable after auth, when the
-  member ID appears in the log.
-- **A "sharp degradation" I flagged at 15:30** (5s and 6s holds) was a transient
-  blip; the next session held 56s. Not a deploy regression.
+| Path | Status | Evidence |
+|---|---|---|
+| Slack chat channel | **working** | 0 failures since 13:27 |
+| Scheduled device heartbeat → iPhone (live WS) | **working** | 16:56:38 `gait=738c6ad54a` |
+| Queue replay after outage → iPhone | **working** | 16:33:39, 5/5, `gait=f696e3b8fe` |
+| Agent-initiated `n2n_notify_phone` → iPhone | **working** | 17:07:01 `gait=f494ee980b`, 105ms |
+| Android FCM push | **working** | 16:56:39 |
+| **iOS FCM push (backgrounded)** | **BLOCKED** | `401 Invalid APNs credential` |
 
-## Reading the live event stream
+Note the Android row does **not** validate the iOS row — Android push never
+touches APNs, so it never exercised the broken relay leg. I over-claimed "FCM is
+proven working" earlier on that basis; it was proven for Android only.
+
+## iPhone channel stability — US2 looks met
+
+Matches your 10+ minute foregrounded observation from the Border side:
+
+```
+session   16:33:35  held  185s   0 heartbeat failures
+session   16:36:56  held  709s   0 heartbeat failures   (11m49s)
+session   16:49:01  held  995s   0 heartbeat failures   (16m35s)
+recovery after each drop: 16s, self-healing
+```
+
+Every recent close is plain `no close frame received or sent` after a long
+healthy run — never `1011`/`keepalive ping timeout`, never a heartbeat miss
+first. Consistent with your Xcode debug-tether explanation. Full iPhone
+distribution today: `18s, 57s, 84s, 185s, 709s, 995s, 3520s`.
+
+**Your `main.dart` handler-registration fix is very likely the cause of the
+improvement** — the 86ms replay timeout I measured has not recurred once since,
+and auth has completed on every reconnect. Your fix and the Border's 3s settle
+delay now both protect that window from opposite ends.
+
+## Instrumentation: keep it for now
+
+You asked whether to keep the `edge_client.dart` `debugPrint`s. **Please keep
+them through US3.** Background-refresh delivery is the hardest thing here to
+observe — opportunistic wake-ups, no console attached, and a 30s budget — and
+the Border can only see whether a socket appeared, not why iOS granted or
+skipped a window. Strip them once US4 is done.
+
+## One thing to watch in US3
+
+With push blocked, `BGAppRefreshTask` is currently the **only** mechanism that
+can drain the queue without you opening the app. Worth building it so it does not
+*assume* a push woke it — it should reconnect and drain unconditionally on every
+granted window. If the APNs credential gets fixed later, that same code path
+still works and just fires more often.
+
+## Reading Border state yourself
 
 ```bash
-journalctl --user -u netclaw-mesh -f | grep -E "Accepted edge|channel closed|Replay|stay queued|heartbeat failed|edge_push"
-```
-
-Ground truth for delivery is the audit trail, not the queue table:
-
-```bash
+# delivery ground truth (not the queue table)
 journalctl --user -u netclaw-mesh | grep 'edge_push'
+
+# failures only
+journalctl --user -u netclaw-mesh -f | grep -E 'stay queued|retrying once|heartbeat failed|keepalive ping timeout|Replaying'
 ```
 
-**Do not use `select count(*) from edge_message_queue`** to judge whether a
-drain worked — delivered rows are pruned on the next enqueue, and a new
-heartbeat lands every 30 minutes, so a non-zero count is usually
-re-accumulation. Query with timestamps:
+**Do not judge drains by `select count(*)`** — delivered rows are pruned on the
+next enqueue, so a non-zero count is usually re-accumulation. There are 5
+delivered tombstones sitting there right now that a bare count would read as a
+backlog. Query with timestamps:
 
 ```sql
 select queue_id, attempts,
@@ -124,25 +157,3 @@ select queue_id, attempts,
        coalesce(datetime(delivered_at,'unixepoch','localtime'),'PENDING') as delivered
 from edge_message_queue where member_id='risk/1785078347014' order by queue_id;
 ```
-
-## Offer: on-demand push for correlation
-
-While the phone is connected I can fire a push **immediately** on request and
-hand back the exact Border timestamp, so you can line it up against your
-`debugPrint` output instead of waiting for the 30-minute timer tick:
-
-```bash
-python3 scripts/edge-heartbeat.py --member risk/1785078347014
-```
-
-Ask and I'll run it and report the millisecond timing.
-
-## What would most help back from the Mac side
-
-1. Timestamped logs at: WS open, handshake complete, **read loop / `.listen()`
-   live**, `in2n/hello` sent, and each inbound method dispatch by name. The gap
-   between *WS open* and *read loop live* is the suspect — and we now know it is
-   somewhere between 86ms and 3s wide.
-2. Whether the app is foregrounded, backgrounded, or mid-redeploy at the
-   timestamps of any drop.
-3. Anything in the iOS console about termination, jetsam, or a watchdog firing.
