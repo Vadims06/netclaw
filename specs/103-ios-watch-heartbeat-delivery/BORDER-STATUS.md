@@ -75,8 +75,45 @@ confirmed correct and need no further checking:
 - The device token itself — freshly registered post-entitlement, after 16:26
 - The Border's service-account credential and OAuth2 exchange
 
-The `.p8` **is** uploaded (operator-confirmed). So the fault is the credential's
-identity or entitlement, in this order:
+### ROOT CAUSE FOUND (17:40) — APNs environment mismatch, not the Key ID
+
+The key `NetClaw Notifications` (Key ID `L3H89WG6TY`) has APNs enabled and is
+`Team scoped (All topics)` — but scoped **`[Production]`**.
+
+`ios/Runner/Runner.entitlements` line 30 declares:
+
+```xml
+<key>aps-environment</key>
+<string>development</string>
+```
+
+So the app registers a **sandbox** APNs token while the key is **production-only**.
+Firebase takes the token, resolves it to the iOS app, tries to authenticate to
+Apple's **sandbox** APNs endpoint, and a production-scoped key cannot — surfacing
+as `Invalid APNs credential` / `THIRD_PARTY_AUTH_ERROR`. Exactly the observed
+error. The Key ID was never the problem.
+
+Historically this class of bug did not exist: an unrestricted team-scoped `.p8`
+covers both environments, which is why token-based auth normally "just works" for
+debug builds. Apple's newer per-environment key scoping reintroduced it.
+
+**Fix: a NEW key** — environment scoping is fixed at creation and cannot be
+edited afterward (only name and topics can). Create a second APNs Auth Key, team
+scoped (all topics), **unrestricted** (or at minimum covering Sandbox), then
+upload that `.p8` and its new Key ID to Firebase → Cloud Messaging (one APNs key
+per app, so it replaces the old entry). Apple permits 2 active keys, so do not
+revoke `L3H89WG6TY` until the replacement is verified working.
+
+Note for later: when the app ships via TestFlight/App Store, Xcode rewrites
+`aps-environment` to `production` automatically (documented in the comment in
+that entitlements file), so a key covering both environments avoids having to
+revisit this at release.
+
+### Previously suspected, now ruled out
+
+The `.p8` **is** uploaded (operator-confirmed), and these were the earlier
+suspects — retained because the reasoning is still useful if a *different* APNs
+error appears later:
 
 1. **Key ID mismatch — prime suspect.** The `.p8` filename encodes the truth:
    `AuthKey_XXXXXXXXXX.p8`, those 10 chars being the Key ID. It must match
