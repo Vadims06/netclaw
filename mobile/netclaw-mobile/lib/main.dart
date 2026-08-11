@@ -6,12 +6,14 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'ncfed/approval_client.dart';
+import 'ncfed/background_refresh.dart';
 import 'ncfed/badge_lifecycle.dart';
 import 'ncfed/capability_registration.dart';
 import 'ncfed/capture_client.dart';
 import 'ncfed/conversation_store.dart';
 import 'ncfed/dashboard_data.dart';
 import 'ncfed/device_deep_link.dart';
+import 'ncfed/device_heartbeat.dart';
 import 'ncfed/edge_ask_client.dart';
 import 'ncfed/edge_client.dart';
 import 'ncfed/edge_identity.dart';
@@ -21,6 +23,7 @@ import 'ncfed/live_activity.dart';
 import 'ncfed/local_notifications.dart';
 import 'ncfed/message_feed.dart';
 import 'ncfed/notification_deep_link.dart';
+import 'ncfed/pending_approval_store.dart';
 import 'ncfed/push_registration.dart';
 import 'ncfed/reconnect_supervisor.dart';
 import 'ncfed/turn_reconciler.dart';
@@ -33,6 +36,13 @@ import 'screens/device_scan_screen.dart';
 import 'screens/enrollment_screen.dart';
 import 'screens/feed_screen.dart';
 import 'screens/settings_screen.dart';
+
+/// Referenced only so [backgroundRefreshMain] (103/US3) stays part of the
+/// compiled program's import graph -- native code invokes it by name via a
+/// headless `FlutterEngine.run(withEntrypoint:)` when iOS grants a
+/// `BGAppRefreshTask` window, never through a Dart call site. See
+/// ncfed/background_refresh.dart.
+final backgroundRefreshEntryPointKeepAlive = backgroundRefreshMain;
 
 void main() {
   runApp(const NetClawMobileApp());
@@ -226,6 +236,16 @@ class _HomeShellState extends State<HomeShell> {
       final askClient = EdgeAskClient(widget.client);
       final conversationStore = ConversationStore(dir);
       final approvalClient = ApprovalClient(widget.client);
+      // 103/US3: an approval may have arrived and been ACKed to the Border
+      // during a headless BGAppRefreshTask window, where no live
+      // ApprovalClient existed to hold it in memory -- PendingApprovalStore
+      // is the durable holding pen for exactly that case. Drained once, here,
+      // before anything else might reasonably act on approvals.
+      PendingApprovalStore(dir).loadAndClear().then((pending) {
+        for (final params in pending) {
+          approvalClient.receiveApproval(params);
+        }
+      });
       final capabilities = CapabilityRegistration(widget.client);
       // 099/FR-017/FR-018: reacts to the SAME `currentPending` stream
       // regardless of which surface changed it -- in-app buttons,
@@ -244,10 +264,93 @@ class _HomeShellState extends State<HomeShell> {
 
       // 073: real local notifications while the app process is alive,
       // distinct from feature 066's credential-blocked remote FCM/APNs path
-      // below (_tryRegisterPush). Initialized before wireMessageFeed/
-      // conversationStore.onCompleted/receiveApproval are wired below, so
-      // the very first arrival is never missed.
+      // below (_tryRegisterPush). Constructed (not yet initialize()'d) before
+      // wireMessageFeed/wireHeartbeat/CaptureClient below, which only need the
+      // object to exist -- see the race-window note on that block.
       final localNotifications = LocalNotifications();
+
+      // 103/BORDER-FINDINGS: `_listen()` starts dispatching inbound
+      // Border-initiated calls (n2n/edge/message, n2n/edge/heartbeat, capture
+      // requests) the instant `widget.client` connects -- which already
+      // happened, at latest, when `EnrollmentGate` handed us this client.
+      // `EdgeClient._onMessage` silently drops any call with no registered
+      // handler (no error reply), so the Border-side caller just times out
+      // with no client-visible symptom. A live Border trace caught exactly
+      // this: a queued-replay push arrived 86ms after a fresh handshake and
+      // got no reply for the full 30s timeout, on a connection that had only
+      // just been authenticated -- not a suspended/backgrounded app. The
+      // previous code registered these handlers only after `await
+      // localNotifications.initialize()` and `await
+      // localNotifications.requestPermission()` below, the second of which
+      // can block on a real user-facing permission dialog and so is
+      // effectively unbounded. Moved up here, before either await, so the
+      // race window shrinks to the sub-millisecond gap between this line and
+      // the object constructions just above it.
+      wireMessageFeed(
+        widget.client,
+        feedStore,
+        onApproval: (params) {
+          approvalClient.receiveApproval(params);
+          final approval = approvalClient.currentPending
+              .where((a) => a.approvalId == params['approval_id'])
+              .toList();
+          if (approval.isNotEmpty) {
+            localNotifications.postApprovalNotification(
+              identifier: approval.single.approvalId.toString(),
+              targetName: approval.single.targetName,
+              requestingAgent: approval.single.requestingAgent,
+            );
+          }
+        },
+        onMessage: (message) {
+          // 103/US4: persisted regardless of `mounted` -- this durable-store
+          // write is what the watch relay reads from, not a UI update, and
+          // must not be skipped just because the app happens to be
+          // backgrounded when a heartbeat lands.
+          if (looksLikeDeviceHeartbeat(message)) {
+            DeviceHeartbeatStore(dir).save(DeviceHeartbeatStatus.fromMessage(message));
+          }
+          if (!mounted) return;
+          // Don't badge the tab the operator is already looking at.
+          if (_tab != 2) { // Feed (099/FR-012: shifted by Dashboard at index 0)
+            setState(() => _unreadFeed++);
+            localNotifications.postFeedNotification(
+              identifier: message.pushedAt.toIso8601String(),
+              preview: message.contentType == MessageContentType.text
+                  ? message.content
+                  : 'New ${message.contentType.name} message',
+              badgeCount: combinedBadgeCount(
+                unreadFeed: feedStore.unreadCount,
+                unreadChat: conversationStore.unreadCount,
+              ),
+            );
+          }
+          _recomputeBadge();
+        },
+      );
+      wireHeartbeat(widget.client);
+      CaptureClient(
+        askClient: askClient,
+        capture: (type) => CaptureScreen.capture(context, type),
+      ).wire(widget.client);
+      // feature 072: answers Apple Watch companion-app requests using these
+      // SAME instances -- the watch has no connection of its own (FR-011).
+      // Registered before `await capabilities.register()` below: that's a
+      // network round trip to the Border, and the watch relay must not wait
+      // on it -- a slow/hung Border registration must not leave the watch's
+      // native side waiting on a Dart handler that was never wired up.
+      final watchRelay = WatchRelay(
+          approvalClient: approvalClient,
+          askClient: askClient,
+          feedStore: feedStore,
+          conversationStore: conversationStore,
+          heartbeatStore: DeviceHeartbeatStore(dir));
+      const MethodChannel('ca.automateyournetwork.netclaw/watch_relay')
+          .setMethodCallHandler((call) => watchRelay.handle(
+                call.method,
+                (call.arguments as Map?)?.cast<String, dynamic>() ?? {},
+              ));
+
       final notificationDeepLink = NotificationDeepLink(
         store: feedStore,
         conversationStore: conversationStore,
@@ -297,62 +400,6 @@ class _HomeShellState extends State<HomeShell> {
         _recomputeBadge();
       };
 
-      wireMessageFeed(
-        widget.client,
-        feedStore,
-        onApproval: (params) {
-          approvalClient.receiveApproval(params);
-          final approval = approvalClient.currentPending
-              .where((a) => a.approvalId == params['approval_id'])
-              .toList();
-          if (approval.isNotEmpty) {
-            localNotifications.postApprovalNotification(
-              identifier: approval.single.approvalId.toString(),
-              targetName: approval.single.targetName,
-              requestingAgent: approval.single.requestingAgent,
-            );
-          }
-        },
-        onMessage: (message) {
-          if (!mounted) return;
-          // Don't badge the tab the operator is already looking at.
-          if (_tab != 2) { // Feed (099/FR-012: shifted by Dashboard at index 0)
-            setState(() => _unreadFeed++);
-            localNotifications.postFeedNotification(
-              identifier: message.pushedAt.toIso8601String(),
-              preview: message.contentType == MessageContentType.text
-                  ? message.content
-                  : 'New ${message.contentType.name} message',
-              badgeCount: combinedBadgeCount(
-                unreadFeed: feedStore.unreadCount,
-                unreadChat: conversationStore.unreadCount,
-              ),
-            );
-          }
-          _recomputeBadge();
-        },
-      );
-      wireHeartbeat(widget.client);
-      CaptureClient(
-        askClient: askClient,
-        capture: (type) => CaptureScreen.capture(context, type),
-      ).wire(widget.client);
-      // feature 072: answers Apple Watch companion-app requests using these
-      // SAME instances -- the watch has no connection of its own (FR-011).
-      // Registered before `await capabilities.register()` below: that's a
-      // network round trip to the Border, and the watch relay must not wait
-      // on it -- a slow/hung Border registration must not leave the watch's
-      // native side waiting on a Dart handler that was never wired up.
-      final watchRelay = WatchRelay(
-          approvalClient: approvalClient,
-          askClient: askClient,
-          feedStore: feedStore,
-          conversationStore: conversationStore);
-      const MethodChannel('ca.automateyournetwork.netclaw/watch_relay')
-          .setMethodCallHandler((call) => watchRelay.handle(
-                call.method,
-                (call.arguments as Map?)?.cast<String, dynamic>() ?? {},
-              ));
       await capabilities.register();
       setState(() {
         _feedStore = feedStore;
@@ -412,6 +459,7 @@ class _HomeShellState extends State<HomeShell> {
         keyFingerprint: stored.keyFingerprint,
       ),
       onConnected: (_) {
+        debugPrint('[edge-diag] reconnected ${DateTime.now().toIso8601String()}');
         if (mounted) setState(() => _connected = true);
         // A reconnect is the moment to collect anything that finished while we
         // were away: `ask_result` is best-effort and is simply not sent when no
@@ -426,6 +474,7 @@ class _HomeShellState extends State<HomeShell> {
       initiallyConnected: true,
     );
     widget.client.onDisconnected = () {
+      debugPrint('[edge-diag] disconnected ${DateTime.now().toIso8601String()}');
       supervisor.notifyDisconnected();
       if (mounted) setState(() => _connected = false);
     };

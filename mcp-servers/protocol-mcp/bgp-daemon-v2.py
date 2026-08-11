@@ -472,7 +472,23 @@ async def handle_n2n(method, path, body):
                                          "progress": t["progress"], "target": t["target_name"]}
                                         for t in in_flight],
                 })
-            return 200, {"identity": fed.local_identity, "peers": peers}
+            # Edge nodes (phones) and any store-and-forward backlog waiting on
+            # them. A device with no usable push transport accumulates queued
+            # pushes silently otherwise — the whole class of failure this
+            # exposes is "it looked connected and nothing was arriving".
+            edge = []
+            for m in fed.risk.list_members():
+                if m.get("node_type") != "edge" or m.get("state") == "removed":
+                    continue
+                edge.append({
+                    "member_id": m["member_id"],
+                    "state": m["state"],
+                    "connected": m["member_id"] in fed.edge_channels,
+                    "push_platform": m.get("push_platform"),
+                    "queued": fed.edge_queue.depth(m["member_id"]),
+                })
+            return 200, {"identity": fed.local_identity, "peers": peers,
+                         "edge_nodes": edge}
 
         if path == "/n2n/peers/forget-endpoint" and method == "POST":
             # Feature 100 (US4/FR-021/026): retire a stale dial endpoint without shell
@@ -712,14 +728,24 @@ async def handle_n2n(method, path, body):
             member_id = body.get("member_id")
             if not member_id:
                 return 400, {"error": "member_id required"}
-            ch = fed.member_channels.pop(member_id, None)
-            if ch is not None:
-                try:
-                    await ch.close()
-                except Exception:
-                    pass
+            # Close whichever channel registry holds it. An edge node's channel
+            # lives in edge_channels, NOT member_channels (feature 066) — only
+            # popping member_channels meant retiring a *connected* phone left its
+            # live channel open and serving traffic (FR-017).
+            for registry in (fed.member_channels, fed.edge_channels):
+                ch = registry.pop(member_id, None)
+                if ch is not None:
+                    try:
+                        await ch.close()
+                    except Exception:
+                        pass
+            # Retiring an enrollment must not leave its undelivered backlog
+            # behind: queue rows are keyed by member_id and a re-enrolled device
+            # gets a new one, so nothing would ever claim them (FR-017).
+            purged = fed.edge_queue.purge_member(member_id)
             ok = fed.risk.remove_member(member_id)
-            return (200 if ok else 404), {"removed": ok, "member_id": member_id}
+            return (200 if ok else 404), {"removed": ok, "member_id": member_id,
+                                          "queued_purged": purged}
 
         if path == "/n2n/members/add" and method == "POST":
             name = body.get("name")
@@ -786,8 +812,18 @@ async def handle_n2n(method, path, body):
                     return 200, {"delivered": True, "via": "push_notification",
                                 "member_id": member_id, "result": result}
                 except Exception as e:
+                    # Third tier: neither live WS nor a platform push could
+                    # reach the device. Persist instead of dropping, and replay
+                    # on its next connect (_flush_edge_queue). This is the only
+                    # delivery path for an iOS device with no APNs credentials,
+                    # where the OS suspends the socket on background and there
+                    # is nothing that can wake the app.
                     logger.warning("Push-notification fallback failed for %s: %s", member_id, e)
-                    return 200, {"delivered": False, "reason": str(e), "member_id": member_id}
+                    queue_id = fed.edge_queue.enqueue(member_id, push, reason=str(e))
+                    return 200, {"delivered": False, "queued": True,
+                                 "queue_id": queue_id,
+                                 "queue_depth": fed.edge_queue.depth(member_id),
+                                 "reason": str(e), "member_id": member_id}
 
         return 404, {"error": f"unknown n2n route {path}"}
     except Exception as e:
