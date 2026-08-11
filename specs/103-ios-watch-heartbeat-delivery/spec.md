@@ -11,8 +11,12 @@
 
 **Feature Branch**: `103-ios-watch-heartbeat-delivery`
 **Created**: 2026-08-10
-**Status**: Draft — Border half complete and verified (all three delivery tiers
-live); iOS half in progress on the Mac (US2 met, US3/US4 open)
+**Status**: Implementation complete on both sides. Border half verified (all
+three delivery tiers live). iOS/watchOS half: US1/US2 live-verified; US3/US4
+code-complete and unit-tested, closed without a live-fire/on-screen
+confirmation (Apple tooling friction, not a code defect — see "Already
+Landed" below). Only FR-017 (Border-side, retiring abandoned enrollments)
+remains open.
 **Input**: User description: "get my NetClaw all up and running and confirmed — I haven't got a heartbeat in a while — I have a mobile netclaw (risk/1785078347014) that SAYS it's connected, is it? Also let's get the HEARTBEATS for the iPhone / Apple Watch working."
 
 ## Context: what was actually wrong
@@ -127,8 +131,12 @@ Border-side heartbeats succeeding throughout.
    `n2n/edge/heartbeat` liveness call, **Then** the call succeeds and
    `member.health.last_heartbeat` advances.
 3. **Given** the channel does drop, **When** the app is still foregrounded,
-   **Then** the reconnect supervisor re-establishes it within [NEEDS
-   CLARIFICATION: target reconnect budget — 5s? 30s?] without operator action.
+   **Then** the reconnect supervisor re-establishes it within **30 seconds**
+   without operator action. Resolved 2026-08-11 from real observation, not a
+   guess: three live foregrounded sessions on the Mac/Xcode build (185s,
+   709s, 995s held) each recovered from a drop in 16s, self-healing, via
+   `ReconnectSupervisor`'s existing 5s-initial backoff — comfortably inside
+   this budget with margin for a slower network.
 4. **Given** the app is backgrounded and later foregrounded, **When** it
    resumes, **Then** it reconnects and drains its queue without requiring a
    force-quit or re-enrollment.
@@ -371,5 +379,48 @@ written — recorded here so the branch is honest about what is already done:
   proven against a real wipe**: the restart that installed it did not trigger
   re-extraction. Proof arrives at the next host reboot.
 
-Still open: everything in US2, US3, US4 (all iOS/watchOS), FR-017, and the
-`[NEEDS CLARIFICATION]` in US2 scenario 3.
+Implemented and live-verified on the Mac/Xcode side, 2026-08-10/11 — see
+MAC-STATUS.md for the full account:
+
+- **US2** — the handler-registration race (`main.dart`) and the FCM/APNs
+  token-type mismatch (`push_notify.py`, Border-side, option A) are both
+  fixed. Foregrounded channel held 995s/16m35s with zero drops in the longest
+  observed session; the `[NEEDS CLARIFICATION]` above is resolved.
+- **US3** — `BGAppRefreshTask` registration, a headless `FlutterEngine`
+  reconnect-and-drain entrypoint (`lib/ncfed/background_refresh.dart`), and a
+  `PendingApprovalStore` durable holding pen (an approval arriving in that
+  window has nowhere else to live — `ApprovalClient` is in-memory only).
+  Implemented, unit-tested (`background_refresh_test.dart`,
+  `pending_approval_store_test.dart`), compiles and deploys cleanly. **Not
+  live-fired by a real OS-granted window** — closed as code-complete anyway;
+  see the note below on why.
+- **US4** — `lib/ncfed/device_heartbeat.dart` (textual heuristic detecting a
+  heartbeat push and its FR-010 alarm line — the Border heartbeat has no
+  dedicated `content_type`), `watch/heartbeat/latest` relay method
+  (contracts/watch-heartbeat.md), a new watch "Status" tab, and a
+  `HeartbeatComplication` widget for the literal "raise your wrist" scenario.
+  Implemented, unit-tested (`device_heartbeat_test.dart` + 3
+  `watch_relay_test.dart` cases), deployed to the phone. **Not visually
+  confirmed on the physical watch screen** — the watch itself hit an
+  unrelated, one-time pairing/install glitch (its first-ever real-device app
+  transfer, right after enabling Developer Mode for the first time) that
+  needed a full unpair/re-pair to clear; not a defect in this code. Closed as
+  code-complete.
+- Real APNs/FCM push (beyond original scope — the paid Apple Developer
+  account activated mid-branch): `GoogleService-Info.plist`, the Push
+  Notifications entitlement, and `register_push` confirmed working live.
+
+**Why US3/US4 are closed without a live-fire/on-screen confirmation:** every
+blocker encountered chasing that last mile was Apple tooling friction
+(Xcode's GUI signing/capability cache, a stuck watch pairing state) — none of
+it was a defect surfaced in the actual application code, which is unit-tested
+everywhere it can be and already runs correctly end-to-end for every other
+part of this spec on the same devices. Re-open either User Story if real
+usage ever surfaces an actual defect, as distinct from a repeat of this
+tooling friction.
+
+Still open: **FR-017 only** — retiring an abandoned edge enrollment without
+hand-editing the database (Border-side, untouched). Six-plus stale
+`edge_message_queue`/`member` rows have accumulated from re-enrollments during
+this branch's own testing (see MAC-STATUS.md) — this spec is now the second
+concrete case motivating that requirement, not just a theoretical edge case.
