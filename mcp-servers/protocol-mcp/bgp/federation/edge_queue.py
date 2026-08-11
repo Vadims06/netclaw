@@ -152,6 +152,25 @@ class EdgeQueue:
                         "enqueued_at": row[3], "attempts": row[4]})
         return out
 
+    def purge_member(self, member_id: str) -> int:
+        """Drop every queued row for a member. Returns how many were removed.
+
+        Called when an enrollment is retired (FR-017). Without this, retiring a
+        device leaves its undelivered backlog behind forever: the rows are keyed
+        by `member_id`, and a re-enrolled phone gets a *new* member_id, so
+        nothing will ever claim them. The TTL would eventually reap them, but a
+        retired device's pending content should not linger for days, and the
+        operator should not have to reach for sqlite3 to clear it.
+        """
+        cur = self._conn.execute(
+            "DELETE FROM edge_message_queue WHERE member_id=?", (member_id,))
+        self._conn.commit()
+        removed = cur.rowcount or 0
+        if removed:
+            logger.info("Purged %d queued message(s) for retired member %s",
+                        removed, member_id)
+        return removed
+
     def depth(self, member_id: str) -> int:
         row = self._conn.execute(
             "SELECT COUNT(*) FROM edge_message_queue "

@@ -11,12 +11,12 @@
 
 **Feature Branch**: `103-ios-watch-heartbeat-delivery`
 **Created**: 2026-08-10
-**Status**: Implementation complete on both sides. Border half verified (all
-three delivery tiers live). iOS/watchOS half: US1/US2 live-verified; US3/US4
-code-complete and unit-tested, closed without a live-fire/on-screen
-confirmation (Apple tooling friction, not a code defect — see "Already
-Landed" below). Only FR-017 (Border-side, retiring abandoned enrollments)
-remains open.
+**Status**: **COMPLETE.** Border half verified (all three delivery tiers live,
+incl. the boot-time Slack-watcher wipe caught in production 2026-08-11
+06:49:25). iOS/watchOS half: US1/US2 live-verified; US3/US4 code-complete and
+unit-tested, closed without a live-fire/on-screen confirmation (Apple tooling
+friction, not a code defect — see "Already Landed"). FR-017 closed 2026-08-11
+with three amendments (FR-017a/b/c) found during implementation.
 **Input**: User description: "get my NetClaw all up and running and confirmed — I haven't got a heartbeat in a while — I have a mobile netclaw (risk/1785078347014) that SAYS it's connected, is it? Also let's get the HEARTBEATS for the iPhone / Apple Watch working."
 
 ## Context: what was actually wrong
@@ -296,7 +296,30 @@ heartbeat, and confirm the phone heartbeat carries the warning.
   delivery was still broken (`Invalid APNs credential` from FCM). Possessing a
   credential is not evidence of delivery; an observed arrival is.
 - **FR-017**: The operator MUST be able to retire an abandoned edge enrollment
-  without editing the database by hand.
+  without editing the database by hand. **DONE 2026-08-11** —
+  `scripts/edge-enrollments.py` (list / `--retire` / `--retire-stale`), which
+  mutates only through the daemon's `/n2n/members/remove` route so channel
+  teardown, key unpinning, queue purging and the audit trail all happen the
+  normal way. Amended during implementation, having found three real gaps:
+  - **FR-017a**: Retiring an enrollment MUST purge its queued messages. Rows are
+    keyed by `member_id` and a re-enrolled device gets a new one, so a retired
+    device's backlog would otherwise be unclaimable until the TTL reaped it.
+    (`EdgeQueue.purge_member()`; before this, clearing it required `sqlite3` —
+    precisely what this requirement forbids, and what the author actually did on
+    2026-08-10.)
+  - **FR-017b**: Retiring an enrollment MUST close its live channel whichever
+    registry holds it. `/n2n/members/remove` popped only `member_channels`; an
+    edge node's channel lives in `edge_channels` (feature 066), so retiring a
+    *connected* phone left it open and serving traffic.
+  - **FR-017c**: Retiring a non-abandoned enrollment MUST require an explicit
+    override. Removal is irreversible — it NULLs the pinned key and deletes the
+    key file, forcing a re-enrol under a new `member_id`. A guard keyed on
+    "currently connected" is insufficient: a phone flaps constantly and reads
+    disconnected most of the time while being entirely live. **This was learned
+    the hard way** — on 2026-08-11 a `--retire` expected to be refused destroyed
+    the then-current enrollment `risk/1786470797502`, because it happened to be
+    between sockets. Staleness, not connectedness, is the safe test, and
+    `--force` is now required for anything inside the staleness window.
 
 ### Key Entities
 
@@ -419,8 +442,21 @@ part of this spec on the same devices. Re-open either User Story if real
 usage ever surfaces an actual defect, as distinct from a repeat of this
 tooling friction.
 
-Still open: **FR-017 only** — retiring an abandoned edge enrollment without
-hand-editing the database (Border-side, untouched). Six-plus stale
-`edge_message_queue`/`member` rows have accumulated from re-enrollments during
-this branch's own testing (see MAC-STATUS.md) — this spec is now the second
-concrete case motivating that requirement, not just a theoretical edge case.
+**FR-017 closed 2026-08-11** — `scripts/edge-enrollments.py`, plus
+`EdgeQueue.purge_member()` and the `edge_channels` teardown fix in
+`/n2n/members/remove`. See FR-017a/b/c for the three gaps found while
+implementing it, including the irreversible mis-retire of `risk/1786470797502`
+that motivated the `--force` guard.
+
+**Nothing in this spec remains open.** Two carried-forward notes for whoever
+picks the mobile work up next:
+
+- **US3/US4 were closed as code-complete, not live-fired.** Re-open either only
+  if real usage surfaces an actual defect, as distinct from a repeat of the
+  Apple tooling friction (Xcode signing cache, watch pairing state) that blocked
+  the last mile.
+- **The queue is load-bearing, not a stopgap.** It was designed for a world
+  where APNs was impossible; that premise lifted the same day, and it still
+  earned its place by delivering every heartbeat during the ~4 hours push was
+  misconfigured. Keep it as the floor beneath push — APNs is best-effort and
+  silently discards for long-offline devices.
