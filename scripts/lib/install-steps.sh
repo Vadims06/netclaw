@@ -4121,3 +4121,103 @@ log_info "Budget note: cost = probe count. limit:20 spends 20 of 500 per hour."
 
 echo ""
 }
+
+# ── Step 53: Lantronix Percepxion MCP Server (OOB fleet management) ─
+component_install_percepxion() {
+log_step "Installing Lantronix Percepxion MCP Server..."
+echo "  Source: https://github.com/Lantronix/percepxion-mcp-server"
+echo "  Fleet-wide OOB console-server SaaS — device inventory, firmware compliance/rollout,"
+echo "  config mgmt, Smart Groups, security audit, async CLI dispatch (37 tools)"
+echo "  Actively co-developed by Lantronix, not a frozen third-party target — see"
+echo "  specs/104-percepxion-oob-integration/spec.md for why this is external, not vendored."
+
+PERCEPXION_MCP_DIR="$MCP_DIR/percepxion-mcp-server"
+clone_or_pull "$PERCEPXION_MCP_DIR" "https://github.com/Lantronix/percepxion-mcp-server.git"
+
+if [ -d "$PERCEPXION_MCP_DIR" ]; then
+    # DEDICATED VIRTUALENV — NOT OPTIONAL, DO NOT "SIMPLIFY" THIS AWAY.
+    # This server pins fastmcp>=3.1.0,<4.0. Five NetClaw servers pin fastmcp<3:
+    # netbox-mcp-server, CiscoFMC-MCP-server-community, Wikipedia_MCP, rag-mcp,
+    # ISE_MCP. A shared install breaks all five — the same conflict shape as
+    # component_install_zabbix() (spec 076's cryptography incident), which is
+    # why this follows Zabbix's dedicated-venv pattern instead of pyATS/JunOS's
+    # shared-interpreter pattern (neither of those pins fastmcp at all).
+    echo "  Creating a dedicated virtualenv (fastmcp 3.x conflicts with five other servers)"
+
+    if command -v netclaw_venv_create >/dev/null 2>&1; then
+        netclaw_venv_create "$PERCEPXION_MCP_DIR/.venv" || log_warn "Percepxion MCP venv creation failed"
+    elif command -v uv >/dev/null 2>&1; then
+        uv venv "$PERCEPXION_MCP_DIR/.venv" >/dev/null 2>&1 || log_warn "Percepxion MCP venv creation failed (uv)"
+    else
+        log_warn "Neither netclaw_venv_create nor uv available — cannot build the Percepxion venv."
+        log_warn "Do NOT fall back to 'python3 -m venv': ensurepip is unavailable on some hosts,"
+        log_warn "and installing into the system interpreter would break five other servers."
+    fi
+
+    if [ -x "$PERCEPXION_MCP_DIR/.venv/bin/python" ]; then
+        # Install into the VENV interpreter, named explicitly. Deliberately NOT
+        # netclaw_pip_install: that targets the system interpreter, which is the
+        # exact thing this venv exists to protect.
+        ( cd "$PERCEPXION_MCP_DIR" && \
+          uv pip install -q --python "$PERCEPXION_MCP_DIR/.venv/bin/python" -r requirements.txt ) 2>/dev/null || \
+            log_warn "Percepxion MCP dependency install failed (fastmcp, requests, python-dotenv)"
+        log_info "Percepxion MCP prepared: $PERCEPXION_MCP_DIR (isolated venv)"
+    fi
+else
+    log_warn "Percepxion MCP clone failed"
+fi
+
+# No config/openclaw.json entry — the installed path is user-specific (external/
+# on-demand classification, spec 104). Register manually per workspace/skills/
+# percepxion-oob/SKILL.md's "MCP Server" section, and set PERCEPXION_USERNAME /
+# PERCEPXION_PASSWORD (or a Vault/AWS/CyberArk provider) in .env first.
+log_info "Not auto-registered in openclaw.json — see workspace/skills/percepxion-oob/SKILL.md"
+log_info "  to register (stdio, runs from the venv above) and for required env vars."
+
+echo ""
+}
+
+# ── Step 54: Lantronix SLC MCP Server (direct OOB console access) ─
+component_install_slc() {
+log_step "Installing Lantronix SLC MCP Server..."
+echo "  Source: https://github.com/Lantronix/slc-mcp-server"
+echo "  Direct, synchronous single-device OOB console-server access — port status,"
+echo "  session mgmt, sync CLI output, cellular status (37 tools)"
+echo "  Actively co-developed by Lantronix, not a frozen third-party target — see"
+echo "  specs/104-percepxion-oob-integration/spec.md for why this is external, not vendored."
+
+SLC_MCP_DIR="$MCP_DIR/slc-mcp-server"
+clone_or_pull "$SLC_MCP_DIR" "https://github.com/Lantronix/slc-mcp-server.git"
+
+if [ -d "$SLC_MCP_DIR" ]; then
+    # DEDICATED VIRTUALENV — same fastmcp>=3.1.0,<4.0 conflict as percepxion-mcp-server
+    # above. See that function's comment for the full explanation; identical reasoning.
+    echo "  Creating a dedicated virtualenv (fastmcp 3.x conflicts with five other servers)"
+
+    if command -v netclaw_venv_create >/dev/null 2>&1; then
+        netclaw_venv_create "$SLC_MCP_DIR/.venv" || log_warn "SLC MCP venv creation failed"
+    elif command -v uv >/dev/null 2>&1; then
+        uv venv "$SLC_MCP_DIR/.venv" >/dev/null 2>&1 || log_warn "SLC MCP venv creation failed (uv)"
+    else
+        log_warn "Neither netclaw_venv_create nor uv available — cannot build the SLC venv."
+        log_warn "Do NOT fall back to 'python3 -m venv': ensurepip is unavailable on some hosts,"
+        log_warn "and installing into the system interpreter would break five other servers."
+    fi
+
+    if [ -x "$SLC_MCP_DIR/.venv/bin/python" ]; then
+        ( cd "$SLC_MCP_DIR" && \
+          uv pip install -q --python "$SLC_MCP_DIR/.venv/bin/python" -r requirements.txt ) 2>/dev/null || \
+            log_warn "SLC MCP dependency install failed (fastmcp, requests, hvac, boto3, pyotp)"
+        log_info "SLC MCP prepared: $SLC_MCP_DIR (isolated venv)"
+    fi
+else
+    log_warn "SLC MCP clone failed"
+fi
+
+# No config/openclaw.json entry — same external/on-demand classification as
+# percepxion-mcp-server above (spec 104).
+log_info "Not auto-registered in openclaw.json — see workspace/skills/percepxion-oob/SKILL.md"
+log_info "  to register (stdio, runs from the venv above) and for required env vars (SLC_{KEY}_*)."
+
+echo ""
+}
