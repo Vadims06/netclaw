@@ -5,6 +5,14 @@
 **Status**: Draft
 **Input**: User description: "iOS App Store submission readiness, phase 1: (1) add a first-launch onboarding/explainer screen shown before the QR-scan enrollment gate, making clear this is a companion app requiring a self-hosted NetClaw Border server; (2) add an in-app 'Remove this device / un-enroll' control in the Settings screen that calls the existing EnrollmentStore.clear() and returns to the enrollment gate — closing the Apple Guideline 5.1.1(v) account-deletion gap (there is currently no operator-initiated way to de-enroll, only Border-initiated revocation); (3) get the app through one real Xcode Archive build under distribution signing (not the development signing used all session) and upload it to App Store Connect via Transporter/Xcode Organizer, then create an External Testing group in TestFlight so known testers can install the real build without a public App Store release. Explicitly out of scope for this spec: standing up a demo Border for Apple's reviewers (separate, being handled independently), and the App Store Connect public-listing metadata (privacy policy, App Privacy questionnaire, screenshots, description) — those come after this spec closes."
 
+## Clarifications
+
+### Session 2026-08-11
+
+- Q: Does this spec's completion require Apple's Beta App Review to have actually passed for the TestFlight External Testing group, or is submitting for review sufficient? → A: Done once the build is archived, uploaded, and submitted for External Testing review — the review's outcome is tracked separately, not blocking.
+- Q: Should removing a device's enrollment require biometric (Face ID/Touch ID) re-authentication, consistent with the app's existing approval-confirmation pattern, or is a plain confirmation dialog sufficient? → A: Require the same biometric re-authentication as approvals — consistent security posture for all destructive/irreversible actions in the app.
+- Q: Does this spec need to guarantee the paired watch is actively/immediately notified when the phone de-enrolls, or is it acceptable for the watch to simply learn this the next time it asks? → A: No new requirement needed — the watch already re-queries the phone regularly, and every existing relay method already answers `enrolled: false` correctly when nothing is enrolled.
+
 ## Context
 
 This spec exists because a readiness review of the existing NetClaw Mobile app
@@ -101,10 +109,17 @@ distribution build or App Store Connect at all.
 1. **Given** an enrolled device, **When** the operator opens Settings,
    **Then** a clearly labeled "Remove this device" (or equivalent) control is
    visible.
-2. **Given** the operator taps that control, **When** they confirm the
-   action (a destructive action must not fire on a single accidental tap),
-   **Then** the local enrollment is cleared and the app returns to the
-   enrollment gate, identical in behavior to a fresh install.
+2. **Given** the operator taps that control, **When** they complete the same
+   biometric (Face ID/Touch ID) re-authentication the app already requires
+   for approvals (Clarifications, 2026-08-11), **Then** the local enrollment
+   is cleared and the app returns to the enrollment gate, identical in
+   behavior to a fresh install.
+2a. **Given** the operator's device has no biometric enrolled or biometric
+    authentication is unavailable, **When** they trigger the control,
+    **Then** the app falls back to whatever the existing approval-confirmation
+    flow already does in that situation (device passcode or equivalent) —
+    this story does not introduce a new fallback path, it reuses the
+    existing one.
 3. **Given** the enrollment has just been cleared this way, **When** the app
    is relaunched, **Then** it does not attempt to reconnect to the old Border
    and shows the enrollment gate (with User Story 1's explainer, if this is
@@ -151,11 +166,14 @@ listing or reviewer-facing content existing yet.
    Connect, **Then** it appears there as a build associated with the app's
    existing bundle identifier, ready to be attached to a TestFlight group.
 3. **Given** an uploaded build, **When** an External Testing group is created
-   and a tester is invited, **Then** that tester receives a way to install
-   the app (a public link or an email invite) that requires nothing beyond
-   installing Apple's TestFlight app.
-4. **Given** a tester installs the build via TestFlight, **When** they launch
-   it for the first time, **Then** they see User Story 1's explainer screen,
+   and a tester is invited, **Then** the invite is submitted for Apple's Beta
+   App Review — clearing that review is tracked as a separate, externally-gated
+   event, not a blocking condition for calling this story done (Clarifications,
+   2026-08-11).
+4. **Given** a tester installs the build via TestFlight (once Beta App Review
+   has cleared, independent of this spec's own completion), **When** they
+   launch it for the first time, **Then** they see User Story 1's explainer
+   screen,
    confirming the same code path that was tested under development signing
    behaves identically under distribution signing.
 
@@ -166,6 +184,13 @@ listing or reviewer-facing content existing yet.
   (The removal should still succeed — there is no Border-side dependency for
   clearing purely local state — but any in-flight local state tied to that
   enrollment is necessarily discarded along with it.)
+- What does the paired Apple Watch see immediately after the phone
+  de-enrolls? Resolved (Clarifications, 2026-08-11): nothing new needs to be
+  built. The watch has no independent state — it re-queries the phone on its
+  normal refresh cadence, and every existing relay method already answers
+  `enrolled: false` correctly once there is nothing enrolled. The watch will
+  reflect the change on its next ordinary refresh, not instantly, and that
+  delay is acceptable.
 - What happens if the explainer screen (User Story 1) is dismissed, but the
   operator then cancels out of the QR scanner without enrolling? Relaunching
   the app should show the explainer again, since no enrollment exists yet —
@@ -194,9 +219,12 @@ listing or reviewer-facing content existing yet.
   valid enrollment is already persisted.
 - **FR-003**: The Settings screen MUST present a clearly labeled control for
   removing the current device's enrollment.
-- **FR-004**: Triggering that control MUST require an explicit confirmation
-  step before taking effect — it must not be possible to clear an enrollment
-  with a single accidental tap.
+- **FR-004**: Triggering that control MUST require the same biometric
+  (Face ID/Touch ID) re-authentication step the app already uses to confirm
+  approvals before taking effect (Clarifications, 2026-08-11) — it must not
+  be possible to clear an enrollment with a single accidental tap, and the
+  security posture for this destructive/irreversible action must match the
+  app's existing convention rather than introduce a weaker one.
 - **FR-005**: Confirming device removal MUST clear the locally persisted
   enrollment and return the app to the same state a fresh install would show
   (enrollment gate, with FR-001's explainer if applicable).
@@ -244,9 +272,12 @@ listing or reviewer-facing content existing yet.
   with zero manual workarounds required on a repeat attempt (i.e. any
   signing/capability issue hit on the first attempt is durably fixed, not
   worked around by hand each time).
-- **SC-004**: At least one person outside the development machine
-  successfully installs and launches the app via a shared TestFlight link,
-  without any assistance beyond the link itself.
+- **SC-004**: A distribution build reaches the point of being submitted for
+  Apple's Beta App Review under an External Testing group (Clarifications,
+  2026-08-11). Once that review clears — tracked separately, not blocking
+  this spec's completion — at least one person outside the development
+  machine should be able to install and launch the app via the shared
+  TestFlight link without any assistance beyond the link itself.
 
 ## Assumptions
 
