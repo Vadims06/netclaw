@@ -17,13 +17,23 @@ complete enrollment (scan a fresh QR from `./scripts/netclaw risk token
 --edge <label>` on the Border) and relaunch — confirm the explainer does
 NOT reappear.
 
+For **SC-001**: show the explainer screen (not the whole app) to one person
+who has never heard of NetClaw, and confirm they can correctly state, in
+their own words, that a separate server they don't yet have is required.
+
 ## Verifying User Story 2 (device removal)
 
 With an enrolled device: Settings → the new "Remove this device" control →
 complete Face ID/Touch ID → confirm the app returns to the enrollment gate
 (and, since no enrollment now exists, US1's explainer reappears on the very
 next launch). Confirm cancelling the biometric prompt leaves the device
-enrolled and unchanged.
+enrolled and unchanged. Time this flow — **SC-002** requires it to complete
+in under 30 seconds.
+
+Then repeat with the Border unreachable (turn off Wi-Fi/disconnect the
+Border host) and confirm removal still succeeds — this is **FR-006**, and is
+the whole point of the control existing (escaping a bad enrollment must not
+require that enrollment's own server to cooperate).
 
 ## Executing User Story 3 (distribution build + TestFlight)
 
@@ -39,6 +49,16 @@ flutter build ipa --export-options-plist=ios/ExportOptions.plist
 
 # 2. Upload to App Store Connect (research.md R4) using an API key
 #    generated once in App Store Connect -> Users and Access -> Integrations.
+#    `altool` does NOT take the key material on the command line -- it looks
+#    for a file named AuthKey_<KEY_ID>.p8 in one of a few fixed local
+#    directories. Place the downloaded key at one of these BEFORE running
+#    the upload command, or it fails with a "key not found" error that gives
+#    no hint what's missing:
+#      ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8
+#      ~/.private_keys/AuthKey_<KEY_ID>.p8
+mkdir -p ~/.appstoreconnect/private_keys
+# (move/copy the downloaded AuthKey_<KEY_ID>.p8 into that directory now)
+
 xcrun altool --upload-app \
   -f build/ios/ipa/netclaw_mobile.ipa \
   -t ios \

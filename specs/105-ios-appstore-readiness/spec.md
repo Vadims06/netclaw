@@ -88,7 +88,7 @@ enrollment, and no other part of this spec in place.
 
 Today, the only way a device stops being enrolled is if the Border operator
 revokes it from the server side. The person holding the phone has no
-self-service way to disenroll — not to switch Borders, not to hand the phone
+self-service way to remove that enrollment — not to switch Borders, not to hand the phone
 to someone else, not to satisfy Apple's account-deletion requirement. This
 story adds a visible, explicit control in Settings that clears the local
 enrollment and returns the app to its pre-enrollment state.
@@ -114,17 +114,22 @@ distribution build or App Store Connect at all.
    for approvals (Clarifications, 2026-08-11), **Then** the local enrollment
    is cleared and the app returns to the enrollment gate, identical in
    behavior to a fresh install.
-2a. **Given** the operator's device has no biometric enrolled or biometric
-    authentication is unavailable, **When** they trigger the control,
-    **Then** the app falls back to whatever the existing approval-confirmation
-    flow already does in that situation (device passcode or equivalent) —
-    this story does not introduce a new fallback path, it reuses the
-    existing one.
-3. **Given** the enrollment has just been cleared this way, **When** the app
+3. **Given** the operator's device has no biometric enrolled or biometric
+   authentication is unavailable, **When** they trigger the control,
+   **Then** the app falls back to whatever the existing approval-confirmation
+   flow already does in that situation (device passcode or equivalent) —
+   this story does not introduce a new fallback path, it reuses the
+   existing one.
+4. **Given** the device's Border is unreachable (network down, Border
+   offline, or simply out of range), **When** the operator triggers device
+   removal and completes biometric re-authentication, **Then** the removal
+   still succeeds — per FR-006, this action MUST NOT depend on a live
+   connection to the Border.
+5. **Given** the enrollment has just been cleared this way, **When** the app
    is relaunched, **Then** it does not attempt to reconnect to the old Border
    and shows the enrollment gate (with User Story 1's explainer, if this is
    also the first launch in a while) rather than any error state.
-4. **Given** the operator opens the confirmation prompt, **When** they cancel
+6. **Given** the operator opens the confirmation prompt, **When** they cancel
    instead of confirming, **Then** nothing changes and the device remains
    enrolled exactly as before.
 
@@ -158,10 +163,12 @@ listing or reviewer-facing content existing yet.
 **Acceptance Scenarios**:
 
 1. **Given** the current project signed for development, **When** an Xcode
-   Archive build is produced instead, **Then** the archive succeeds under
-   distribution signing for every target that ships (phone app, watch app,
-   watch complication, and any other embedded extension) without a
-   development-only capability or entitlement blocking it.
+   Archive build is produced instead (via any tooling that yields one —
+   command-line or Xcode's own GUI; see plan.md/research.md for which this
+   project uses), **Then** the archive succeeds under distribution signing
+   for every target that ships (phone app, watch app, watch complication,
+   and any other embedded extension) without a development-only capability
+   or entitlement blocking it.
 2. **Given** a successful archive, **When** it is uploaded to App Store
    Connect, **Then** it appears there as a build associated with the app's
    existing bundle identifier, ready to be attached to a TestFlight group.
@@ -173,8 +180,7 @@ listing or reviewer-facing content existing yet.
 4. **Given** a tester installs the build via TestFlight (once Beta App Review
    has cleared, independent of this spec's own completion), **When** they
    launch it for the first time, **Then** they see User Story 1's explainer
-   screen,
-   confirming the same code path that was tested under development signing
+   screen, confirming the same code path tested under development signing
    behaves identically under distribution signing.
 
 ### Edge Cases
@@ -235,7 +241,9 @@ listing or reviewer-facing content existing yet.
   enrollment, not to renegotiate with it).
 - **FR-007**: The project MUST be capable of producing a successful Xcode
   Archive build, under distribution (not development) code signing, for
-  every target that ships inside the app bundle.
+  every target that ships inside the app bundle — via any tooling that
+  produces one (command-line or GUI); see plan.md/research.md for which
+  this project uses and why.
 - **FR-008**: A successful archive MUST be uploaded to App Store Connect and
   associated with the app's existing bundle identifier.
 - **FR-009**: An External Testing group in TestFlight MUST be created against

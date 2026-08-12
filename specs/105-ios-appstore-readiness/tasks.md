@@ -59,7 +59,7 @@
 
 ### Tests for User Story 2
 
-- [ ] T006 [P] [US2] Write tests in `test/settings_screen_test.dart` (new file) covering: (a) the "Remove this device" control is visible when enrolled, (b) completing biometric re-authentication clears the enrollment (via an injectable `authenticate` callback mirroring `approval_confirmation.dart`'s own test pattern) and returns to the enrollment gate, (c) a cancelled/failed biometric attempt leaves the enrollment untouched, (d) the action cannot fire without going through the confirmation/biometric step. Confirm these fail against current code before implementing.
+- [ ] T006 [P] [US2] Write tests in `test/settings_screen_test.dart` (new file) covering: (a) the "Remove this device" control is visible when enrolled, (b) completing biometric re-authentication clears the enrollment (via an injectable `authenticate` callback mirroring `approval_confirmation.dart`'s own test pattern) and returns to the enrollment gate, (c) a cancelled/failed biometric attempt leaves the enrollment untouched, (d) the action cannot fire without going through the confirmation/biometric step, (e) **FR-006**: removal succeeds with no live `EdgeClient`/Border connection at all (construct the widget under test with no reachable Border and confirm the clear-and-return-to-gate path still completes). Confirm these fail against current code before implementing.
 
 ### Implementation for User Story 2
 
@@ -92,7 +92,7 @@
 ## Phase 6: Polish & Cross-Cutting Concerns
 
 - [ ] T013 [P] Run `flutter analyze` and the full `flutter test` suite across the whole app (not just the new test files) to confirm zero regressions from US1/US2's changes to `lib/main.dart` and `lib/screens/settings_screen.dart`
-- [ ] T014 Execute quickstart.md's manual verification steps for User Story 1 and User Story 2 end-to-end on a physical device, per its documented commands
+- [ ] T014 Execute quickstart.md's manual verification steps for User Story 1 and User Story 2 end-to-end on a physical device, per its documented commands — explicitly confirm SC-001 (show the explainer to one person with no prior NetClaw context and confirm they can correctly restate that a self-hosted Border server is required) and SC-002 (time the enrolled-to-enrollment-gate flow via Settings and confirm it completes in under 30 seconds)
 - [ ] T015 Per constitution Principle XVII, draft a milestone summary (WordPress blog post via the WordPress MCP server if configured; otherwise note the milestone here and remind the operator to publish manually) once all three stories are complete
 
 ---
