@@ -50,7 +50,7 @@ No project initialization needed — this feature adds no dependency and no new
 package. Two orientation tasks only.
 
 - [ ] T001 Reproduce the bug on a device following `specs/107-push-render-deeplink/quickstart.md` §"Reproduce the bug first", and record the observed auth→replay gap from the Border journal 🔌 DEVICE
-- [ ] T002 [P] Confirm the baseline suite is green before any change: `cd mobile/netclaw-mobile && flutter test && flutter analyze`
+- [x] T002 [P] Confirm the baseline suite is green before any change: `cd mobile/netclaw-mobile && flutter test && flutter analyze`
 
 ---
 
@@ -59,8 +59,8 @@ package. Two orientation tasks only.
 Blocking prerequisite for US1 and US2. The intent mechanism is shared by both tap
 paths, so it lands once, before either story consumes it.
 
-- [ ] T003 Create `PendingOpenIntent` in `mobile/netclaw-mobile/lib/ncfed/pending_open_intent.dart` — records one identifier with its creation time, exposes record / resolve-if-present / expire, holds at most one intent (a second record discards the first), and does not persist across launches. Implements contract §1.1–1.7 and data-model's PendingOpenIntent lifecycle
-- [ ] T004 [P] Create `test/pending_open_intent_test.dart` covering: resolves immediately when the message is already present (§1.3); resolves when it arrives later (§1.4); expires within the bound and does not fire the open callback (§1.5, §1.6); a second record discards the first (§1.2); open callback fires exactly once (§1.6)
+- [x] T003 Create `PendingOpenIntent` in `mobile/netclaw-mobile/lib/ncfed/pending_open_intent.dart` — records one identifier with its creation time, exposes record / resolve-if-present / expire, holds at most one intent (a second record discards the first), and does not persist across launches. Implements contract §1.1–1.7 and data-model's PendingOpenIntent lifecycle
+- [x] T004 [P] Create `test/pending_open_intent_test.dart` covering: resolves immediately when the message is already present (§1.3); resolves when it arrives later (§1.4); expires within the bound and does not fire the open callback (§1.5, §1.6); a second record discards the first (§1.2); open callback fires exactly once (§1.6)
 
 **Checkpoint**: intent mechanism exists and is unit-tested against the contract.
 
@@ -75,11 +75,11 @@ launch.
 **Independent test**: Push a message with the app closed, tap the notification,
 the message opens. Verifiable without US2 or US3.
 
-- [ ] T005 [US1] Rewrite `NotificationDeepLink._handleRemote` in `mobile/netclaw-mobile/lib/ncfed/notification_deep_link.dart` to record a `PendingOpenIntent` from the notification data instead of performing a single `store.load()` + `findMessageForNotificationData` read that cannot win the race (research R1)
-- [ ] T006 [US1] Converge `handleLocalNotificationTap` in `mobile/netclaw-mobile/lib/ncfed/notification_deep_link.dart` onto the shared intent, so the remote and local paths are one mechanism rather than two (research R6, contract §5.4). The local path's existing correct behavior must be preserved
-- [ ] T007 [US1] Wire intent resolution to the feed's existing change signal in `mobile/netclaw-mobile/lib/main.dart` — `wireMessageFeed`'s `onMessage` callback already fires after every append, so no polling is introduced (research R1)
-- [ ] T008 [P] [US1] Extend `test/notification_deep_link_test.dart`: message arrives AFTER the tap and the intent resolves (the actual production bug); message already stored resolves with no wait; intent expires and the feed is shown (FR-003); opening the app with no tap forces nothing open (FR-011)
-- [ ] T009 [P] [US1] Extend `test/notification_response_routing_test.dart` to confirm the local-notification tap path still deep-links after converging on the intent (regression guard for T006)
+- [x] T005 [US1] Rewrite `NotificationDeepLink._handleRemote` in `mobile/netclaw-mobile/lib/ncfed/notification_deep_link.dart` to record a `PendingOpenIntent` from the notification data instead of performing a single `store.load()` + `findMessageForNotificationData` read that cannot win the race (research R1)
+- [x] T006 [US1] Converge `handleLocalNotificationTap` in `mobile/netclaw-mobile/lib/ncfed/notification_deep_link.dart` onto the shared intent, so the remote and local paths are one mechanism rather than two (research R6, contract §5.4). The local path's existing correct behavior must be preserved
+- [x] T007 [US1] Wire intent resolution to the feed's existing change signal in `mobile/netclaw-mobile/lib/main.dart` — `wireMessageFeed`'s `onMessage` callback already fires after every append, so no polling is introduced (research R1)
+- [x] T008 [P] [US1] Extend `test/notification_deep_link_test.dart`: message arrives AFTER the tap and the intent resolves (the actual production bug); message already stored resolves with no wait; intent expires and the feed is shown (FR-003); opening the app with no tap forces nothing open (FR-011)
+- [x] T009 [P] [US1] Extend `test/notification_response_routing_test.dart` to confirm the local-notification tap path still deep-links after converging on the intent (regression guard for T006)
 - [ ] T010 [US1] Verify on hardware: app fully closed → push → tap → the named message opens; then repeat backgrounded (SC-001, SC-002) 🔌 DEVICE
 
 **Checkpoint**: US1 delivers standalone value. Shippable without US2 or US3.
@@ -93,12 +93,12 @@ the message opens. Verifiable without US2 or US3.
 **Independent test**: Deliver the same message twice by different paths; one entry
 appears.
 
-- [ ] T011 [US3] Add identity-based dedup to the append path in `mobile/netclaw-mobile/lib/ncfed/message_feed.dart`, keyed on `pushedAt` (research R2, R3). Enforce inside the store, NOT at call sites, so a future writer inherits it
-- [ ] T012 [US3] Make append in `mobile/netclaw-mobile/lib/ncfed/message_feed.dart` report whether it stored or declined, per contract §2.3 — without this, a declined duplicate would still fire an unread badge and the double-entry bug becomes a double-notification bug one layer up
-- [ ] T013 [US3] In `mobile/netclaw-mobile/lib/ncfed/message_feed.dart`, ensure a declined duplicate leaves the stored entry byte-for-byte unchanged including `read` state (FR-006, contract §2.2)
-- [ ] T014 [US3] In `mobile/netclaw-mobile/lib/ncfed/message_feed.dart`, reject rather than default a Message whose `pushedAt` is missing or unparseable, per data-model's validation rule — defaulting to "now" would mint a fresh identity per attempt and silently defeat dedup entirely
-- [ ] T015 [P] [US3] Extend `test/message_feed_test.dart`: duplicate `pushedAt` declined (FR-004, FR-005); read state preserved on re-delivery (FR-006); two distinct messages both stored; unparseable `pushedAt` rejected without corrupting the store
-- [ ] T016 [P] [US3] Add a structural test to `test/message_feed_test.dart` asserting `wireMessageFeed` is the ONLY registration site for `n2n/edge/message` (contract §4). `EdgeClient.on()` keeps only the LAST handler per method, so a second registration would silently disable live delivery with no error — highest-severity failure mode in this feature, cheapest to guard
+- [x] T011 [US3] Add identity-based dedup to the append path in `mobile/netclaw-mobile/lib/ncfed/message_feed.dart`, keyed on `pushedAt` (research R2, R3). Enforce inside the store, NOT at call sites, so a future writer inherits it
+- [x] T012 [US3] Make append in `mobile/netclaw-mobile/lib/ncfed/message_feed.dart` report whether it stored or declined, per contract §2.3 — without this, a declined duplicate would still fire an unread badge and the double-entry bug becomes a double-notification bug one layer up
+- [x] T013 [US3] In `mobile/netclaw-mobile/lib/ncfed/message_feed.dart`, ensure a declined duplicate leaves the stored entry byte-for-byte unchanged including `read` state (FR-006, contract §2.2)
+- [x] T014 [US3] In `mobile/netclaw-mobile/lib/ncfed/message_feed.dart`, reject rather than default a Message whose `pushedAt` is missing or unparseable, per data-model's validation rule — defaulting to "now" would mint a fresh identity per attempt and silently defeat dedup entirely
+- [x] T015 [P] [US3] Extend `test/message_feed_test.dart`: duplicate `pushedAt` declined (FR-004, FR-005); read state preserved on re-delivery (FR-006); two distinct messages both stored; unparseable `pushedAt` rejected without corrupting the store
+- [x] T016 [P] [US3] Add a structural test to `test/message_feed_test.dart` asserting `wireMessageFeed` is the ONLY registration site for `n2n/edge/message` (contract §4). `EdgeClient.on()` keeps only the LAST handler per method, so a second registration would silently disable live delivery with no error — highest-severity failure mode in this feature, cheapest to guard
 
 **Checkpoint**: dedup enforced at the chokepoint. **Phase 5 is now unblocked.**
 
@@ -114,12 +114,12 @@ Border at all.
 **Independent test**: With the device unable to reach the Border, push a message
 and open the app — the message is visible.
 
-- [ ] T017 [US2] Create `mobile/netclaw-mobile/lib/ncfed/push_message_ingest.dart` that reconstructs a Message from the push data payload through the SAME wire parser the live channel uses — a second parser is forbidden (contract §3.5)
-- [ ] T018 [US2] In `mobile/netclaw-mobile/lib/ncfed/push_message_ingest.dart`, tolerate fully stringified values (contract §3.1). The sender emits `data: {k: str(v) for k, v in content.items()}`, so no field survives with its original type — the most likely source of a silent parse failure
-- [ ] T019 [US2] In `mobile/netclaw-mobile/lib/ncfed/push_message_ingest.dart`, route `content_type: 'approval'` to the approvals path and never to the feed (FR-009, contract §3.2)
-- [ ] T020 [US2] In `mobile/netclaw-mobile/lib/ncfed/push_message_ingest.dart`, reject malformed payloads without corrupting or truncating the stored feed (FR-010, contract §3.4); falling back to spec 106's replay is the correct outcome
-- [ ] T021 [US2] Register the foreground and background push handlers in `mobile/netclaw-mobile/lib/main.dart`, routing through the ingest path. Must NOT register a channel handler (contract §4.2)
-- [ ] T022 [P] [US2] Create `test/push_message_ingest_test.dart`: fully stringified payload reconstructs; missing/unparseable `pushed_at` rejected; `approval` routes to approvals not the feed; malformed payload leaves the store intact
+- [x] T017 [US2] Create `mobile/netclaw-mobile/lib/ncfed/push_message_ingest.dart` that reconstructs a Message from the push data payload through the SAME wire parser the live channel uses — a second parser is forbidden (contract §3.5)
+- [x] T018 [US2] In `mobile/netclaw-mobile/lib/ncfed/push_message_ingest.dart`, tolerate fully stringified values (contract §3.1). The sender emits `data: {k: str(v) for k, v in content.items()}`, so no field survives with its original type — the most likely source of a silent parse failure
+- [x] T019 [US2] In `mobile/netclaw-mobile/lib/ncfed/push_message_ingest.dart`, route `content_type: 'approval'` to the approvals path and never to the feed (FR-009, contract §3.2)
+- [x] T020 [US2] In `mobile/netclaw-mobile/lib/ncfed/push_message_ingest.dart`, reject malformed payloads without corrupting or truncating the stored feed (FR-010, contract §3.4); falling back to spec 106's replay is the correct outcome
+- [x] T021 [US2] Register the **foreground** push handler in `mobile/netclaw-mobile/lib/main.dart`, routing through the ingest path. Must NOT register a channel handler (contract §4.2). **Background handler deliberately NOT implemented** — research R5 establishes that background execution for a data-carrying push is at the OS's discretion, so treating it as a delivery path would reintroduce the silent-loss class spec 106 removed. A push arriving while backgrounded still reaches the feed via replay, and US1 makes its tap open the message. Revisit only with real-device evidence that the OS runs the handler reliably
+- [x] T022 [P] [US2] Create `test/push_message_ingest_test.dart`: fully stringified payload reconstructs; missing/unparseable `pushed_at` rejected; `approval` routes to approvals not the feed; malformed payload leaves the store intact
 - [ ] T023 [US2] Verify on hardware — the single most valuable device test in this feature: block the phone's route to the Border, push, open the app, confirm the message is readable (SC-004); then restore connectivity and confirm **exactly one** copy survives replay (proves dedup + ingest work together) 🔌 DEVICE
 
 **Checkpoint**: all three stories complete.
@@ -128,11 +128,11 @@ and open the app — the message is visible.
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T024 Update the known-rough-edges table in `mobile/netclaw-mobile/TESTER-INSTRUCTIONS.md` — it currently advertises "Tapping a notification doesn't deep-link" as a known issue. Constitution XII requires this in the same PR, not as a follow-up
-- [ ] T025 [P] Update `mobile/netclaw-mobile/README.md` if it documents notification behavior
-- [ ] T026 [P] Confirm no Border regression: `python3 -m pytest tests/n2n/ -q` (expect 445+ passed, unchanged — this feature makes no Border change, so any movement means scope leaked)
-- [ ] T027 Full suite and analyzer: `cd mobile/netclaw-mobile && flutter test && flutter analyze`
-- [ ] T028 Run `python3 scripts/verify-spec-artifacts.py` and confirm exit 0 for this spec (CI-enforced, Principle XVI)
+- [x] T024 Update the known-rough-edges table in `mobile/netclaw-mobile/TESTER-INSTRUCTIONS.md` — it currently advertises "Tapping a notification doesn't deep-link" as a known issue. Constitution XII requires this in the same PR, not as a follow-up
+- [x] T025 [P] Update `mobile/netclaw-mobile/README.md` if it documents notification behavior
+- [x] T026 [P] Confirm no Border regression: `python3 -m pytest tests/n2n/ -q` (expect 445+ passed, unchanged — this feature makes no Border change, so any movement means scope leaked)
+- [x] T027 Full suite and analyzer: `cd mobile/netclaw-mobile && flutter test && flutter analyze`
+- [x] T028 Run `python3 scripts/verify-spec-artifacts.py` and confirm exit 0 for this spec (CI-enforced, Principle XVI)
 - [ ] T029 Walk `specs/107-push-render-deeplink/quickstart.md` end to end and confirm every "What done looks like" row 🔌 DEVICE
 
 ---
@@ -198,3 +198,33 @@ immediacy, never a message.
 iOS verification costs a TestFlight round trip, so batch them: reproduce once at
 the start (T001), then verify all stories in one session at the end (T010, T023,
 T029) rather than per-story.
+
+
+---
+
+## Status — 2026-08-13
+
+**Implemented and verified in CI: 25 of 29 tasks.** All four outstanding tasks
+are the 🔌 DEVICE ones (T001, T010, T023, T029); everything verifiable without
+hardware is done and green.
+
+| Gate | Result |
+|---|---|
+| `flutter test` | **280 passed** (was 234; +46 for this feature) |
+| `flutter analyze` | No issues found |
+| `pytest tests/n2n/` | **445 passed**, unchanged — confirms no Border-side scope leak |
+| `verify-spec-artifacts.py` | exit 0 |
+| `reconcile-mcp.py` | exit 0 |
+
+**One deliberate scope reduction**, recorded in T021: the background push handler
+was not implemented. Foreground ingest ships; background delivery is OS-discretionary
+(research R5), so building on it would reintroduce silent loss. Nothing is lost —
+a backgrounded push still reaches the feed via the Border's replay, and US1 makes
+its tap open the message on arrival.
+
+**Remaining device verification**, best done in one TestFlight session:
+
+- T010 — app closed → push → tap → the named message opens; repeat backgrounded
+- T023 — with the phone unable to reach the Border, push, open, message readable;
+  then restore connectivity and confirm exactly one copy survives replay
+- T029 — walk `quickstart.md`'s "What done looks like" table
