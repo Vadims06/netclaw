@@ -1942,7 +1942,18 @@ if [ -d "$PROTOCOL_MCP_DIR" ]; then
     if [ -f "$PROTOCOL_MCP_DIR/requirements.txt" ]; then
         netclaw_pip_install -r "$PROTOCOL_MCP_DIR/requirements.txt" || {
             log_warn "Full Protocol MCP install failed — installing core deps..."
-            netclaw_pip_install scapy networkx mcp fastmcp || \
+            # Spec 105: websockets/qrcode/httpx/h2 belong in this fallback, not
+            # just in requirements.txt. They are the mesh daemon's own runtime
+            # deps (NCFED edge listener + enrollment QR + push), so omitting them
+            # here produced a daemon that starts, reports healthy, and cannot
+            # bind the mobile edge listener — diagnosed as a role problem.
+            #
+            # Two further corrections to this list, both from requirements.txt's
+            # own load-bearing comments: `mcp` MUST carry <2 (2.0.0 removed
+            # mcp.server.fastmcp, which this server imports, so a bare `mcp`
+            # resolves 2.x and dies at import), and `fastmcp` is deliberately NOT
+            # here — spec 077 removed it as a dead pin nothing imports.
+            netclaw_pip_install scapy networkx 'mcp>=1.0.0,<2' websockets qrcode httpx h2 || \
                 log_warn "Protocol MCP core deps install failed"
         }
     fi
@@ -1985,6 +1996,26 @@ if [ -d "$N2N_MCP_DIR" ]; then
         log_warn "n2n-mcp deps install failed — install httpx + fastmcp manually"
 else
     log_warn "n2n-mcp not found — it should be bundled at mcp-servers/n2n-mcp/"
+fi
+
+# Spec 105: N2N declares "Requires the mesh" above, and the mesh daemon IS
+# protocol-mcp/bgp-daemon-v2.py — but until now this step installed only
+# n2n-mcp's deps. Selecting N2N *without* the optional Protocol component
+# therefore produced a running mesh daemon missing its own runtime deps
+# (websockets → no NCFED edge listener, qrcode → no enrollment QR). The daemon
+# logged one ImportError and carried on; the operator-facing symptom was
+# `risk token --edge` answering "only a Border can issue enrollment tokens",
+# which points at the role rather than the missing module. That cost hours on
+# the first real-world mobile install.
+#
+# Idempotent: pip no-ops when the requirements are already satisfied, so this is
+# free when the Protocol component was selected too.
+PROTOCOL_MCP_REQS="$MCP_DIR/protocol-mcp/requirements.txt"
+if [ -f "$PROTOCOL_MCP_REQS" ]; then
+    log_info "Ensuring mesh daemon (protocol-mcp) dependencies — N2N runs on it..."
+    netclaw_pip_install -r "$PROTOCOL_MCP_REQS" || \
+        netclaw_pip_install websockets qrcode httpx h2 || \
+        log_warn "mesh daemon deps install failed — the NCFED edge listener will not bind"
 fi
 
 # Enable the federation layer in the OpenClaw .env

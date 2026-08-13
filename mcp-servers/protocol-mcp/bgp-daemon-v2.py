@@ -487,8 +487,12 @@ async def handle_n2n(method, path, body):
                     "push_platform": m.get("push_platform"),
                     "queued": fed.edge_queue.depth(m["member_id"]),
                 })
+            # Spec 105: the listener's own state, not just the devices behind it.
+            # `_start_edge` runs as a task, so a bare attribute read can race
+            # startup — absent means "not yet decided", not "healthy".
+            edge_status = getattr(fed, "edge_status", {"state": "starting"})
             return 200, {"identity": fed.local_identity, "peers": peers,
-                         "edge_nodes": edge}
+                         "edge_nodes": edge, "edge_listener": edge_status}
 
         if path == "/n2n/peers/forget-endpoint" and method == "POST":
             # Feature 100 (US4/FR-021/026): retire a stale dial endpoint without shell
@@ -914,13 +918,30 @@ async def _start_edge(fed):
     same domain-verified/self-signed credential as eN2N/iN2N via
     host_credential() + tls.server_context() (research D1) — deliberately NOT
     internal_channel.build_ssl_contexts, which is the older risk-CA/self-signed
-    path and does not carry the domain-verified cert."""
+    path and does not carry the domain-verified cert.
+
+    Every exit path records why on `fed.edge_status` (spec 105). Before that, a
+    listener that never bound left no trace outside one journal line, and the
+    only user-facing symptom was `risk token --edge` refusing to mint —
+    reported as "only a Border can issue enrollment tokens", which points at
+    the role even when the role is correct and the real cause is a missing
+    dependency. First real-world install lost hours to exactly that."""
+    def _status(state, **kw):
+        fed.edge_status = {"state": state, **kw}
+
     try:
-        if not (fed.risk.is_border() and fed.risk.stack_enabled("in2n")):
+        if not fed.risk.is_border():
+            _status("not_border", role=fed.risk.role(),
+                    hint="promote this claw: netclaw risk role border <risk-name>")
+            return
+        if not fed.risk.stack_enabled("in2n"):
+            _status("stack_disabled", enabled_stacks=fed.risk.get_risk().get("enabled_stacks"),
+                    hint="enable the in2n stack: netclaw risk role border <risk-name> in2n")
             return
         port = int(os.environ.get("N2N_EDGE_WS_PORT", "0") or 0)
         if not port:
             logger.info("Edge (NetClaw Mobile): set N2N_EDGE_WS_PORT to accept phone dial-ins")
+            _status("no_port", hint="set N2N_EDGE_WS_PORT=8443 in ~/.openclaw/.env")
             return
         import websockets
         from bgp.federation import tls as _tls
@@ -962,10 +983,27 @@ async def _start_edge(fed):
             max_size=NCFED_MAX_MESSAGE,
         )
         fed._edge_server = server  # keep a ref
+        _status("listening", port=port,
+                domain=os.environ.get("N2N_CLAW_DOMAIN") or None)
         logger.info("Edge (NetClaw Mobile) WS listener on 0.0.0.0:%d (risk=%s)",
                    port, fed.risk.get_risk().get("risk_name"))
+    except ModuleNotFoundError as e:
+        # The single most likely first-install failure, and the one whose
+        # surface error is most misleading. `websockets` is declared in
+        # protocol-mcp/requirements.txt, but that file is only installed by the
+        # optional `protocol` component — selecting N2N without it yields a mesh
+        # daemon that cannot bind the edge listener. Name the remedy here rather
+        # than leaving the operator to infer it from an ImportError.
+        mod = getattr(e, "name", None) or str(e)
+        hint = (f"python3 -m pip install --break-system-packages {mod}"
+                f"   (or: apt install python3-{mod})")
+        logger.error("Edge WS start FAILED — missing Python module %r for %s. Remedy: %s",
+                     mod, sys.executable, hint)
+        _status("failed", port=port, error=f"missing module {mod!r}",
+                interpreter=sys.executable, hint=hint)
     except Exception as e:
         logger.error("Edge WS start error: %s", e)
+        _status("failed", port=port, error=str(e))
 
 
 async def _start_cert_lifecycle(fed):
