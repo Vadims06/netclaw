@@ -1567,6 +1567,17 @@ class FederationService:
         channel.peer_identity = member_id
         channel.trusted = True
         self._register_edge_channel(member_id, channel)
+        # Spec 106: a successful reconnect used to log NOTHING, so the journal
+        # showed "Accepted edge WS dial-in (awaiting device auth)" followed by a
+        # channel close with nothing in between — indistinguishable from an auth
+        # that never completed. A phone that authenticates and drops seconds
+        # later (iOS suspending a backgrounded socket) is a real, recurring
+        # state, and diagnosing it needs both ends of the channel's life
+        # recorded. The queue depth is here because it decides whether the
+        # replay that follows has anything to send.
+        logger.info("Edge node %s authenticated (source=%s, %d queued)",
+                    member_id, self._edge_channel_source(channel),
+                    self.edge_queue.depth(member_id))
         return {"risk": self.risk.get_risk().get("risk_name"), "trusted": True,
                "member_state": "active"}
 

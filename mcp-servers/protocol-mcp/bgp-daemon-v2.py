@@ -801,33 +801,85 @@ async def handle_n2n(method, path, body):
                 "designated_by": "agent",
                 "pushed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
+            # Spec 106. The three delivery tiers below used to be mutually
+            # exclusive, and two of the three exits lost the message outright:
+            #
+            #  1. A platform push counted as *delivery*, so it never enqueued.
+            #     But a push notification only draws the OS banner — the sole
+            #     writer to the phone's MessageFeedStore is the WS handler for
+            #     `n2n/edge/message`, and nothing on the device persists an
+            #     FCM data payload. So the operator saw a notification, opened
+            #     the app, and found an empty feed: `queued=0` on the Border and
+            #     no `Replaying` line, because the content was never written
+            #     down anywhere. Reported from production 2026-08-13.
+            #
+            #  2. Only ValueError fell through to the fallback. `push_to_edge`
+            #     raises ValueError just for "not connected" — a channel that
+            #     exists but whose device is suspended raises
+            #     RpcError(ERR_EXECUTION_TIMEOUT) after the 30s call timeout,
+            #     and a closed socket raises a websockets error. Both escaped to
+            #     the outer handler as a 500: no push, no queue, message gone.
+            #     That is the common case for an iOS device, which holds a
+            #     registered channel for seconds after backgrounding.
+            #
+            # A platform push is now treated as a WAKE SIGNAL, not a delivery:
+            # every path that does not confirm live in-app delivery also
+            # persists, and replay on next connect is what actually populates
+            # the feed. Bounded already — EdgeQueue enforces a per-member depth
+            # cap and TTL on every enqueue (newest-wins), so this cannot grow
+            # federation.db without limit.
+            live_failure = None
             try:
                 result = await fed.push_to_edge(member_id, push)
                 return 200, {"delivered": True, "member_id": member_id, "result": result}
-            except ValueError:
-                # Not connected -- platform push-notification fallback
-                # (FR-011, US3/T031).
-                from bgp.federation import push_notify
-                member = fed.risk.get_member(member_id)
-                if not member:
-                    return 404, {"error": f"unknown member {member_id}"}
+            except ValueError as e:
+                live_failure = f"not connected ({e})"
+            except Exception as e:
+                # Registered but unreachable: call timeout, closed socket, RPC
+                # error from the device. Falling through is strictly better than
+                # a 500 — the operator's message survives either way.
+                live_failure = f"live delivery failed ({type(e).__name__}: {e})"
+                logger.warning("Edge live push to %s failed, falling back: %s",
+                               member_id, e)
+
+            from bgp.federation import push_notify
+            member = fed.risk.get_member(member_id)
+            if not member:
+                return 404, {"error": f"unknown member {member_id}"}
+
+            def _persist(reason):
+                """Enqueue for replay. Never let a bookkeeping failure convert an
+                otherwise-successful push into a 500."""
                 try:
-                    result = await push_notify.send_push_notification(member, push)
-                    return 200, {"delivered": True, "via": "push_notification",
-                                "member_id": member_id, "result": result}
-                except Exception as e:
-                    # Third tier: neither live WS nor a platform push could
-                    # reach the device. Persist instead of dropping, and replay
-                    # on its next connect (_flush_edge_queue). This is the only
-                    # delivery path for an iOS device with no APNs credentials,
-                    # where the OS suspends the socket on background and there
-                    # is nothing that can wake the app.
-                    logger.warning("Push-notification fallback failed for %s: %s", member_id, e)
-                    queue_id = fed.edge_queue.enqueue(member_id, push, reason=str(e))
-                    return 200, {"delivered": False, "queued": True,
-                                 "queue_id": queue_id,
-                                 "queue_depth": fed.edge_queue.depth(member_id),
-                                 "reason": str(e), "member_id": member_id}
+                    return fed.edge_queue.enqueue(member_id, push, reason=reason)
+                except Exception as qe:
+                    logger.error("Edge queue enqueue failed for %s: %s", member_id, qe)
+                    return None
+
+            try:
+                result = await push_notify.send_push_notification(member, push)
+            except Exception as e:
+                # Neither live WS nor a platform push could reach the device.
+                # The only delivery path for a device with no working push
+                # credentials, where the OS suspends the socket on background
+                # and nothing can wake the app.
+                logger.warning("Push-notification fallback failed for %s: %s", member_id, e)
+                queue_id = _persist(f"{live_failure}; push notification failed ({e})")
+                return 200, {"delivered": False, "queued": queue_id is not None,
+                             "queue_id": queue_id,
+                             "queue_depth": fed.edge_queue.depth(member_id),
+                             "reason": str(e), "member_id": member_id}
+
+            # Push accepted by the platform. That wakes the device; it does NOT
+            # put the content in the app. Persist so the next connect replays it.
+            queue_id = _persist(f"{live_failure}; wake-signal push sent, awaiting reconnect")
+            return 200, {"delivered": True, "via": "push_notification",
+                         "member_id": member_id, "result": result,
+                         # Explicit so a caller can tell a banner-only wake from
+                         # confirmed in-app delivery.
+                         "in_app_delivery": "pending_replay",
+                         "queued": queue_id is not None, "queue_id": queue_id,
+                         "queue_depth": fed.edge_queue.depth(member_id)}
 
         return 404, {"error": f"unknown n2n route {path}"}
     except Exception as e:
