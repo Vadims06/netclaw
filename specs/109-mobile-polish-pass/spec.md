@@ -24,13 +24,25 @@ between the brief and the tests below.
 
 This repo's verification standard (established by specs 072/073) applies
 unchanged: "passes the Dart suite" is not the same claim as "verified on real
-hardware." Every acceptance scenario and success criterion below is provable by
-`flutter analyze` + `flutter test` alone — Phase A and C1 were deliberately
-scoped by the brief to avoid anything requiring a physical device or an Xcode
-build to prove. If a later implementation touches native (Swift/Kotlin)
-platform-channel code for these items, that portion is 🔌 **DEVICE** and must be
-called out in the README's platform-notes section rather than marked done from
-a green Dart build.
+hardware." Nearly every acceptance scenario and success criterion below is
+provable by `flutter analyze` + `flutter test` alone — Phase A and C1 were
+deliberately scoped by the brief to avoid anything requiring a physical device
+or an Xcode build to prove. The one exception, recorded in Clarifications
+(2026-08-14), is US2's long-answer scroll-performance scenario, which is a
+manual/qualitative check, not an automated assertion. If a later
+implementation touches native (Swift/Kotlin) platform-channel code for these
+items (e.g. watch-side haptics), that portion is 🔌 **DEVICE** too. Both must
+be called out in the README's platform-notes section rather than marked done
+from a green Dart build.
+
+## Clarifications
+
+### Session 2026-08-14
+
+- Q: Should the Face ID app-lock grace period (default 60s, per FR-009) be a fixed constant, or a duration the operator can adjust in Settings? → A: User-adjustable in Settings.
+- Q: How should the copy action for a chat answer be triggered (FR-005 / US2)? → A: Both — an always-visible overflow menu button, plus long-press as a fast-path shortcut that opens the identical menu.
+- Q: For an answer still streaming in (partial text), should the markdown-vs-preformatted rendering decision (FR-006) be re-evaluated on every text update, or only once the answer reaches a terminal state? → A: Only at terminal (completed/failed) state — render as plain preformatted text while streaming, classify once when the turn completes.
+- Q: US2's scroll-performance acceptance scenario ("not visibly degraded") is too subjective for an automated test — how should it be verified? → A: Manual/qualitative check only, recorded in the README's platform-notes section as unverified-by-automation, consistent with this repo's 072/073 honesty convention.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -104,30 +116,39 @@ formatted markdown with a monospaced code block and its own copy control.
 1. **Given** a chat turn with a completed answer, **When** the answer is
    displayed, **Then** its text is selectable (not a plain, non-interactive
    `Text` widget).
-2. **Given** a displayed answer, **When** the user triggers the copy action
-   (long-press or overflow menu), **Then** the full answer text is placed on
-   the clipboard and a confirmation is shown.
-3. **Given** a displayed turn, **When** the user triggers "copy question +
-   answer," **Then** both are copied together as one block, question first.
-4. **Given** a displayed answer, **When** the user triggers the share action,
+2. **Given** a displayed answer, **When** the user taps the always-visible
+   overflow menu control on that turn, **Then** a menu offering Copy, "Copy
+   question + answer," and Share is shown, and choosing Copy places the full
+   answer text on the clipboard with a confirmation shown.
+3. **Given** the same displayed answer, **When** the user long-presses it
+   instead, **Then** the identical overflow menu opens (a fast-path shortcut
+   to the same action, not a second, different action).
+4. **Given** a displayed turn, **When** the user triggers "copy question +
+   answer" from that menu, **Then** both are copied together as one block,
+   question first.
+5. **Given** a displayed answer, **When** the user triggers the share action,
    **Then** the system share sheet opens with the answer text (and the turn's
    photo attached too, if the turn has one).
-5. **Given** an answer whose text contains a fenced code block (for example,
+6. **Given** an answer whose text contains a fenced code block (for example,
    a Markdown-style triple-backtick block) or a Markdown pipe-table row,
    **When** it is displayed, **Then** it is rendered as formatted Markdown —
    any table renders as a table, and any fenced block renders in a monospaced
    font with its own dedicated copy control.
-6. **Given** an answer whose text contains none of those markdown signals —
+7. **Given** an answer whose text contains none of those markdown signals —
    e.g. raw CLI output containing bare `#`, `*`, `_`, or `|` characters that
    are not part of a fenced block or a table row — **When** it is displayed,
    **Then** it is rendered as plain monospaced preformatted text, not passed
    through a markdown renderer that could mangle those characters.
-7. **Given** the same displayed-answer behavior (selectable, copyable,
+8. **Given** the same displayed-answer behavior (selectable, copyable,
    shareable, markdown-aware), **When** applied to a feed message body on the
    Feed screen, **Then** it behaves identically to a chat answer.
-8. **Given** a turn with an unusually long answer (on the order of thousands
+9. **Given** a turn with an unusually long answer (on the order of thousands
    of characters), **When** it is scrolled past in the chat list, **Then**
-   scroll performance is not visibly degraded compared to a short answer.
+   scroll performance is not visibly degraded compared to a short answer —
+   verified by manual/qualitative check (profiling with a ~5000-character
+   answer), not an automated performance assertion; record the outcome in the
+   README's platform-notes section per this repo's 072/073 verification
+   convention rather than marking it done from a green `flutter test` alone.
 
 ---
 
@@ -176,7 +197,8 @@ unlocked phone can see live Border data, chat history, and pending approvals
 without any additional check. This story adds an opt-in Settings toggle that,
 when enabled, requires Face ID (or device passcode, as a fallback) before the
 app's content is shown, both on a cold start and after the app has been
-backgrounded longer than a short grace period.
+backgrounded longer than an operator-adjustable grace period (Clarifications,
+2026-08-14; default 60 seconds).
 
 **Why this priority**: A meaningful privacy improvement for anyone whose phone
 is shared, borrowed, or simply unlocked and left unattended, but opt-in and
@@ -196,19 +218,24 @@ confirm no re-prompt.
    lock screen is shown and no app content (chat history, pending approvals,
    Border data) is visible until authentication succeeds.
 3. **Given** the toggle is on and the app is authenticated and in the
-   foreground, **When** the app is backgrounded and resumed within the grace
-   period (default 60 seconds), **Then** no re-authentication is required.
+   foreground, **When** the app is backgrounded and resumed within the
+   operator-configured grace period (default 60 seconds), **Then** no
+   re-authentication is required.
 4. **Given** the same setup, **When** the app is backgrounded and resumed
    after the grace period has elapsed, **Then** the lock screen is shown
    again before content is exposed.
-5. **Given** the lock screen is showing, **When** authentication fails or is
+5. **Given** the Face ID toggle is on, **When** the operator opens its
+   grace-period control in Settings and selects a different duration,
+   **Then** subsequent background/resume cycles use the newly selected
+   duration, not the previous one.
+6. **Given** the lock screen is showing, **When** authentication fails or is
    cancelled, **Then** the lock screen remains and no app content is ever
    exposed.
-6. **Given** the device has no biometric enrolled, or biometric hardware is
+7. **Given** the device has no biometric enrolled, or biometric hardware is
    unavailable/locked out, **When** the operator attempts to unlock, **Then**
    a device-passcode fallback is offered rather than leaving the operator
    permanently locked out.
-7. **Given** an approval notification's own inline confirmation flow (which
+8. **Given** an approval notification's own inline confirmation flow (which
    already performs its own fresh biometric check independent of this
    feature), **When** the app-lock screen and that flow could both apply,
    **Then** the operator is never prompted for biometrics twice in immediate
@@ -297,11 +324,14 @@ active text query.
 
 ### Edge Cases
 
-- What happens to an in-progress markdown-vs-preformatted rendering decision
-  (User Story 2) if an answer is still streaming/updating when first
-  displayed? The classification (contains a fenced block or pipe-table row,
-  or not) should be re-evaluated whenever the answer text changes, not fixed
-  permanently from the first partial version of the text.
+- What happens to the markdown-vs-preformatted rendering decision (User
+  Story 2) if an answer is still streaming/updating when first displayed?
+  Per Clarifications (2026-08-14), a turn's text is rendered as plain
+  preformatted text for as long as it is non-terminal (pending/working); the
+  fenced-block/pipe-table classification runs once, when the turn reaches a
+  terminal state (completed/failed), and is not re-evaluated on every partial
+  update — this avoids visible flicker from a fence or table row that hasn't
+  finished streaming in yet.
 - What happens if the operator enables Face ID app-lock (User Story 4) on a
   device that has no biometric hardware at all (not just unenrolled)? The
   passcode fallback must still be offered — the toggle must never be able to
@@ -342,23 +372,32 @@ active text query.
   user-selectable, not rendered as non-interactive text.
 - **FR-005**: The app MUST provide a copy action for a full answer, a
   combined "question + answer" copy action, and a share action (including any
-  attached photo) for chat answers.
-- **FR-006**: The app MUST render an answer or message body as formatted
-  Markdown (including tables and monospaced fenced code blocks, each with its
-  own copy control) ONLY when its text contains a fenced code block or a
-  Markdown pipe-table row; all other text MUST be rendered as plain,
-  monospaced preformatted text rather than passed through a Markdown renderer.
+  attached photo) for chat answers, reachable both from an always-visible
+  overflow menu control on the turn and from a long-press on the turn (the
+  long-press opens the same menu — it is not a second, separate action).
+- **FR-006**: Once a turn reaches a terminal state (completed or failed), the
+  app MUST render its answer or message body as formatted Markdown (including
+  tables and monospaced fenced code blocks, each with its own copy control)
+  ONLY when its text contains a fenced code block or a Markdown pipe-table
+  row; all other terminal-state text MUST be rendered as plain, monospaced
+  preformatted text rather than passed through a Markdown renderer. While a
+  turn is non-terminal (pending/working), its text MUST be rendered as plain
+  preformatted text regardless of content — the Markdown/preformatted
+  classification MUST NOT be re-evaluated on every partial update.
 - **FR-007**: Approval push notifications MUST be marked Time Sensitive on
   iOS and configured for high-importance/heads-up delivery on Android; feed
   and chat-answer notifications MUST remain at their current, more passive
   interruption level.
 - **FR-008**: Settings MUST offer a toggle to require Face ID (or device
   passcode fallback) before the app's content is shown, persisted across app
-  restarts.
+  restarts, along with a control to select the grace period duration
+  (Clarifications, 2026-08-14) used by FR-009, also persisted across app
+  restarts and defaulting to 60 seconds.
 - **FR-009**: When that toggle is enabled, the app MUST show a lock screen
   exposing no app content on cold start, and again after being backgrounded
-  longer than a configurable grace period (default 60 seconds) — but MUST NOT
-  re-prompt for a resume within that grace period.
+  longer than the operator-selected grace period — but MUST NOT re-prompt for
+  a resume within that grace period. Changing the grace-period duration in
+  Settings MUST take effect for subsequent background/resume cycles.
 - **FR-010**: The app-lock flow (FR-008/FR-009) MUST NOT produce a
   double biometric prompt when combined with the existing per-approval
   biometric confirmation flow.
@@ -390,10 +429,12 @@ active text query.
   already hold the question/answer/message text this spec makes selectable,
   copyable, shareable, and searchable; already carry the `origin` field this
   spec surfaces via a filter chip for the first time.
-- **App-lock preference (new)**: a single persisted boolean (Face ID app-lock
-  enabled/disabled) plus the app's own volatile "last foregrounded at"
-  timestamp used to compute the grace period — not a new server-side or
-  cross-device concept, purely local device state.
+- **App-lock preference (new)**: a persisted boolean (Face ID app-lock
+  enabled/disabled) plus a persisted grace-period duration (operator-selected,
+  Clarifications 2026-08-14; default 60 seconds), plus the app's own volatile
+  "last foregrounded at" timestamp used to evaluate the grace period at
+  resume time — not a new server-side or cross-device concept, purely local
+  device state.
 - **Search/filter state (new, transient)**: the current query string and
   selected filter chips for Chat and Feed respectively; explicitly not
   persisted (FR-015).
@@ -448,9 +489,10 @@ active text query.
   (`approval_confirmation.dart`) is unchanged by this spec; User Story 4 adds
   a separate, app-level gate that must coexist with it without double-prompting
   (FR-010), not replace or modify it.
-- Everything in this spec is verifiable via `flutter analyze` + `flutter
-  test` alone, consistent with the brief's own scoping of Phase A/C1 to avoid
-  native-platform-only behavior; no item here is expected to require a 🔌
-  **DEVICE** tag, though any platform-channel code touched during
+- Nearly everything in this spec is verifiable via `flutter analyze` +
+  `flutter test` alone, consistent with the brief's own scoping of Phase
+  A/C1 to avoid native-platform-only behavior. The one known exception is
+  US2's scroll-performance scenario (Clarifications, 2026-08-14: manual
+  check, not automated). Any platform-channel code touched during
   implementation (e.g. watch-side haptics) should still be verified on
   hardware before being called done, per specs 072/073's standing precedent.
