@@ -151,7 +151,16 @@ class SessionLedger:
         """Extend the budget ceiling and clear the halt state.
 
         Called when the operator explicitly requests continuation.
-        Extends session_budget_usd by override_increment_usd.
+
+        Behavior:
+        - If halt_reason is "cost_cap": extends session_budget_usd by
+          override_increment_usd AND resets tool_calls_this_turn.
+        - If halt_reason is "tool_limit": resets tool_calls_this_turn only
+          (allows another batch of N tool calls without extending the dollar cap).
+
+        This distinction prevents "continue" from being ambiguous — tool-limit
+        continuation is free (just more calls within existing budget), while
+        cost-cap continuation explicitly adds more dollars.
 
         Raises:
             RuntimeError: If allow_override is False in the policy.
@@ -161,12 +170,19 @@ class SessionLedger:
                 raise RuntimeError(
                     "Budget override is disabled for this session policy"
                 )
-            self.budget.session_budget_usd += self.budget.override_increment_usd
+            if self.halt_reason == "cost_cap":
+                self.budget.session_budget_usd += self.budget.override_increment_usd
+            # Both halt types reset the tool counter (allow another batch)
+            self.tool_calls_this_turn = 0
             self.budget_halted = False
             self.halt_reason = None
 
     def get_halt_message(self) -> str:
         """Format a user-facing budget-exceeded message.
+
+        Always includes a partial summary of what was accomplished before the
+        halt — the operator already paid for this work, so they should get value
+        from it even when the session stops.
 
         Returns:
             Formatted string with cost breakdown, top tools, and
@@ -191,15 +207,15 @@ class SessionLedger:
                 lines.append("⚠️ Session budget check triggered")
 
             lines.append("")
-            lines.append("Summary:")
+            lines.append("What I accomplished before stopping:")
             lines.append(
                 f"  • {self.total_call_count} API calls, "
                 f"{self.total_input_tokens:,} input tokens, "
                 f"{self.total_output_tokens:,} output tokens"
             )
-            lines.append(f"  • Total cost: ${self.total_cost:.2f}")
+            lines.append(f"  • Total session cost: ${self.total_cost:.2f}")
 
-            # Top 5 tools by cost
+            # Top 5 tools by cost — shows WHERE the money went
             if self.tool_breakdown:
                 sorted_tools = sorted(
                     self.tool_breakdown.values(),
@@ -212,7 +228,7 @@ class SessionLedger:
                     if t.total_cost > 0
                 )
                 if tool_summary:
-                    lines.append(f"  • Top tools: {tool_summary}")
+                    lines.append(f"  • Tools used: {tool_summary}")
 
             # Duration
             elapsed = datetime.now(timezone.utc) - self.started_at
@@ -221,12 +237,22 @@ class SessionLedger:
                 lines.append(f"  • Session duration: {minutes} minutes")
 
             lines.append("")
-            if self.budget.allow_override:
+
+            # Continuation instructions — different for each halt type
+            if self.halt_reason == "tool_limit":
                 lines.append(
-                    f'To continue, say "override budget" '
-                    f"(adds ${self.budget.override_increment_usd:.2f} to ceiling)."
+                    'Say "continue" to allow another '
+                    f"{self.budget.max_tool_calls_per_turn} tool calls "
+                    f"(no additional cost cap increase)."
                 )
-            lines.append("To start fresh, begin a new session.")
+            elif self.halt_reason == "cost_cap" and self.budget.allow_override:
+                lines.append(
+                    f'Say "continue" to add '
+                    f"${self.budget.override_increment_usd:.2f} to the budget "
+                    f"and resume."
+                )
+
+            lines.append("Or start a new session to reset from scratch.")
 
             return "\n".join(lines)
 

@@ -74,18 +74,37 @@ class TestCostCapEnforcement:
 class TestOverrideBudget:
     """US1: Budget override/continuation."""
 
-    def test_override_extends_ceiling(self):
+    def test_override_cost_cap_extends_ceiling(self):
         policy = BudgetPolicy(session_budget_usd=2.0, override_increment_usd=3.0)
         ledger = SessionLedger(budget=policy)
         ledger.total_cost = 2.50
         ledger.check_budget()
 
         assert ledger.budget_halted is True
+        assert ledger.halt_reason == "cost_cap"
         ledger.override_budget()
 
         assert ledger.budget_halted is False
         assert ledger.halt_reason is None
         assert ledger.budget.session_budget_usd == 5.0  # 2.0 + 3.0
+        assert ledger.tool_calls_this_turn == 0  # Also resets tool counter
+
+    def test_override_tool_limit_does_not_extend_dollar_cap(self):
+        """Tool-limit continuation resets call counter without adding dollars."""
+        policy = BudgetPolicy(session_budget_usd=10.0, max_tool_calls_per_turn=5)
+        ledger = SessionLedger(budget=policy)
+        for _ in range(5):
+            ledger.record_tool_call()
+        ledger.check_budget()
+
+        assert ledger.halt_reason == "tool_limit"
+        original_budget = ledger.budget.session_budget_usd
+
+        ledger.override_budget()
+
+        assert ledger.budget.session_budget_usd == original_budget  # Unchanged
+        assert ledger.tool_calls_this_turn == 0  # Reset for next batch
+        assert ledger.budget_halted is False
 
     def test_override_disabled_raises(self):
         policy = BudgetPolicy(session_budget_usd=2.0, allow_override=False)
@@ -163,7 +182,7 @@ class TestHaltMessage:
     """US1: Formatted halt message."""
 
     def test_halt_message_includes_cost(self):
-        policy = BudgetPolicy(session_budget_usd=5.0)
+        policy = BudgetPolicy(session_budget_usd=5.0, override_increment_usd=2.0)
         ledger = SessionLedger(budget=policy)
         ledger.total_cost = 5.50
         ledger.total_input_tokens = 500_000
@@ -176,7 +195,9 @@ class TestHaltMessage:
         assert "$5.50" in msg
         assert "$5.00 cap" in msg
         assert "25 API calls" in msg
-        assert "override budget" in msg.lower()
+        assert "continue" in msg.lower()
+        assert "$2.00" in msg  # Shows the override increment amount
+        assert "What I accomplished" in msg  # Partial summary present
 
     def test_halt_message_tool_limit(self):
         policy = BudgetPolicy(max_tool_calls_per_turn=20)
@@ -188,6 +209,7 @@ class TestHaltMessage:
         msg = ledger.get_halt_message()
         assert "20/20" in msg
         assert "Tool call limit" in msg
+        assert "no additional cost cap" in msg.lower()  # Makes clear it's free to continue
 
 
 class TestContextWarning:
