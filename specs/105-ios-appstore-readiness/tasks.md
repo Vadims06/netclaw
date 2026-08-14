@@ -19,8 +19,8 @@
 
 **Purpose**: Establish a known-clean baseline and produce the one shared artifact US3 needs, before any story-specific work begins.
 
-- [ ] T001 Run `flutter analyze` and `flutter test` in `mobile/netclaw-mobile/` and confirm a clean baseline (0 issues, all passing) before making any change — this is the starting point every later task's own analyze/test run is measured against
-- [ ] T002 [P] Generate `mobile/netclaw-mobile/ios/ExportOptions.plist` via a one-time Xcode Organizer export step (Product → Archive → Distribute App → App Store Connect → stop before uploading, export the plist — see quickstart.md), and commit the resulting file. Has no dependency on US1/US2 code, so this can happen at any point but is listed here since it blocks US3's first real task (T009)
+- [x] T001 Run `flutter analyze` and `flutter test` in `mobile/netclaw-mobile/` and confirm a clean baseline (0 issues, all passing) before making any change — this is the starting point every later task's own analyze/test run is measured against
+- [x] T002 [P] Generate `mobile/netclaw-mobile/ios/ExportOptions.plist` via a one-time Xcode Organizer export step (Product → Archive → Distribute App → App Store Connect → stop before uploading, export the plist — see quickstart.md), and commit the resulting file. Has no dependency on US1/US2 code, so this can happen at any point but is listed here since it blocks US3's first real task (T009)
 
 **Checkpoint**: Baseline confirmed clean; `ExportOptions.plist` exists and is committed.
 
@@ -40,12 +40,12 @@
 
 ### Tests for User Story 1
 
-- [ ] T003 [P] [US1] Write widget tests in `test/onboarding_explainer_screen_test.dart` covering: (a) a fresh install with no persisted `EnrollmentStore` data shows the explainer before `EnrollmentScreen`, (b) an already-enrolled launch skips the explainer entirely and goes straight to the existing enrolled-state UI, (c) tapping through the explainer's continue action leads to the existing QR-scan screen unchanged. Confirm these fail against current code before implementing.
+- [x] T003 [P] [US1] Write widget tests in `test/onboarding_explainer_screen_test.dart` covering: (a) a fresh install with no persisted `EnrollmentStore` data shows the explainer before `EnrollmentScreen`, (b) an already-enrolled launch skips the explainer entirely and goes straight to the existing enrolled-state UI, (c) tapping through the explainer's continue action leads to the existing QR-scan screen unchanged. Confirm these fail against current code before implementing.
 
 ### Implementation for User Story 1
 
-- [ ] T004 [P] [US1] Create `OnboardingExplainerScreen` widget in `lib/screens/onboarding_explainer_screen.dart` — static explanatory copy stating the app is a companion client requiring a self-hosted NetClaw Border server, plus a single continue action (no camera/network/permission calls of its own)
-- [ ] T005 [US1] Wire `OnboardingExplainerScreen` into `EnrollmentGate`'s unenrolled branch in `lib/main.dart`, shown before `EnrollmentScreen` exactly when `EnrollmentStore.load()` returns `null` (per research.md R1) (depends on T004)
+- [x] T004 [P] [US1] Create `OnboardingExplainerScreen` widget in `lib/screens/onboarding_explainer_screen.dart` — static explanatory copy stating the app is a companion client requiring a self-hosted NetClaw Border server, plus a single continue action (no camera/network/permission calls of its own)
+- [x] T005 [US1] Wire `OnboardingExplainerScreen` into `EnrollmentGate`'s unenrolled branch in `lib/main.dart`, shown before `EnrollmentScreen` exactly when `EnrollmentStore.load()` returns `null` (per research.md R1) (depends on T004)
 
 **Checkpoint**: User Story 1 is fully functional and independently testable — a fresh install shows the explainer; an enrolled device does not.
 
@@ -59,12 +59,12 @@
 
 ### Tests for User Story 2
 
-- [ ] T006 [P] [US2] Write tests in `test/settings_screen_test.dart` (new file) covering: (a) the "Remove this device" control is visible when enrolled, (b) completing biometric re-authentication clears the enrollment (via an injectable `authenticate` callback mirroring `approval_confirmation.dart`'s own test pattern) and returns to the enrollment gate, (c) a cancelled/failed biometric attempt leaves the enrollment untouched, (d) the action cannot fire without going through the confirmation/biometric step, (e) **FR-006**: removal succeeds with no live `EdgeClient`/Border connection at all (construct the widget under test with no reachable Border and confirm the clear-and-return-to-gate path still completes). Confirm these fail against current code before implementing.
+- [x] T006 [P] [US2] Write tests in `test/settings_screen_test.dart` (new file) covering: (a) the "Remove this device" control is visible when enrolled, (b) completing biometric re-authentication clears the enrollment (via an injectable `authenticate` callback mirroring `approval_confirmation.dart`'s own test pattern) and returns to the enrollment gate, (c) a cancelled/failed biometric attempt leaves the enrollment untouched, (d) the action cannot fire without going through the confirmation/biometric step, (e) **FR-006**: removal succeeds with no live `EdgeClient`/Border connection at all (construct the widget under test with no reachable Border and confirm the clear-and-return-to-gate path still completes). Confirm these fail against current code before implementing.
 
 ### Implementation for User Story 2
 
-- [ ] T007 [P] [US2] Add a "Remove this device" control to `lib/screens/settings_screen.dart`, gated by the same `local_auth` pattern `lib/ncfed/approval_confirmation.dart` already uses (per research.md R2) — no new biometric-handling code, call the existing pattern
-- [ ] T008 [US2] Wire the control's success path to `EnrollmentStore.clear()` followed by returning to the enrollment gate, mirroring the existing `_handleRevoked` path in `lib/main.dart` (depends on T007)
+- [x] T007 [P] [US2] Add a "Remove this device" control to `lib/screens/settings_screen.dart`, gated by the same `local_auth` pattern `lib/ncfed/approval_confirmation.dart` already uses (per research.md R2) — no new biometric-handling code, call the existing pattern
+- [x] T008 [US2] Wire the control's success path to `EnrollmentStore.clear()` followed by returning to the enrollment gate, mirroring the existing `_handleRevoked` path in `lib/main.dart` (depends on T007)
 
 **Checkpoint**: User Stories 1 and 2 both work independently — fresh installs see the explainer, and enrolled operators can self-service remove their enrollment via Settings + biometrics.
 
@@ -80,10 +80,10 @@
 
 *(No automated tests — this story is a one-time build/upload procedure, not application code. Manual verification steps are in quickstart.md.)*
 
-- [ ] T009 [US3] Produce a distribution-signed archive via `flutter build ipa --export-options-plist=ios/ExportOptions.plist` (per research.md R3), run from `mobile/netclaw-mobile/` (depends on T002; should be run after T005/T008 so the archived build actually contains US1/US2)
-- [ ] T010 [US3] Resolve any distribution-signing/capability errors the archive surfaces — e.g. a `SystemCapabilities` entry missing for a target in `ios/Runner.xcodeproj/project.pbxproj`, following the same diagnostic pattern already used to fix Push Notifications capability registration on this project (depends on T009's result; may be a no-op if the archive succeeds cleanly)
-- [ ] T011 [US3] Upload the resulting `.ipa` to App Store Connect via `xcrun altool --upload-app` using an App Store Connect API key (per research.md R4 / quickstart.md) (depends on T009/T010)
-- [ ] T012 [US3] In App Store Connect, once the build finishes processing: create a TestFlight External Testing group, attach the uploaded build, and invite at least one known tester (depends on T011)
+- [x] T009 [US3] Produce a distribution-signed archive via `flutter build ipa --export-options-plist=ios/ExportOptions.plist` (per research.md R3), run from `mobile/netclaw-mobile/` (depends on T002; should be run after T005/T008 so the archived build actually contains US1/US2)
+- [x] T010 [US3] Resolve any distribution-signing/capability errors the archive surfaces — e.g. a `SystemCapabilities` entry missing for a target in `ios/Runner.xcodeproj/project.pbxproj`, following the same diagnostic pattern already used to fix Push Notifications capability registration on this project (depends on T009's result; may be a no-op if the archive succeeds cleanly)
+- [x] T011 [US3] Upload the resulting `.ipa` to App Store Connect via `xcrun altool --upload-app` using an App Store Connect API key (per research.md R4 / quickstart.md) (depends on T009/T010)
+- [x] T012 [US3] In App Store Connect, once the build finishes processing: create a TestFlight External Testing group, attach the uploaded build, and invite at least one known tester (depends on T011) — **note**: T009–T012 were done outside git; the archive was built and uploaded from a working tree that had US1/US2 code uncommitted, so the shipped TestFlight build already includes it even though this repo had no record of it until this branch was reconciled (2026-08-14)
 
 **Checkpoint**: All three user stories are independently functional. A distribution build exists, has been uploaded, and is submitted for external testing.
 
@@ -91,7 +91,7 @@
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T013 [P] Run `flutter analyze` and the full `flutter test` suite across the whole app (not just the new test files) to confirm zero regressions from US1/US2's changes to `lib/main.dart` and `lib/screens/settings_screen.dart`
+- [x] T013 [P] Run `flutter analyze` and the full `flutter test` suite across the whole app (not just the new test files) to confirm zero regressions from US1/US2's changes to `lib/main.dart` and `lib/screens/settings_screen.dart` — verified 2026-08-14: `flutter analyze` 0 issues, `flutter test` 289/289 passing
 - [ ] T014 Execute quickstart.md's manual verification steps for User Story 1 and User Story 2 end-to-end on a physical device, per its documented commands — explicitly confirm SC-001 (show the explainer to one person with no prior NetClaw context and confirm they can correctly restate that a self-hosted Border server is required) and SC-002 (time the enrolled-to-enrollment-gate flow via Settings and confirm it completes in under 30 seconds)
 - [ ] T015 Per constitution Principle XVII, draft a milestone summary (WordPress blog post via the WordPress MCP server if configured; otherwise note the milestone here and remind the operator to publish manually) once all three stories are complete
 
