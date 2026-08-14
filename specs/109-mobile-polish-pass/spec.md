@@ -413,6 +413,21 @@ Approvals tab.
   Per FR-002's exception, they are intentionally excluded from the
   color-literal sweep and remain unchanged in both themes — they contrast
   against live camera footage, not the app's background.
+- What happens to an inbound approval-notification action tap (Approve/Deny
+  from the banner, not opening the app UI) while User Story 4's lock screen
+  is showing? Discovered during implementation: `HomeShell` — where the
+  notification-response handler is wired — does not mount at all until
+  `AppLockGate` unlocks (by design, so no app content or its listeners are
+  reachable pre-authentication). This means a locked device cannot resolve
+  an approval directly from a notification action without first unlocking.
+  This is a stricter, more conservative posture than pre-existing behavior
+  (consistent with the feature's intent — a locked phone should not be able
+  to approve a network change) and is called out here as a known,
+  🔌 **DEVICE**-only-verifiable behavior change rather than a silently
+  assumed one; it does not, however, create the double-biometric-prompt
+  FR-010 exists to prevent, since the two flows (app-lock, per-approval
+  confirmation) are now structurally sequential — the second cannot begin
+  until the first has already completed.
 
 ## Requirements *(mandatory)*
 

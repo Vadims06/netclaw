@@ -112,9 +112,13 @@ grace-period duration (an integer number of seconds) in
 e.g. 0s/"immediately", 30s, 60s (default), 5 min — rather than a free-form
 numeric entry field).
 
-**Rationale**: `flutter_secure_storage` is already a dependency and already
-the pattern used for other sensitive local state; a fixed small set of
-duration choices is simpler to build, simpler to test exhaustively, and
+**Rationale**: `flutter_secure_storage` is already a declared dependency
+(confirmed unused elsewhere in `lib/` as of this plan — this is its first
+real consumer, correcting an earlier assumption that it was already in use
+for other sensitive local state); it is still the appropriate choice here
+over `SharedPreferences`, since app-lock is itself a security preference. A
+fixed small set of duration choices is simpler to build, simpler to test
+exhaustively, and
 matches how this class of "auto-lock after" setting is presented in
 comparable apps (e.g. iOS's own Screen Time/Auto-Lock pickers), versus an
 unbounded numeric input whose edge cases (zero, negative, absurdly large)

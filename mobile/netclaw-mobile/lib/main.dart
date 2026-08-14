@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'ncfed/app_lock.dart';
 import 'ncfed/approval_client.dart';
 import 'ncfed/background_refresh.dart';
 import 'ncfed/badge_lifecycle.dart';
@@ -63,8 +64,143 @@ class NetClawMobileApp extends StatelessWidget {
       theme: netclawTheme,
       darkTheme: netclawDarkTheme,
       themeMode: ThemeMode.system,
-      home: const EnrollmentGate(),
+      home: const AppLockGate(child: EnrollmentGate()),
     );
+  }
+}
+
+enum _LockState { loading, locked, covered, unlocked }
+
+/// 109/US4: gates ALL app content (both the enrollment flow and the
+/// enrolled HomeShell) behind Face ID when the operator has turned the
+/// Settings toggle on. A no-op wrapper when the preference is off/unset --
+/// which every existing test and every device that never opts in continues
+/// to see (FR-008's first acceptance scenario).
+class AppLockGate extends StatefulWidget {
+  final Widget child;
+
+  /// Injectable so tests never touch the real secure-storage platform
+  /// channel (109/research.md R4).
+  final AppLockPreference? appLockPreference;
+
+  /// Injectable so tests never touch the real biometric platform channel —
+  /// mirrors `approval_confirmation.dart`'s own `authenticate` parameter.
+  final Future<bool> Function(String reason)? authenticate;
+
+  const AppLockGate({super.key, required this.child, this.appLockPreference, this.authenticate});
+
+  @override
+  State<AppLockGate> createState() => _AppLockGateState();
+}
+
+class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
+  late final AppLockPreference _pref = widget.appLockPreference ?? AppLockPreference();
+  _LockState _state = _LockState.loading;
+  bool _enabled = false;
+  Duration _gracePeriod = defaultGracePeriod;
+  // Volatile, deliberately never persisted (data-model.md) -- a killed and
+  // relaunched process is always a cold start, which already requires auth
+  // regardless of any grace period.
+  DateTime? _lastForegroundedAt;
+  bool _authenticating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final enabled = await _pref.isEnabled();
+    final gracePeriod = await _pref.gracePeriod();
+    if (!mounted) return;
+    setState(() {
+      _enabled = enabled;
+      _gracePeriod = gracePeriod;
+      _state = enabled ? _LockState.locked : _LockState.unlocked;
+    });
+    if (enabled) _attemptUnlock();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_enabled) return;
+    switch (state) {
+      // FR-009's own gotcha: cover content BEFORE backgrounding (inactive
+      // fires first, ahead of the OS app-switcher snapshot), not after.
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        if (mounted && _state == _LockState.unlocked) {
+          setState(() => _state = _LockState.covered);
+        }
+      case AppLifecycleState.resumed:
+        if (_state == _LockState.covered) {
+          if (requiresReauth(
+              now: DateTime.now(), lastForegroundedAt: _lastForegroundedAt, gracePeriod: _gracePeriod)) {
+            setState(() => _state = _LockState.locked);
+            _attemptUnlock();
+          } else {
+            // Within the grace period -- no re-prompt (FR-009), and this
+            // counts as fresh presence, so the window effectively renews.
+            _lastForegroundedAt = DateTime.now();
+            setState(() => _state = _LockState.unlocked);
+          }
+        }
+      case AppLifecycleState.detached:
+        break;
+    }
+  }
+
+  Future<void> _attemptUnlock() async {
+    if (_authenticating) return; // FR-010: never a second concurrent prompt
+    _authenticating = true;
+    final ok = await authenticateForAppLock('Unlock NetClaw', authenticate: widget.authenticate);
+    _authenticating = false;
+    if (!mounted) return;
+    if (ok) {
+      _lastForegroundedAt = DateTime.now();
+      setState(() => _state = _LockState.unlocked);
+    }
+    // Failed/cancelled: FR-009's Acceptance Scenario 6 -- the lock screen
+    // remains, no app content is ever exposed. The operator can retry via
+    // the lock screen's own button (below).
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (_state) {
+      case _LockState.loading:
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      case _LockState.locked:
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline, size: 48),
+                const SizedBox(height: 16),
+                const Text('NetClaw is locked'),
+                const SizedBox(height: 16),
+                ElevatedButton(onPressed: _attemptUnlock, child: const Text('Unlock')),
+              ],
+            ),
+          ),
+        );
+      case _LockState.covered:
+        // Deliberately blank -- this is what the OS app-switcher snapshot
+        // captures, so it must not leak any app content (FR-009's gotcha).
+        return const Scaffold(body: SizedBox.expand());
+      case _LockState.unlocked:
+        return widget.child;
+    }
   }
 }
 

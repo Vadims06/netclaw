@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
+import '../ncfed/app_lock.dart';
 import '../ncfed/capability_registration.dart';
 import '../ncfed/push_registration.dart';
+
+/// 109/research.md R5: human-readable labels for the fixed grace-period
+/// choice set.
+String describeGracePeriod(Duration d) {
+  if (d == Duration.zero) return 'Immediately';
+  if (d.inMinutes >= 1) return '${d.inMinutes} minute${d.inMinutes == 1 ? '' : 's'}';
+  return '${d.inSeconds} seconds';
+}
 
 /// Human-readable explanation of why notifications are or aren't working.
 /// Push failing is silent by design — the app is fully usable without it — so
@@ -65,6 +74,10 @@ class SettingsScreen extends StatefulWidget {
   /// its default (105/FR-004: same security posture as approvals).
   final Future<bool> Function(String reason)? authenticate;
 
+  /// Injectable so tests never touch the real secure-storage platform
+  /// channel (109/FR-008, research.md R4).
+  final AppLockPreference? appLockPreference;
+
   const SettingsScreen({
     super.key,
     required this.capabilities,
@@ -72,6 +85,7 @@ class SettingsScreen extends StatefulWidget {
     this.pushStatus = PushStatus.unknown,
     this.localNotificationsPermissionDenied = false,
     this.authenticate,
+    this.appLockPreference,
   });
 
   @override
@@ -86,6 +100,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
   };
 
   String? _error;
+
+  late final AppLockPreference _appLock = widget.appLockPreference ?? AppLockPreference();
+  bool _appLockEnabled = false;
+  Duration _gracePeriod = defaultGracePeriod;
+  bool _appLockLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppLock();
+  }
+
+  Future<void> _loadAppLock() async {
+    final enabled = await _appLock.isEnabled();
+    final grace = await _appLock.gracePeriod();
+    if (mounted) {
+      setState(() {
+        _appLockEnabled = enabled;
+        _gracePeriod = grace;
+        _appLockLoaded = true;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +171,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         const Divider(),
+        if (_appLockLoaded) ...[
+          SwitchListTile(
+            title: const Text('Require Face ID to open NetClaw'),
+            subtitle: const Text(
+              'Locks the app on launch and after being backgrounded past the '
+              'grace period below. Off by default.',
+            ),
+            value: _appLockEnabled,
+            onChanged: (value) async {
+              await _appLock.setEnabled(value);
+              if (mounted) setState(() => _appLockEnabled = value);
+            },
+          ),
+          if (_appLockEnabled)
+            ListTile(
+              title: const Text('Grace period'),
+              subtitle: const Text('How long the app stays unlocked after backgrounding'),
+              trailing: DropdownButton<Duration>(
+                value: _gracePeriod,
+                items: [
+                  for (final choice in gracePeriodChoices)
+                    DropdownMenuItem(value: choice, child: Text(describeGracePeriod(choice))),
+                ],
+                onChanged: (value) async {
+                  if (value == null) return;
+                  await _appLock.setGracePeriod(value);
+                  if (mounted) setState(() => _gracePeriod = value);
+                },
+              ),
+            ),
+          const Divider(),
+        ],
         ListTile(
           leading: Icon(Icons.logout, color: Colors.red.shade700),
           title: Text('Remove this device', style: TextStyle(color: Colors.red.shade700)),
