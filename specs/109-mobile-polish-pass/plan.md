@@ -86,6 +86,9 @@ mobile/netclaw-mobile/
 │   │   ├── app_lock.dart               # NEW (US4) — grace-period logic (pure) + local_auth wrapper
 │   │   ├── conversation_search.dart    # NEW (US6) — pure filter function over turns/messages
 │   │   ├── answer_format.dart          # NEW (US2) — looksLikeMarkdown() classifier (research.md R3)
+│   │   # (lib/screens/answer_body.dart, below, is the shared AnswerBody widget both
+│   │   #  chat_screen.dart and feed_screen.dart render through -- discovered during
+│   │   #  implementation to avoid duplicating the Markdown/copy-button wiring twice)
 │   │   ├── approval_client.dart        # US5 — haptic call sites
 │   │   ├── enrollment_flow.dart        # US5 — haptic call site (enrollment succeeds)
 │   │   ├── reconnect_supervisor.dart   # US5 — haptic call site (connection-lost transition)
@@ -94,6 +97,7 @@ mobile/netclaw-mobile/
 │   │   ├── message_feed.dart           # unchanged — MessageFeedStore already carries the shape US6 filters
 │   │   └── dashboard_data.dart         # unchanged — UnreadPendingSnapshot already exposes unreadFeed/unreadChat separately, used by US7
 │   └── screens/
+│       ├── answer_body.dart            # NEW (US2) — shared AnswerBody widget (Markdown-or-preformatted, long-press context menu)
 │       ├── chat_screen.dart            # US2 (SelectableText, overflow menu + long-press, markdown rendering), US6 (search field + filter chips)
 │       ├── feed_screen.dart            # US2 (same treatment for message bodies), US6 (search field)
 │       ├── settings_screen.dart        # US4 (Face ID toggle + grace-period control)

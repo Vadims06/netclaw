@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:netclaw_mobile/ncfed/conversation_store.dart';
 import 'package:netclaw_mobile/ncfed/edge_ask_client.dart';
 import 'package:netclaw_mobile/ncfed/edge_client.dart';
 import 'package:netclaw_mobile/screens/chat_screen.dart';
+import 'package:share_plus/share_plus.dart';
 
 /// Minimal stand-in for the wire connection `EdgeAskClient` needs — avoids
 /// constructing a real `EdgeClient` (which requires an actual
@@ -34,13 +36,16 @@ class _FakeEdgeRpcSource implements EdgeRpcSource {
 /// `runAsync()` — testWidgets() runs in a fake-async zone where a plain
 /// await never lets real File I/O complete.
 Future<Widget> _buildChatScreen(WidgetTester tester, String state,
-    {String? answerText, _FakeEdgeRpcSource? source}) async {
+    {String? answerText,
+    _FakeEdgeRpcSource? source,
+    Future<ShareResult> Function(ShareParams)? shareAction,
+    List<int>? photoBytes}) async {
   late Directory dir;
   late ConversationStore store;
   await tester.runAsync(() async {
     dir = await Directory.systemTemp.createTemp('ncfed_chat_test_');
     store = ConversationStore(dir);
-    await store.addPending('task-1', 'check BGP');
+    await store.addPending('task-1', 'check BGP', photoBytes: photoBytes);
     if (state != 'pending') {
       await store.updateState('task-1', state, answerText: answerText);
     }
@@ -48,7 +53,10 @@ Future<Widget> _buildChatScreen(WidgetTester tester, String state,
   addTearDown(() => dir.delete(recursive: true));
   return MaterialApp(
     home: Scaffold(
-        body: ChatScreen(askClient: EdgeAskClient(source ?? _FakeEdgeRpcSource()), store: store)),
+        body: ChatScreen(
+            askClient: EdgeAskClient(source ?? _FakeEdgeRpcSource()),
+            store: store,
+            shareAction: shareAction)),
   );
 }
 
@@ -101,5 +109,128 @@ void main() {
 
     expect(find.text('Recovered answer.'), findsOneWidget);
     expect(find.text('Working…'), findsNothing);
+  });
+
+  group('answer copy/share/select/markdown (109/US2)', () {
+    Future<String?> copiedText(WidgetTester tester, Future<void> Function() action) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(() =>
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+      await action();
+      return copied;
+    }
+
+    testWidgets('a completed answer is selectable', (tester) async {
+      await tester.pumpWidget(
+          await _buildChatScreen(tester, 'completed', answerText: 'All healthy.'));
+      await tester.pump();
+
+      expect(find.byType(SelectableText), findsOneWidget);
+    });
+
+    testWidgets('the overflow menu Copy action copies the full answer', (tester) async {
+      await tester.pumpWidget(
+          await _buildChatScreen(tester, 'completed', answerText: 'All healthy.'));
+      await tester.pump();
+
+      final copied = await copiedText(tester, () async {
+        await tester.tap(find.byTooltip('Answer actions'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Copy answer'));
+        await tester.pumpAndSettle();
+      });
+
+      expect(copied, 'All healthy.');
+      expect(find.text('Answer copied'), findsOneWidget);
+    });
+
+    testWidgets('long-pressing the answer opens the identical menu as the overflow button',
+        (tester) async {
+      await tester.pumpWidget(
+          await _buildChatScreen(tester, 'completed', answerText: 'All healthy.'));
+      await tester.pump();
+
+      await tester.longPress(find.text('All healthy.'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copy answer'), findsOneWidget);
+      expect(find.text('Copy question + answer'), findsOneWidget);
+      expect(find.text('Share'), findsOneWidget);
+    });
+
+    testWidgets('"Copy question + answer" copies both, question first', (tester) async {
+      await tester.pumpWidget(
+          await _buildChatScreen(tester, 'completed', answerText: 'All healthy.'));
+      await tester.pump();
+
+      final copied = await copiedText(tester, () async {
+        await tester.tap(find.byTooltip('Answer actions'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Copy question + answer'));
+        await tester.pumpAndSettle();
+      });
+
+      expect(copied, 'check BGP\n\nAll healthy.');
+    });
+
+    testWidgets('the Share action is wired through the injected shareAction', (tester) async {
+      ShareParams? shared;
+      await tester.pumpWidget(await _buildChatScreen(
+        tester,
+        'completed',
+        answerText: 'All healthy.',
+        shareAction: (params) async {
+          shared = params;
+          return ShareResult('', ShareResultStatus.success);
+        },
+      ));
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('Answer actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+
+      expect(shared?.text, 'All healthy.');
+    });
+
+    testWidgets('a fenced-block answer renders via Markdown; bare CLI output stays preformatted',
+        (tester) async {
+      await tester.pumpWidget(await _buildChatScreen(tester, 'completed',
+          answerText: 'result:\n```\ninterface up\n```'));
+      await tester.pump();
+
+      expect(find.byType(SelectableText), findsWidgets); // fenced block still selectable
+      expect(find.textContaining('interface up'), findsOneWidget);
+
+      await tester.pumpWidget(await _buildChatScreen(tester, 'completed',
+          answerText: 'interface # note\n * bullet\nsnake_case=1'));
+      await tester.pump();
+
+      // Bare CLI output with no fence/table row renders as plain preformatted
+      // SelectableText, unmangled.
+      expect(find.text('interface # note\n * bullet\nsnake_case=1'), findsOneWidget);
+    });
+
+    testWidgets('a pending/working turn shows no answer body at all -- "Working…" instead',
+        (tester) async {
+      // 109/FR-006 (Clarifications, 2026-08-14): non-terminal turns never
+      // reach Markdown classification in the first place -- chat_screen.dart
+      // shows the in-progress row, not AnswerBody, until a turn is terminal.
+      await tester.pumpWidget(await _buildChatScreen(tester, 'pending'));
+      await tester.pump();
+
+      expect(find.text('Working…'), findsOneWidget);
+      expect(find.byType(SelectableText), findsNothing);
+    });
   });
 }

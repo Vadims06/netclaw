@@ -1,8 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../ncfed/message_feed.dart';
+import 'answer_body.dart';
 import 'empty_state.dart';
 
 /// Renders messages the Border has explicitly pushed (US2/T026), in
@@ -24,7 +27,17 @@ class FeedScreen extends StatefulWidget {
   /// changed.
   final VoidCallback? onChanged;
 
-  const FeedScreen({super.key, required this.store, this.highlightPushedAt, this.onChanged});
+  /// Injectable so tests never touch the real share platform channel
+  /// (109/research.md R4).
+  final Future<ShareResult> Function(ShareParams params)? shareAction;
+
+  const FeedScreen({
+    super.key,
+    required this.store,
+    this.highlightPushedAt,
+    this.onChanged,
+    this.shareAction,
+  });
 
   @override
   State<FeedScreen> createState() => _FeedScreenState();
@@ -93,17 +106,21 @@ class _FeedScreenState extends State<FeedScreen> {
             if (mounted) setState(() {});
             widget.onChanged?.call();
           },
+          shareAction: widget.shareAction,
         );
       },
     );
   }
 }
 
+enum _MessageAction { copy, share }
+
 class _MessageTile extends StatelessWidget {
   final EdgeMessage message;
   final bool highlighted;
   final VoidCallback onAcknowledge;
   final VoidCallback onDelete;
+  final Future<ShareResult> Function(ShareParams params)? shareAction;
 
   const _MessageTile({
     super.key,
@@ -111,7 +128,10 @@ class _MessageTile extends StatelessWidget {
     required this.onAcknowledge,
     required this.onDelete,
     this.highlighted = false,
+    this.shareAction,
   });
+
+  bool get _isText => message.contentType == MessageContentType.text;
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +173,15 @@ class _MessageTile extends StatelessWidget {
                     tooltip: 'Acknowledge',
                     onPressed: onAcknowledge,
                   ),
+                // 109/FR-005, Acceptance Scenario 8: identical copy/share
+                // treatment as a chat answer -- no "copy question + answer"
+                // here, since a feed push has no question to pair it with.
+                if (_isText)
+                  IconButton(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    tooltip: 'Message actions',
+                    onPressed: () => _showMessageActions(context),
+                  ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 20),
                   tooltip: 'Delete',
@@ -167,6 +196,59 @@ class _MessageTile extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _showMessageActions(BuildContext context) async {
+    final action = await showModalBottomSheet<_MessageAction>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.copy),
+            title: const Text('Copy'),
+            onTap: () => Navigator.pop(ctx, _MessageAction.copy),
+          ),
+          ListTile(
+            leading: const Icon(Icons.share),
+            title: const Text('Share'),
+            onTap: () => Navigator.pop(ctx, _MessageAction.share),
+          ),
+        ]),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+    await _runMessageAction(context, action);
+  }
+
+  Future<void> _runMessageAction(BuildContext context, _MessageAction action) async {
+    switch (action) {
+      case _MessageAction.copy:
+        await Clipboard.setData(ClipboardData(text: message.content));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Copied')));
+        }
+      case _MessageAction.share:
+        final share = shareAction ?? SharePlus.instance.share;
+        await share(ShareParams(text: message.content));
+    }
+  }
+
+  List<ContextMenuButtonItem> _messageContextMenuItems(BuildContext context) => [
+        ContextMenuButtonItem(
+          label: 'Copy',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _runMessageAction(context, _MessageAction.copy);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Share',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _runMessageAction(context, _MessageAction.share);
+          },
+        ),
+      ];
 
   Future<void> _confirmDelete(BuildContext context) async {
     final ok = await showDialog<bool>(
@@ -186,7 +268,11 @@ class _MessageTile extends StatelessWidget {
   Widget _content(BuildContext context) {
     switch (message.contentType) {
       case MessageContentType.text:
-        return Text(message.content);
+        return AnswerBody(
+          text: message.content,
+          isTerminal: true,
+          buildActions: _messageContextMenuItems,
+        );
       case MessageContentType.image:
         try {
           return Image.memory(base64Decode(message.content));

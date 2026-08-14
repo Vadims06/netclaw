@@ -3,12 +3,15 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../ncfed/capture_client.dart';
 import '../ncfed/conversation_store.dart';
 import '../ncfed/edge_ask_client.dart';
 import '../ncfed/turn_reconciler.dart';
 import '../ncfed/voice_transcription.dart';
+import 'answer_body.dart';
 import 'capture_screen.dart';
 
 /// Chat screen (feature 067, FR-006): request/answer history, in-progress
@@ -28,12 +31,17 @@ class ChatScreen extends StatefulWidget {
   /// `main.dart` can recompute the combined app badge (FR-008).
   final VoidCallback? onChanged;
 
+  /// Injectable so tests never touch the real share platform channel
+  /// (109/research.md R4).
+  final Future<ShareResult> Function(ShareParams params)? shareAction;
+
   ChatScreen({
     super.key,
     required this.askClient,
     required this.store,
     this.highlightTaskId,
     this.onChanged,
+    this.shareAction,
     VoiceTranscription? voiceTranscription,
   }) : voiceTranscription = voiceTranscription ?? VoiceTranscription();
 
@@ -338,6 +346,7 @@ class _ChatScreenState extends State<ChatScreen>
                       onRetry: () => _retry(turns[index]),
                       onAcknowledge: () => _acknowledge(turns[index].taskId),
                       onDelete: () => _delete(turns[index].taskId),
+                      shareAction: widget.shareAction,
                     );
                   },
                 ),
@@ -388,6 +397,8 @@ class _ChatScreenState extends State<ChatScreen>
   }
 }
 
+enum _AnswerAction { copyAnswer, copyBoth, share }
+
 class _TurnTile extends StatelessWidget {
   final ConversationTurn turn;
   final VoidCallback onCancel;
@@ -401,6 +412,10 @@ class _TurnTile extends StatelessWidget {
   /// "Working…".
   final String? progressDetail;
 
+  /// Injectable so tests never touch the real share platform channel (109/
+  /// research.md R4's injectable-function-with-production-default pattern).
+  final Future<ShareResult> Function(ShareParams params)? shareAction;
+
   const _TurnTile({
     super.key,
     required this.turn,
@@ -410,11 +425,18 @@ class _TurnTile extends StatelessWidget {
     required this.onDelete,
     this.highlighted = false,
     this.progressDetail,
+    this.shareAction,
   });
 
   bool get _isRetryable => turn.state == 'failed' || turn.state == 'cancelled';
 
   bool get _inProgress => turn.state == 'pending' || turn.state == 'working';
+
+  /// 109/FR-005: the overflow menu / long-press actions operate on the
+  /// answer, so they only make sense once there is one.
+  bool get _hasAnswer => (turn.answerText ?? '').isNotEmpty;
+
+  bool get _isTerminal => turn.state == 'completed' || turn.state == 'failed';
 
   /// Matches `ConversationStore.unreadCount`'s own definition (073/FR-011):
   /// an in-progress turn has nothing to acknowledge yet.
@@ -425,9 +447,91 @@ class _TurnTile extends StatelessWidget {
     final card = _card(context);
     // "Or if you click on fail it asks to retry" — make the whole tile a retry
     // affordance, not just the button, so a failed turn is never a dead end.
+    // 109/FR-005's long-press fast-path lives in AnswerBody's own
+    // contextMenuBuilder (see answer_body.dart's doc comment for why it
+    // isn't an ancestor onLongPress here).
     if (!_isRetryable) return card;
     return InkWell(onTap: () => _confirmRetry(context), child: card);
   }
+
+  Future<void> _showAnswerActions(BuildContext context) async {
+    final action = await showModalBottomSheet<_AnswerAction>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.copy),
+            title: const Text('Copy answer'),
+            onTap: () => Navigator.pop(ctx, _AnswerAction.copyAnswer),
+          ),
+          ListTile(
+            leading: const Icon(Icons.copy_all),
+            title: const Text('Copy question + answer'),
+            onTap: () => Navigator.pop(ctx, _AnswerAction.copyBoth),
+          ),
+          ListTile(
+            leading: const Icon(Icons.share),
+            title: const Text('Share'),
+            onTap: () => Navigator.pop(ctx, _AnswerAction.share),
+          ),
+        ]),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+    await _runAnswerAction(context, action);
+  }
+
+  /// Shared by the overflow menu (bottom sheet, above) and the long-press
+  /// context menu (answer_body.dart's `buildActions`) — one implementation,
+  /// two entry points, per FR-005's "not a second, different action."
+  Future<void> _runAnswerAction(BuildContext context, _AnswerAction action) async {
+    switch (action) {
+      case _AnswerAction.copyAnswer:
+        await Clipboard.setData(ClipboardData(text: turn.answerText ?? ''));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Answer copied')));
+        }
+      case _AnswerAction.copyBoth:
+        await Clipboard.setData(
+            ClipboardData(text: '${turn.requestText}\n\n${turn.answerText ?? ''}'));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
+        }
+      case _AnswerAction.share:
+        final share = shareAction ?? SharePlus.instance.share;
+        await share(ShareParams(
+          text: turn.answerText,
+          files: turn.photoPath != null ? [XFile(turn.photoPath!)] : null,
+        ));
+    }
+  }
+
+  /// Long-press context-menu buttons for `AnswerBody.buildActions` — the
+  /// same three actions as the overflow menu.
+  List<ContextMenuButtonItem> _answerContextMenuItems(BuildContext context) => [
+        ContextMenuButtonItem(
+          label: 'Copy answer',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _runAnswerAction(context, _AnswerAction.copyAnswer);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Copy question + answer',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _runAnswerAction(context, _AnswerAction.copyBoth);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Share',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _runAnswerAction(context, _AnswerAction.share);
+          },
+        ),
+      ];
 
   Future<void> _confirmRetry(BuildContext context) async {
     final ok = await showDialog<bool>(
@@ -493,6 +597,15 @@ class _TurnTile extends StatelessWidget {
                     tooltip: 'Acknowledge',
                     onPressed: onAcknowledge,
                   ),
+                // 109/FR-005: always-visible overflow menu -- the primary
+                // way to reach copy/share; long-press (build(), above) is a
+                // fast-path shortcut to this identical menu.
+                if (_hasAnswer)
+                  IconButton(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    tooltip: 'Answer actions',
+                    onPressed: () => _showAnswerActions(context),
+                  ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 20),
                   tooltip: 'Delete',
@@ -535,8 +648,14 @@ class _TurnTile extends StatelessWidget {
               ])
             else if (turn.state == 'failed')
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(turn.answerText ?? 'Failed',
-                    style: TextStyle(color: scheme.error)),
+                turn.answerText == null
+                    ? Text('Failed', style: TextStyle(color: scheme.error))
+                    : AnswerBody(
+                        text: turn.answerText!,
+                        isTerminal: _isTerminal,
+                        textColor: scheme.error,
+                        buildActions: _answerContextMenuItems,
+                      ),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
@@ -546,7 +665,11 @@ class _TurnTile extends StatelessWidget {
                 ),
               ])
             else
-              Text(turn.answerText ?? ''),
+              AnswerBody(
+                text: turn.answerText ?? '',
+                isTerminal: _isTerminal,
+                buildActions: _answerContextMenuItems,
+              ),
           ],
         ),
       ),
