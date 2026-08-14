@@ -9,7 +9,25 @@ import '../ncfed/dashboard_data.dart';
 class DashboardScreen extends StatelessWidget {
   final DashboardSnapshot snapshot;
 
-  const DashboardScreen({super.key, required this.snapshot});
+  /// 109/FR-017: navigates to Feed. Invoked when tapping "Unread" resolves
+  /// to Feed (unread Feed messages exist, taking priority over unread Chat).
+  final VoidCallback onOpenFeed;
+
+  /// 109/FR-017: navigates to Chat. Invoked when tapping "Unread" resolves
+  /// to Chat (no unread Feed messages, but unread Chat turns exist).
+  final VoidCallback onOpenChat;
+
+  /// 109/FR-018: navigates to Approvals. Always valid, unlike Unread —
+  /// reviewing an empty Approvals tab is not an error.
+  final VoidCallback onOpenApprovals;
+
+  const DashboardScreen({
+    super.key,
+    required this.snapshot,
+    required this.onOpenFeed,
+    required this.onOpenChat,
+    required this.onOpenApprovals,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -62,11 +80,20 @@ class DashboardScreen extends StatelessWidget {
           leading: const Icon(Icons.mark_email_unread_outlined),
           title: const Text('Unread'),
           trailing: Text('${snapshot.unreadPending.totalUnread}'),
+          // 109/FR-017: Feed takes priority when both have unread items,
+          // consistent with the bottom-navigation Feed badge being the
+          // app's one pre-existing "go to unread" affordance. Zero unread
+          // anywhere -- nothing to navigate to, no-op.
+          onTap: snapshot.unreadPending.unreadFeed > 0
+              ? onOpenFeed
+              : (snapshot.unreadPending.unreadChat > 0 ? onOpenChat : null),
         ),
         ListTile(
           leading: const Icon(Icons.verified_user_outlined),
           title: const Text('Pending approvals'),
           trailing: Text('${snapshot.unreadPending.pendingApprovals}'),
+          // 109/FR-018: always a valid destination, unlike Unread above.
+          onTap: onOpenApprovals,
         ),
       ],
     );

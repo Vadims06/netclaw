@@ -128,12 +128,12 @@
 
 ### Tests for User Story 7
 
-- [ ] T027 [P] [US7] Write widget tests in `test/dashboard_screen_test.dart` (create if none exists) covering: (a) tapping "Unread" when `unreadFeed > 0` invokes the `onOpenFeed` callback, (b) tapping it when `unreadFeed == 0 && unreadChat > 0` invokes `onOpenChat`, (c) tapping it when both are zero invokes neither callback, (d) tapping "Pending approvals" always invokes `onOpenApprovals` regardless of count. Confirm these fail before implementing.
+- [x] T027 [P] [US7] Write widget tests in `test/dashboard_screen_test.dart` (create if none exists) covering: (a) tapping "Unread" when `unreadFeed > 0` invokes the `onOpenFeed` callback, (b) tapping it when `unreadFeed == 0 && unreadChat > 0` invokes `onOpenChat`, (c) tapping it when both are zero invokes neither callback, (d) tapping "Pending approvals" always invokes `onOpenApprovals` regardless of count. Confirm these fail before implementing.
 
 ### Implementation for User Story 7
 
-- [ ] T028 [US7] In `lib/main.dart`'s `_HomeShellState`, factor the tab-switch-plus-mark-read logic already inside `NavigationBar.onDestinationSelected` (currently lines 710-720) into a reusable `_selectTab(int index)` method, and pass `onOpenFeed: () => _selectTab(2)`, `onOpenChat: () => _selectTab(1)`, `onOpenApprovals: () => _selectTab(3)` into the `DashboardScreen` constructor (currently line 655) (research.md R7)
-- [ ] T029 [US7] Add `onOpenFeed`, `onOpenChat`, `onOpenApprovals` `VoidCallback` parameters to `lib/screens/dashboard_screen.dart`'s `DashboardScreen`, and wire the "Unread" `ListTile`'s `onTap` (currently no `onTap` at all, lines 61-65) to invoke `onOpenFeed` when `snapshot.unreadPending.unreadFeed > 0`, else `onOpenChat` when `unreadChat > 0`, else nothing; wire "Pending approvals" (lines 66-70) `onTap` unconditionally to `onOpenApprovals` (depends on T028)
+- [x] T028 [US7] In `lib/main.dart`'s `_HomeShellState`, factor the tab-switch-plus-mark-read logic already inside `NavigationBar.onDestinationSelected` (currently lines 710-720) into a reusable `_selectTab(int index)` method, and pass `onOpenFeed: () => _selectTab(2)`, `onOpenChat: () => _selectTab(1)`, `onOpenApprovals: () => _selectTab(3)` into the `DashboardScreen` constructor (currently line 655) (research.md R7)
+- [x] T029 [US7] Add `onOpenFeed`, `onOpenChat`, `onOpenApprovals` `VoidCallback` parameters to `lib/screens/dashboard_screen.dart`'s `DashboardScreen`, and wire the "Unread" `ListTile`'s `onTap` (currently no `onTap` at all, lines 61-65) to invoke `onOpenFeed` when `snapshot.unreadPending.unreadFeed > 0`, else `onOpenChat` when `unreadChat > 0`, else nothing; wire "Pending approvals" (lines 66-70) `onTap` unconditionally to `onOpenApprovals` (depends on T028)
 
 **Checkpoint**: User Stories 1-4 and 7 all work independently.
 

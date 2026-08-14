@@ -763,6 +763,23 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
+  /// The single tab-switch-plus-mark-read implementation, shared by the
+  /// bottom navigation AND the Dashboard's Unread/Pending tap-through
+  /// (109/US7, research.md R7) -- one place, so both callers agree on what
+  /// "opening Feed" means by construction, not by two implementations kept
+  /// in sync by hand.
+  void _selectTab(int index) => setState(() {
+        _tab = index;
+        // Opening the Feed is what marks it read; clear the badge and the
+        // one-shot notification highlight together. Indices shifted by one
+        // (099/FR-012) now that Dashboard occupies index 0.
+        if (index == 2) {
+          _unreadFeed = 0;
+          _highlightPushedAt = null;
+        }
+        if (index == 1) _highlightTaskId = null;
+      });
+
   Future<void> _scanDevice() async {
     if (_askClient == null || _conversationStore == null) return;
     await Navigator.of(context).push(MaterialPageRoute(
@@ -797,6 +814,9 @@ class _HomeShellState extends State<HomeShell> {
           conversationStore: _conversationStore,
           approvalClient: _approvalClient,
         ),
+        onOpenFeed: () => _selectTab(2),
+        onOpenChat: () => _selectTab(1),
+        onOpenApprovals: () => _selectTab(3),
       ),
       ChatScreen(
         askClient: _askClient!,
@@ -844,17 +864,7 @@ class _HomeShellState extends State<HomeShell> {
       body: IndexedStack(index: _tab, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() {
-          _tab = i;
-          // Opening the Feed is what marks it read; clear the badge and the
-          // one-shot notification highlight together. Indices shifted by one
-          // (099/FR-012) now that Dashboard occupies index 0.
-          if (i == 2) {
-            _unreadFeed = 0;
-            _highlightPushedAt = null;
-          }
-          if (i == 1) _highlightTaskId = null;
-        }),
+        onDestinationSelected: _selectTab,
         destinations: [
           const NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
           const NavigationDestination(icon: Icon(Icons.chat), label: 'Chat'),
