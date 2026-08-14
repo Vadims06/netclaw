@@ -130,10 +130,103 @@ As a NetClaw operator, I want the session to emit a warning (and optionally auto
 - **SC-005**: Zero regression for existing alert-agent behavior — its existing budget enforcement (via alert-receiver) continues unchanged.
 - **SC-006**: A repeat of the $11 incident scenario (7 phone questions, agentic tool chains) results in ≤$2 total cost with default settings.
 
+---
+
+### User Story 5 - Budget protection works out of the box (Priority: P1-B)
+
+As a new NetClaw operator installing the system for the first time, I want budget enforcement to be active by default with safe limits — so that I never get a surprise API bill before I even know the budget feature exists.
+
+**Why this priority**: Equal to P1. If the feature exists but requires manual setup, most operators will discover it AFTER the surprise bill, which defeats the purpose entirely.
+
+**Independent Test**: Fresh install of NetClaw with no budget-related configuration in openclaw.json. Send 30+ messages via the OpenAI-compat interface. Verify that budget enforcement activates at the default $5 ceiling without any operator action.
+
+**Acceptance Scenarios**:
+
+1. **Given** a fresh NetClaw installation with no `budget` section in openclaw.json, **When** a session accumulates costs, **Then** the default $5 cap is enforced automatically.
+2. **Given** the `token-tracker` skill is loaded (which it is by default), **When** the session starts, **Then** `BudgetPolicy` is initialized from defaults without requiring any explicit configuration.
+3. **Given** an operator upgrades NetClaw to a version containing this feature, **When** they restart the gateway, **Then** budget enforcement is active on the next session with no migration step required.
+
+---
+
+### User Story 6 - Operator sees budget status in the HUD (Priority: P2-B)
+
+As a NetClaw operator, I want to see my session's spending status in real time in the HUD footer — remaining budget, cost-per-turn, and a visual indicator when approaching the cap — so I can make informed decisions without waiting for a hard stop.
+
+**Why this priority**: The HUD is the operator's primary interface. Budget status that's invisible until it halts is a jarring experience. Seeing "Budget: $2.10 / $5.00" in the footer gives the operator agency.
+
+**Independent Test**: Open the HUD while a session is active. Verify the footer shows current session cost, budget ceiling, and a color indicator (green → yellow → red as cost approaches ceiling).
+
+**Acceptance Scenarios**:
+
+1. **Given** a session is active, **When** the operator views the HUD, **Then** the footer shows `Budget: $X.XX / $Y.YY` with the current session cost and ceiling.
+2. **Given** the session cost exceeds 70% of the budget, **When** the HUD refreshes, **Then** the budget indicator turns yellow/amber.
+3. **Given** the session has been halted by a budget trip, **When** the HUD refreshes, **Then** a clear "BUDGET PAUSED" indicator is shown with the halt reason.
+4. **Given** the operator wants to adjust the budget, **When** they click the budget indicator in the HUD, **Then** they can set a new ceiling for the current session (or globally) without editing JSON.
+
+---
+
+### User Story 7 - Budget configuration via HUD (Priority: P3-B)
+
+As a NetClaw operator, I want to configure my budget caps and model routing through the HUD settings panel — so I never have to SSH into a box and edit openclaw.json by hand to adjust spending limits.
+
+**Why this priority**: Configuration through the UI is the "reality wrapper" that makes this feature accessible. Without it, only operators comfortable with JSON config files benefit.
+
+**Independent Test**: Open the HUD settings. Adjust the session budget from $5 to $10. Start a new session and verify the new budget applies.
+
+**Acceptance Scenarios**:
+
+1. **Given** the HUD is open, **When** the operator navigates to settings/budget, **Then** they see current budget policy values (session cap, tool-call limit, interface defaults) in editable fields.
+2. **Given** the operator changes the session budget in the HUD, **When** they save, **Then** the value is persisted to openclaw.json and applies to the next session.
+3. **Given** the operator wants per-interface routing, **When** they configure "Mobile model: Haiku" in the HUD, **Then** subsequent openai/n2n sessions use Haiku.
+
+---
+
+## Integration Architecture
+
+### How enforcement actually works (gateway integration)
+
+The OpenClaw gateway is a Node.js process. The `netclaw_tokens` Python library is consumed via the **token-tracker skill** — the gateway's agent runtime loads the skill which imports and uses the library. The enforcement flow:
+
+```
+User message arrives
+  → Gateway identifies session key → resolve_session_config() → BudgetPolicy
+  → SessionLedger initialized (or resumed) with BudgetPolicy
+  → new_turn() called (resets tool-call counter)
+  → For each model API call or tool invocation:
+      → check_budget() → (should_halt, reason)
+      → If should_halt: return halt message to user, emit Prometheus metric, stop
+      → If OK: proceed with call, record tokens/cost, record_tool_call()
+```
+
+The skill (not the gateway binary) is the enforcement point. This means:
+- No changes to the OpenClaw npm package required
+- Enforcement is opt-out (remove the skill) rather than requiring opt-in
+- The skill ships with the `workspace/skills/` directory on install
+
+### HUD integration
+
+The HUD server (`ui/netclaw-visual/server.js`) already serves `/api/gateway/status` and `/api/sessions`. Budget status is exposed via:
+- New endpoint: `GET /api/budget/status` — returns current session cost, ceiling, halt state
+- New endpoint: `PUT /api/budget/config` — updates budget policy in openclaw.json
+- Footer element: `<span>Budget <strong id="footer-budget">--</strong></span>`
+- WebSocket event: budget status pushed on each model call completion
+
+### Install story
+
+On fresh install or upgrade:
+1. The `token-tracker` skill (already default) is extended to include budget enforcement
+2. `BudgetPolicy()` with no args produces safe defaults ($5 cap, 20 tool calls)
+3. No openclaw.json section needed — absence of config = defaults apply
+4. The env var `NETCLAW_SESSION_BUDGET_USD` works immediately for quick overrides
+5. The HUD shows budget status as soon as the gateway is running
+
+**Zero configuration required. Safe by default. Configurable via UI.**
+
 ## Assumptions
 
-- The OpenClaw gateway's turn-dispatch loop is the correct enforcement point (it already calls the model API and receives responses).
+- The token-tracker skill is the correct enforcement integration point (it already wraps every model API call for token counting — budget checking is a single additional function call at the same site).
 - SessionLedger is instantiated per-session and persists for the session lifetime (confirmed by code review — it's a class instance, not a global singleton).
 - The `openclaw.json` config is the appropriate place for budget settings (it already holds model config, agent definitions, and the tokenOptimization block).
 - Prompt caching is already active and will continue to reduce costs for repeated context — budget enforcement accounts for actual cost (post-cache-discount), not theoretical worst-case.
-- This feature is library-level (src/netclaw_tokens/) and configuration-level (openclaw.json schema) — it does not require changes to the OpenClaw gateway binary itself (enforcement hooks are called by the gateway's existing plugin/middleware system).
+- The HUD server already reads/writes openclaw.json (confirmed — `/api/env` endpoint pattern) and can extend to budget config.
+- The token-tracker skill is loaded by default on new installs (confirmed — it's in `workspace/skills/`).

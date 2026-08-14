@@ -87,12 +87,54 @@
 
 ---
 
-## Phase 7: Polish & Integration
+## Phase 7: User Story 5 — Zero-config install (Priority: P1-B) 🎯 Critical Path
 
-- [ ] T026 [P] Add `BudgetPolicy` and all new SessionLedger methods to the module docstring in `__init__.py`
-- [ ] T027 [P] Update `requirements.txt` in `src/netclaw_tokens/` if any new dependencies are needed (likely none — this is pure Python)
-- [ ] T028 Add example `openclaw.json` budget configuration to `config/` or document in existing config file comments
-- [ ] T029 [P] Add Prometheus metric documentation: `netclaw_session_budget_trips_total` counter spec (labels: agent, reason, interface) — document in a metrics section of the feature docs, matching the existing `netclaw_investigation_budget_trips_total` pattern
+**Goal**: Budget enforcement works immediately on fresh install with no operator action.
+
+- [ ] T026 [US5] Extend the existing `token-tracker` SKILL.md in `workspace/skills/token-tracker/` to document budget enforcement as part of the skill's responsibilities — this is the integration point, not a separate skill
+- [ ] T027 [US5] In the token-tracker skill's workflow, add a step: "Before each model API call, check `session_ledger.check_budget()` — if halted, return `get_halt_message()` to the user instead of proceeding"
+- [ ] T028 [US5] In the token-tracker skill's workflow, add: "On each user message, call `session_ledger.new_turn()` to reset the tool-call counter"
+- [ ] T029 [US5] In the token-tracker skill's workflow, add: "On each tool invocation, call `session_ledger.record_tool_call()` before executing the tool"
+- [ ] T030 [US5] Ensure `SessionLedger()` with no `budget` argument defaults to `BudgetPolicy()` with $5 cap / 20 tool calls — verified by existing test T012
+- [ ] T031 [P] [US5] Add integration test: simulate a session with no budget config in openclaw.json, record costs exceeding $5, verify `check_budget()` returns halt
+
+**Checkpoint**: Fresh install has enforcement active. The skill handles it. No config needed.
+
+---
+
+## Phase 8: User Story 6 — HUD budget display (Priority: P2-B)
+
+**Goal**: Operator sees real-time budget status in the HUD.
+
+- [ ] T032 [US6] In `ui/netclaw-visual/server.js`, add `GET /api/budget/status` endpoint that reads the current session's cost/budget state (reads from the sessions directory + openclaw.json defaults)
+- [ ] T033 [US6] In `ui/netclaw-visual/index.html`, add a budget element to the footer: `<span>Budget <strong id="footer-budget">--</strong></span>`
+- [ ] T034 [US6] In `ui/netclaw-visual/src/main.js`, add polling logic that fetches `/api/budget/status` and updates `#footer-budget` with cost/ceiling display and color coding (green <50%, yellow 50-80%, red >80%, pulsing red = halted)
+- [ ] T035 [P] [US6] Add CSS for budget indicator states in `src/styles/` — color transitions matching the existing HUD aesthetic (cyan/green/amber/red palette)
+
+**Checkpoint**: HUD footer shows live budget status. Operator has visibility without CLI.
+
+---
+
+## Phase 9: User Story 7 — HUD budget configuration (Priority: P3-B)
+
+**Goal**: Operator can adjust budget caps from the HUD without editing JSON.
+
+- [ ] T036 [US7] In `ui/netclaw-visual/server.js`, add `PUT /api/budget/config` endpoint that writes budget policy values to openclaw.json (following the existing `/api/env` PUT pattern for safe config updates)
+- [ ] T037 [US7] In `ui/netclaw-visual/server.js`, add `GET /api/budget/config` endpoint that reads current budget policy (merged: defaults + openclaw.json + env var)
+- [ ] T038 [US7] Add a budget settings section to the HUD sidebar or detail panel — fields for session cap, tool-call limit, and per-interface model dropdown
+- [ ] T039 [P] [US7] Wire the settings UI to PUT `/api/budget/config` on save, with optimistic update and error handling
+
+**Checkpoint**: Full self-service. Operator can discover, view, and change budget settings from the HUD.
+
+---
+
+## Phase 10: Polish & Cross-Cutting Concerns
+
+- [ ] T040 [P] Add `BudgetPolicy` and all new SessionLedger methods to the module docstring in `__init__.py`
+- [ ] T041 [P] Update `requirements.txt` in `src/netclaw_tokens/` if any new dependencies are needed (likely none — this is pure Python)
+- [ ] T042 Add example `openclaw.json` budget configuration to `config/` or document in existing config file comments
+- [ ] T043 [P] Add Prometheus metric documentation: `netclaw_session_budget_trips_total` counter spec (labels: agent, reason, interface) — document in a metrics section of the feature docs, matching the existing `netclaw_investigation_budget_trips_total` pattern
+- [ ] T044 [P] Update the quickstart.md with the "operator story" — what they see on first boot, what the HUD shows, how to adjust if needed
 
 ---
 
@@ -106,16 +148,26 @@
 - **US2 (Phase 4)**: Depends on Phase 2 (needs BudgetPolicy), can parallel with Phase 3
 - **US3 (Phase 5)**: Depends on Phase 2 (extends BudgetPolicy)
 - **US4 (Phase 6)**: Depends on Phase 3 (uses SessionLedger extensions)
-- **Polish (Phase 7)**: Depends on all above
+- **US5 Zero-config (Phase 7)**: Depends on Phase 3 + 4 (needs enforcement methods to exist)
+- **US6 HUD display (Phase 8)**: Depends on Phase 7 (needs working enforcement to display)
+- **US7 HUD config (Phase 9)**: Depends on Phase 8 (needs the display to configure against)
+- **Polish (Phase 10)**: Depends on all above
 
-### MVP Delivery
+### Critical Path (MVP that prevents the $11 incident)
 
-Phase 1 + Phase 2 + Phase 3 = functional cost cap enforcement.
-This alone would have prevented the $11 incident.
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → **Phase 7** = enforcement active on install.
+
+Phases 3+4 are the library. Phase 7 is what actually hooks it into the runtime.
+**Without Phase 7, the library is dead code.** This is the real MVP, not just the library.
+
+### Full Feature (operator delight)
+
+Add Phase 8 (HUD display) for visibility, Phase 9 (HUD config) for self-service.
 
 ### Parallel Opportunities
 
 - T001 and T002 can run in parallel (different files)
 - T004 and T005 can run in parallel with T003 (different files)
 - Phase 3 and Phase 4 can run in parallel (different methods, no shared state)
+- Phase 8 and Phase 5 can run in parallel (HUD is frontend, routing is library)
 - All test tasks marked [P] can run alongside their implementation tasks
