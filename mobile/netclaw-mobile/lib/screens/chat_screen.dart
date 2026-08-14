@@ -508,8 +508,8 @@ class _TurnTile extends StatelessWidget {
                   File(turn.photoPath!),
                   height: 160,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Text('[Photo unavailable]', style: TextStyle(color: Colors.grey)),
+                  errorBuilder: (context, error, stackTrace) => Text('[Photo unavailable]',
+                      style: TextStyle(color: scheme.onSurfaceVariant)),
                 ),
               ),
             ],
@@ -526,7 +526,7 @@ class _TurnTile extends StatelessWidget {
               )
             else if (turn.state == 'cancelled')
               Row(children: [
-                const Text('Cancelled', style: TextStyle(color: Colors.grey)),
+                Text('Cancelled', style: TextStyle(color: scheme.onSurfaceVariant)),
                 const Spacer(),
                 TextButton.icon(
                     onPressed: onRetry,
@@ -536,7 +536,7 @@ class _TurnTile extends StatelessWidget {
             else if (turn.state == 'failed')
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(turn.answerText ?? 'Failed',
-                    style: const TextStyle(color: Colors.red)),
+                    style: TextStyle(color: scheme.error)),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(

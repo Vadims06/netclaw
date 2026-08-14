@@ -15,7 +15,17 @@ class EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Image.asset(asset, width: 140),
+          // 109/FR-002 edge case: these illustrations are light-background
+          // PNGs. A theme-aware backdrop keeps them legible under dark mode
+          // without needing separate dark-variant image assets.
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Image.asset(asset, width: 140),
+          ),
           const SizedBox(height: 16),
           Text(text, style: Theme.of(context).textTheme.bodyMedium),
         ],

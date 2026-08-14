@@ -19,8 +19,8 @@
 
 **Purpose**: Establish a known-clean baseline and pull in the two new dependencies every later story needs available.
 
-- [ ] T001 Run `flutter analyze` and `flutter test` and confirm a clean baseline (0 issues, 289/289 passing) before making any change — this is the starting point every later task's own analyze/test run is measured against
-- [ ] T002 [P] Add `flutter_markdown_plus: ^1.0.12` and `share_plus: ^13.3.0` to `pubspec.yaml` dependencies (research.md R1/R2), then run `flutter pub get`
+- [x] T001 Run `flutter analyze` and `flutter test` and confirm a clean baseline (0 issues, 289/289 passing) before making any change — this is the starting point every later task's own analyze/test run is measured against
+- [x] T002 [P] Add `flutter_markdown_plus: ^1.0.12` and `share_plus: ^13.3.0` to `pubspec.yaml` dependencies (research.md R1/R2), then run `flutter pub get`
 
 **Checkpoint**: Baseline confirmed clean; both new dependencies resolve.
 
@@ -40,16 +40,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T003 [P] [US1] Write widget tests in `test/theme_test.dart` covering: (a) `lightColorScheme`/`darkColorScheme` are both derived from the same brand seed color, differing only in `Brightness`, (b) a `MaterialApp` built with `theme`/`darkTheme`/`themeMode: ThemeMode.system` from `lib/theme.dart` resolves the dark scheme when the platform brightness is dark and the light scheme when it is light. Confirm these fail against current code before implementing.
-- [ ] T004 [P] [US1] Write a repo-hygiene test in `test/no_hardcoded_colors_test.dart` that scans every `.dart` file under `lib/screens/` (excluding `enrollment_screen.dart` and `device_scan_screen.dart` per FR-002's camera-scrim exception) for `Colors.grey`, `Colors.black`, or `Colors.white` literals and fails listing any file/line found. Confirm it currently fails (chat_screen.dart's three known literals) before implementing.
+- [x] T003 [P] [US1] Write widget tests in `test/theme_test.dart` covering: (a) `lightColorScheme`/`darkColorScheme` are both derived from the same brand seed color, differing only in `Brightness`, (b) a `MaterialApp` built with `theme`/`darkTheme`/`themeMode: ThemeMode.system` from `lib/theme.dart` resolves the dark scheme when the platform brightness is dark and the light scheme when it is light. Confirm these fail against current code before implementing.
+- [x] T004 [P] [US1] Write a repo-hygiene test in `test/no_hardcoded_colors_test.dart` that scans every `.dart` file under `lib/screens/` (excluding `enrollment_screen.dart` and `device_scan_screen.dart` per FR-002's camera-scrim exception) for `Colors.grey`, `Colors.black`, or `Colors.white` literals and fails listing any file/line found. Confirm it currently fails (chat_screen.dart's three known literals) before implementing.
 
 ### Implementation for User Story 1
 
-- [ ] T005 [P] [US1] Create `lib/theme.dart` exporting `lightColorScheme`/`darkColorScheme` (both `ColorScheme.fromSeed` from the existing brand seed color `0xFFE65733`, differing only in `brightness`) plus a small `netclawTheme`/`netclawDarkTheme` `ThemeData` pair built from them
-- [ ] T006 [US1] Replace `lib/main.dart`'s single `theme: ThemeData(...)` (currently line 64) with `theme`/`darkTheme` from `lib/theme.dart` and add `themeMode: ThemeMode.system` to the `MaterialApp` (depends on T005)
-- [ ] T007 [P] [US1] Replace the three hardcoded `Colors.grey` literals in `lib/screens/chat_screen.dart` (photo-unavailable placeholder, Cancelled label, failure text — around lines 512/529/538) with `Theme.of(context).colorScheme.onSurfaceVariant`/`.error` as appropriate
-- [ ] T008 [P] [US1] Wrap the illustration in `lib/screens/empty_state.dart` in a theme-aware backdrop (e.g. a `Container`/`Card` using `colorScheme.surfaceContainer` or similar) so `assets/illustrations/empty_feed.png`/`empty_approvals.png` stay legible if their content is light-background-oriented, without needing new dark-variant image assets
-- [ ] T009 [US1] Update `pubspec.yaml`'s `flutter_native_splash` config to add `color_dark`/`image_dark` entries, then run `dart run flutter_native_splash:create` to regenerate the platform splash assets (FR-003)
+- [x] T005 [P] [US1] Create `lib/theme.dart` exporting `lightColorScheme`/`darkColorScheme` (both `ColorScheme.fromSeed` from the existing brand seed color `0xFFE65733`, differing only in `brightness`) plus a small `netclawTheme`/`netclawDarkTheme` `ThemeData` pair built from them
+- [x] T006 [US1] Replace `lib/main.dart`'s single `theme: ThemeData(...)` (currently line 64) with `theme`/`darkTheme` from `lib/theme.dart` and add `themeMode: ThemeMode.system` to the `MaterialApp` (depends on T005)
+- [x] T007 [P] [US1] Replace the three hardcoded `Colors.grey` literals in `lib/screens/chat_screen.dart` (photo-unavailable placeholder, Cancelled label, failure text — around lines 512/529/538) with `Theme.of(context).colorScheme.onSurfaceVariant`/`.error` as appropriate
+- [x] T008 [P] [US1] Wrap the illustration in `lib/screens/empty_state.dart` in a theme-aware backdrop (e.g. a `Container`/`Card` using `colorScheme.surfaceContainer` or similar) so `assets/illustrations/empty_feed.png`/`empty_approvals.png` stay legible if their content is light-background-oriented, without needing new dark-variant image assets
+- [x] T009 [US1] Update `pubspec.yaml`'s `flutter_native_splash` config to add `color_dark`/`image_dark` entries, then run `dart run flutter_native_splash:create` to regenerate the platform splash assets (FR-003)
 
 **Checkpoint**: User Story 1 is fully functional and independently testable — dark mode renders correctly everywhere in scope, the color-literal sweep is locked in by a test.
 

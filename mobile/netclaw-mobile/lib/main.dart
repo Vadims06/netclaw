@@ -40,6 +40,7 @@ import 'screens/enrollment_screen.dart';
 import 'screens/feed_screen.dart';
 import 'screens/onboarding_explainer_screen.dart';
 import 'screens/settings_screen.dart';
+import 'theme.dart';
 
 /// Referenced only so [backgroundRefreshMain] (103/US3) stays part of the
 /// compiled program's import graph -- native code invokes it by name via a
@@ -59,9 +60,9 @@ class NetClawMobileApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'NetClaw Mobile',
-      // The claw mark's own orange (assets/icon/icon.png) — matches the
-      // brand, not an arbitrary Material default.
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE65733))),
+      theme: netclawTheme,
+      darkTheme: netclawDarkTheme,
+      themeMode: ThemeMode.system,
       home: const EnrollmentGate(),
     );
   }
