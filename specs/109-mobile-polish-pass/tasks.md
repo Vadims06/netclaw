@@ -86,12 +86,12 @@
 
 ### Tests for User Story 3
 
-- [ ] T017 [P] [US3] Write unit tests in `test/local_notifications_test.dart` (create if none exists) asserting: the `DarwinNotificationDetails` constructed for an approval notification carries `interruptionLevel: InterruptionLevel.timeSensitive`; the one constructed for feed/chat-answer notifications does not; the `AndroidNotificationDetails` for the `'approvals'` channel carries `importance: Importance.high`/`priority: Priority.high`; the feed/chat Android channel does not. Confirm these fail before implementing.
+- [x] T017 [P] [US3] Write unit tests in `test/local_notifications_test.dart` (create if none exists) asserting: the `DarwinNotificationDetails` constructed for an approval notification carries `interruptionLevel: InterruptionLevel.timeSensitive`; the one constructed for feed/chat-answer notifications does not; the `AndroidNotificationDetails` for the `'approvals'` channel carries `importance: Importance.high`/`priority: Priority.high`; the feed/chat Android channel does not. Confirm these fail before implementing.
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] In `lib/ncfed/local_notifications.dart`, add `interruptionLevel: InterruptionLevel.timeSensitive` to the approval `DarwinNotificationDetails` (currently around lines 178-186), leaving the feed/chat-answer construction (around lines 150-161) unchanged
-- [ ] T019 [US3] In the same file, set `importance: Importance.high`/`priority: Priority.high` on the `'approvals'` Android notification channel/`AndroidNotificationDetails` (currently around line 187), leaving other channels unchanged
+- [x] T018 [US3] In `lib/ncfed/local_notifications.dart`, add `interruptionLevel: InterruptionLevel.timeSensitive` to the approval `DarwinNotificationDetails` (currently around lines 178-186), leaving the feed/chat-answer construction (around lines 150-161) unchanged
+- [x] T019 [US3] In the same file, set `importance: Importance.high`/`priority: Priority.high` on the `'approvals'` Android notification channel/`AndroidNotificationDetails` (currently around line 187), leaving other channels unchanged
 
 **Checkpoint**: User Story 3 is fully functional and independently testable.
 

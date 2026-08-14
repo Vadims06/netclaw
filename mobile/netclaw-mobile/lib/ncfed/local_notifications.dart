@@ -25,6 +25,44 @@ const _badgeOnlyNotificationId = -1;
 int combinedBadgeCount({required int unreadFeed, required int unreadChat}) =>
     unreadFeed + unreadChat;
 
+/// 109/FR-007: approvals are the app's highest-stakes notification (gating a
+/// real network change) -- Time Sensitive so an active Focus mode that would
+/// otherwise suppress default-priority notifications still shows it.
+/// Extracted as a pure function (rather than inlined in
+/// [LocalNotifications.postApprovalNotification]) so the actual values are
+/// unit-testable without a platform channel.
+NotificationDetails approvalNotificationDetails() => const NotificationDetails(
+      iOS: DarwinNotificationDetails(
+        categoryIdentifier: approvalCategoryId,
+        presentBadge: false,
+        interruptionLevel: InterruptionLevel.timeSensitive,
+      ),
+      macOS: DarwinNotificationDetails(
+        categoryIdentifier: approvalCategoryId,
+        presentBadge: false,
+        interruptionLevel: InterruptionLevel.timeSensitive,
+      ),
+      android: AndroidNotificationDetails(
+        'approvals',
+        'Approvals',
+        importance: Importance.high,
+        priority: Priority.high,
+        actions: [
+          AndroidNotificationAction(approveActionId, 'Approve'),
+          AndroidNotificationAction(denyActionId, 'Deny'),
+        ],
+      ),
+    );
+
+/// Feed/chat-answer notifications deliberately stay at the platform default
+/// interruption level (109/FR-007) -- passive is correct there, unlike
+/// approvals above.
+NotificationDetails messageNotificationDetails({required int badgeCount}) => NotificationDetails(
+      iOS: DarwinNotificationDetails(badgeNumber: badgeCount),
+      macOS: DarwinNotificationDetails(badgeNumber: badgeCount),
+      android: const AndroidNotificationDetails('messages', 'Messages'),
+    );
+
 /// One-line preview a Feed/Chat notification's payload identifies its
 /// target by (research D4, contracts/watch-relay-extensions.md §4).
 String notificationPayload({required String type, required String identifier}) =>
@@ -174,24 +212,7 @@ class LocalNotifications {
       id: identifier.hashCode,
       title: 'Approval needed',
       body: '$targetName — requested by $requestingAgent',
-      notificationDetails: NotificationDetails(
-        iOS: const DarwinNotificationDetails(
-          categoryIdentifier: approvalCategoryId,
-          presentBadge: false,
-        ),
-        macOS: const DarwinNotificationDetails(
-          categoryIdentifier: approvalCategoryId,
-          presentBadge: false,
-        ),
-        android: const AndroidNotificationDetails(
-          'approvals',
-          'Approvals',
-          actions: [
-            AndroidNotificationAction(approveActionId, 'Approve'),
-            AndroidNotificationAction(denyActionId, 'Deny'),
-          ],
-        ),
-      ),
+      notificationDetails: approvalNotificationDetails(),
       payload: payload,
     );
   }
@@ -207,11 +228,7 @@ class LocalNotifications {
       id: id,
       title: title,
       body: body,
-      notificationDetails: NotificationDetails(
-        iOS: DarwinNotificationDetails(badgeNumber: badgeCount),
-        macOS: DarwinNotificationDetails(badgeNumber: badgeCount),
-        android: const AndroidNotificationDetails('messages', 'Messages'),
-      ),
+      notificationDetails: messageNotificationDetails(badgeCount: badgeCount),
       payload: payload,
     );
   }
