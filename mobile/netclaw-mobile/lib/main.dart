@@ -18,6 +18,7 @@ import 'ncfed/device_heartbeat.dart';
 import 'ncfed/edge_ask_client.dart';
 import 'ncfed/edge_client.dart';
 import 'ncfed/edge_identity.dart';
+import 'ncfed/enrollment_qr_payload.dart';
 import 'ncfed/enrollment_store.dart';
 import 'ncfed/heartbeat.dart';
 import 'ncfed/live_activity.dart';
@@ -37,6 +38,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/device_scan_screen.dart';
 import 'screens/enrollment_screen.dart';
 import 'screens/feed_screen.dart';
+import 'screens/onboarding_explainer_screen.dart';
 import 'screens/settings_screen.dart';
 
 /// Referenced only so [backgroundRefreshMain] (103/US3) stays part of the
@@ -76,7 +78,22 @@ class EnrollmentGate extends StatefulWidget {
   /// injectable-function-with-production-default pattern).
   final Future<Directory> Function() documentsDirectory;
 
-  const EnrollmentGate({super.key, this.documentsDirectory = getApplicationDocumentsDirectory});
+  /// Injectable for the same reason (105/FR-002 test coverage) — a test
+  /// exercising the "already enrolled" branch must never let a real
+  /// `EdgeClient.reconnect()` attempt an actual network connection, which
+  /// would leak a live async operation past the test's own lifetime.
+  final Future<EdgeClient> Function(
+    EnrollmentQrPayload payload, {
+    required String memberId,
+    required String keyFingerprint,
+    required EdgeIdentity identity,
+  }) reconnect;
+
+  const EnrollmentGate({
+    super.key,
+    this.documentsDirectory = getApplicationDocumentsDirectory,
+    this.reconnect = EdgeClient.reconnect,
+  });
 
   @override
   State<EnrollmentGate> createState() => _EnrollmentGateState();
@@ -89,6 +106,12 @@ class _EnrollmentGateState extends State<EnrollmentGate> {
   final String _newMemberId = 'risk/${DateTime.now().millisecondsSinceEpoch}';
   EnrollmentStore? _store;
   _GateState _state = _GateState.loading;
+  // 105/US1: NOT persisted -- deliberately an "unenrolled-state" screen, not
+  // a "seen once, never again" one (spec.md's own edge case). Resets to
+  // false on every fresh launch/widget construction; only survives within
+  // this same running session so re-showing it after e.g. cancelling out of
+  // the QR scanner doesn't happen without a full relaunch.
+  bool _explainerDismissed = false;
 
   @override
   void initState() {
@@ -108,7 +131,7 @@ class _EnrollmentGateState extends State<EnrollmentGate> {
     }
     setState(() => _state = _GateState.reconnecting);
     try {
-      final client = await EdgeClient.reconnect(
+      final client = await widget.reconnect(
         stored.toPayload(),
         memberId: stored.memberId,
         keyFingerprint: stored.keyFingerprint,
@@ -134,6 +157,11 @@ class _EnrollmentGateState extends State<EnrollmentGate> {
   @override
   Widget build(BuildContext context) {
     if (_state == _GateState.needsEnrollment) {
+      if (!_explainerDismissed) {
+        return OnboardingExplainerScreen(
+          onContinue: () => setState(() => _explainerDismissed = true),
+        );
+      }
       return EnrollmentScreen(
         memberId: _newMemberId,
         identity: _identity,
@@ -649,6 +677,7 @@ class _HomeShellState extends State<HomeShell> {
         capabilities: _capabilities!,
         pushStatus: _pushStatus,
         localNotificationsPermissionDenied: _localNotificationsPermissionDenied,
+        onRemoveDevice: _handleRemoveDevice,
       ),
     ];
     return Scaffold(
@@ -737,6 +766,20 @@ class _HomeShellState extends State<HomeShell> {
       content: Text('This device was removed by your Border. Enroll again to reconnect.'),
       duration: Duration(seconds: 6),
     ));
+  }
+
+  /// 105/US2/FR-005/FR-006: the operator-initiated counterpart to
+  /// `_handleRevoked` above — same clear-and-return-to-gate effect, but
+  /// triggered from Settings rather than by the Border, and entirely local
+  /// (no Border round trip of any kind, so it works even if the Border is
+  /// unreachable).
+  Future<void> _handleRemoveDevice() async {
+    final dir = await getApplicationDocumentsDirectory();
+    await EnrollmentStore(dir).clear();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const EnrollmentGate()),
+    );
   }
 
   /// Per-tab destructive actions, behind a confirmation. Both clears are

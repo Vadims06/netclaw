@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
 
 import '../ncfed/capability_registration.dart';
 import '../ncfed/push_registration.dart';
@@ -53,11 +54,24 @@ class SettingsScreen extends StatefulWidget {
   /// never a repeated dialog).
   final bool localNotificationsPermissionDenied;
 
+  /// 105/US2/FR-005/FR-006: clears the persisted enrollment and returns to
+  /// the enrollment gate, purely from local state — this callback is given
+  /// no `EdgeClient`/Border access at all, so the removal it performs
+  /// structurally cannot depend on a live connection.
+  final Future<void> Function() onRemoveDevice;
+
+  /// Injectable so tests never touch the real biometric platform channel —
+  /// mirrors `approval_confirmation.dart`'s own `authenticate` parameter and
+  /// its default (105/FR-004: same security posture as approvals).
+  final Future<bool> Function(String reason)? authenticate;
+
   const SettingsScreen({
     super.key,
     required this.capabilities,
+    required this.onRemoveDevice,
     this.pushStatus = PushStatus.unknown,
     this.localNotificationsPermissionDenied = false,
+    this.authenticate,
   });
 
   @override
@@ -119,7 +133,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'on in your device settings to be notified.',
             ),
           ),
+        const Divider(),
+        ListTile(
+          leading: Icon(Icons.logout, color: Colors.red.shade700),
+          title: Text('Remove this device', style: TextStyle(color: Colors.red.shade700)),
+          subtitle: const Text(
+            'Clears this enrollment and returns to the QR-scan screen. '
+            'Works even if your Border is unreachable.',
+          ),
+          onTap: _removeDevice,
+        ),
       ],
     );
+  }
+
+  /// 105/US2/FR-004: the biometric prompt itself IS the confirmation step —
+  /// same convention `approval_confirmation.dart` already established for
+  /// every other destructive/irreversible action in this app, no separate
+  /// "are you sure?" dialog on top of it.
+  Future<void> _removeDevice() async {
+    final auth = widget.authenticate ??
+        (String reason) => LocalAuthentication().authenticate(localizedReason: reason);
+    final bool authenticated;
+    try {
+      authenticated = await auth('Confirm removing this device\'s enrollment');
+    } catch (_) {
+      return; // unavailable/errored -- do nothing, same as a failed attempt
+    }
+    if (!authenticated) return; // cancelled/failed -- do nothing
+    await widget.onRemoveDevice();
   }
 }

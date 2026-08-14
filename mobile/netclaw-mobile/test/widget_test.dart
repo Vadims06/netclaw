@@ -79,6 +79,12 @@ void main() {
     });
     addTearDown(() => dir.delete(recursive: true));
 
+    // 105/US1: a fresh install now sees the onboarding explainer before the
+    // scanner -- tap through it to reach the same screen this test always
+    // verified.
+    await tester.tap(find.text('Continue'));
+    await tester.pump();
+
     expect(find.text('Scan Border QR Code'), findsOneWidget);
     // Must happen before this test function returns -- flutter_test's own
     // end-of-test invariant check runs before any tearDown()/addTearDown()
