@@ -406,6 +406,11 @@ Approvals tab.
   `assets/illustrations/` image intended for a light background is displayed
   (e.g. an empty-state illustration)? It must remain legible/appropriately
   presented rather than visually disappearing against a dark surface.
+- What happens to the camera-viewfinder scrim overlays in
+  `enrollment_screen.dart` and `device_scan_screen.dart` under dark mode?
+  Per FR-002's exception, they are intentionally excluded from the
+  color-literal sweep and remain unchanged in both themes — they contrast
+  against live camera footage, not the app's background.
 
 ## Requirements *(mandatory)*
 
@@ -417,7 +422,12 @@ Approvals tab.
 - **FR-002**: No screen MUST render text or UI elements using a fixed
   gray/black/white color that ignores the active theme; every such color MUST
   instead be derived from the active theme's color scheme so it adapts
-  correctly between light and dark mode.
+  correctly between light and dark mode. Exception: a semi-transparent
+  black scrim (and white text/controls on top of it) drawn over a live
+  camera viewfinder (`enrollment_screen.dart`, `device_scan_screen.dart`) is
+  intentionally theme-independent — it exists for contrast against
+  unpredictable real-world camera footage, not against the app's own
+  background, and MUST NOT be changed by this requirement.
 - **FR-003**: The app's launch splash screen MUST present a dark-appropriate
   background/image when the device is set to Dark Appearance, rather than
   always showing the light-mode splash.
