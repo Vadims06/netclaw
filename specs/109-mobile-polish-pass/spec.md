@@ -22,6 +22,13 @@ re-verified by reading the current tree (file and line) before this spec was
 written; all of it checked out exactly as documented — no interpretation drift
 between the brief and the tests below.
 
+One additional item, User Story 7 (Dashboard's "Unread"/"Pending approvals"
+rows being unresponsive to a tap), was added during planning at the
+operator's request — not part of the original brief, but verified against
+the tree the same way (`dashboard_screen.dart:61-70` confirmed to have no
+`onTap` on either `ListTile`) and small enough to fold into this same
+polish-pass spec rather than opening a separate one.
+
 This repo's verification standard (established by specs 072/073) applies
 unchanged: "passes the Dart suite" is not the same claim as "verified on real
 hardware." Nearly every acceptance scenario and success criterion below is
@@ -322,6 +329,52 @@ active text query.
    the list shows an explicit empty/no-results state rather than looking
    identical to "nothing has loaded yet."
 
+### User Story 7 - Tapping the Dashboard's unread or pending count opens it (Priority: P2)
+
+The Dashboard screen shows an "Unread" row (combined Feed + Chat unread
+count) and a "Pending approvals" row, but today neither row responds to a
+tap — the operator sees a number with no way to act on it directly from the
+Dashboard. This story makes both rows tappable: "Unread" navigates to
+whichever of Feed or Chat actually has unread items (Feed takes priority
+when both do, matching the existing bottom-navigation Feed badge's own
+behavior), and "Pending approvals" navigates to the Approvals tab.
+
+**Why this priority**: A small, clearly-broken affordance — a visible count
+with no action is worse than no count at all, since it invites a tap that
+does nothing. Independent of every other story in this spec.
+
+**Independent Test**: With at least one unread Feed message, open the
+Dashboard tab and tap the "Unread" row; confirm the app switches to the Feed
+tab and the tapped item(s) are marked read exactly as opening Feed via the
+bottom navigation already does. Separately, with at least one pending
+approval, tap "Pending approvals" and confirm the app switches to the
+Approvals tab.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Dashboard is showing a non-zero "Unread" count sourced
+   entirely from unread Feed messages, **When** the operator taps that row,
+   **Then** the app switches to the Feed tab and the unread badge/highlight
+   clears exactly as it does when Feed is opened via the bottom navigation.
+2. **Given** the "Unread" count is non-zero and includes unread Chat turns
+   but zero unread Feed messages, **When** the operator taps that row,
+   **Then** the app switches to the Chat tab.
+3. **Given** the "Unread" count includes unread items in both Feed and
+   Chat, **When** the operator taps that row, **Then** the app switches to
+   the Feed tab (Feed takes priority, consistent with the existing
+   bottom-navigation Feed badge being the app's one pre-existing "go to
+   unread" affordance).
+4. **Given** the "Unread" count is zero, **When** the operator taps that
+   row, **Then** nothing happens — there is no unread content to navigate
+   to, and the tap must not switch tabs or error.
+5. **Given** the Dashboard is showing any "Pending approvals" count
+   (including zero), **When** the operator taps that row, **Then** the app
+   switches to the Approvals tab (unlike "Unread," this is always a valid
+   destination — reviewing the Approvals tab when it is empty is not an
+   error).
+
+---
+
 ### Edge Cases
 
 - What happens to the markdown-vs-preformatted rendering decision (User
@@ -420,6 +473,15 @@ active text query.
 - **FR-015**: Search and filter state MUST NOT persist across app restarts.
 - **FR-016**: `pubspec.yaml`'s version MUST be updated from `1.0.0+1` to
   `1.0.1+2` as part of this work.
+- **FR-017**: The Dashboard's "Unread" row MUST be tappable. Tapping it,
+  when the combined unread count is non-zero, MUST navigate to the Feed tab
+  if any unread Feed messages exist (Feed takes priority when both Feed and
+  Chat have unread items), otherwise to the Chat tab if any unread Chat
+  turns exist; navigating to Feed this way MUST also clear the Feed unread
+  badge/highlight exactly as opening Feed via the bottom navigation does.
+  When the combined unread count is zero, tapping the row MUST do nothing.
+- **FR-018**: The Dashboard's "Pending approvals" row MUST be tappable,
+  navigating to the Approvals tab regardless of whether the count is zero.
 
 ### Key Entities
 
@@ -463,7 +525,10 @@ active text query.
   search and/or filters, without scrolling manually.
 - **SC-007**: `flutter analyze` reports zero issues and the full `flutter
   test` suite passes with zero regressions and zero skipped tests once all
-  six stories are implemented.
+  seven stories are implemented.
+- **SC-008**: An operator can go from "seeing an unread or pending count on
+  the Dashboard" to "looking at that content" in exactly one tap, with zero
+  dead taps (a tap that visibly does nothing) remaining on either row.
 
 ## Assumptions
 
