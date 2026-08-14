@@ -289,9 +289,11 @@ during a bounded reconnect retry loop.
 
 Chat conversation history and Feed messages both accumulate over time with no
 way to find a specific past exchange or message except manual scrolling. This
-story adds a live, case-insensitive text search to both screens, plus filter
-chips for a turn's state (pending/working/completed/failed/cancelled) and its
-origin (phone/watch).
+story adds a live, case-insensitive text search to both the Chat and Feed
+screens; the Chat screen additionally gets filter chips for a turn's state
+(pending/working/completed/failed/cancelled) and its origin (phone/watch) —
+concepts specific to chat turns, not feed messages, so these filter chips are
+Chat-only (FR-013).
 
 **Why this priority**: Genuinely useful once history accumulates, but lowest
 urgency of the six — Phase C ("quality") in the brief, versus Phase A's
@@ -552,10 +554,13 @@ Approvals tab.
   signing status is ambiguous; P2: the existing App Group is watchOS-only) are
   Phase-B prerequisites, not required to be resolved for this spec, since
   nothing in Phase A or C1 touches entitlements, App Groups, or code signing.
-- `flutter_markdown` (or an actively maintained equivalent, decided at
-  implementation time) is an acceptable new dependency for User Story 2; no
+- `flutter_markdown_plus` is the resolved dependency for User Story 2's
+  Markdown rendering (research.md R1) — the originally-considered
+  `flutter_markdown` was confirmed discontinued by its own publisher, with
+  `flutter_markdown_plus` named as its actively-maintained successor; no
   existing package in `pubspec.yaml` already provides Markdown rendering.
-  Likewise `share_plus` is an acceptable new dependency for the share action.
+  Likewise `share_plus` is the resolved dependency for the share action
+  (research.md R2).
 - "Time Sensitive" delivery (User Story 3) is inherently best-effort — the
   operator's own OS-level Focus/notification settings can still suppress any
   notification regardless of interruption level, and this spec cannot

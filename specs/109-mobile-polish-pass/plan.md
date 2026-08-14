@@ -26,7 +26,7 @@ no new Xcode target or capability.
 **Project Type**: Mobile app (existing `mobile/netclaw-mobile/`) — no new project, no new target.
 **Performance Goals**: N/A for six of seven stories (UI/preference/search polish, not throughput-sensitive). US2's long-answer scroll scenario has an explicit qualitative (not automated-benchmark) bar per Clarifications (2026-08-14) — see research.md and spec.md Context.
 **Constraints**: FR-006's Markdown/preformatted classification MUST run only at terminal turn state, never on streaming partial text (Clarifications, 2026-08-14). FR-010 MUST NOT double-prompt biometrics between US4's app-lock and the existing per-approval confirmation flow. FR-011 MUST NOT repeat the connection-lost haptic across a bounded retry loop.
-**Scale/Scope**: Seven user stories, six existing files modified (`lib/main.dart`, `lib/screens/chat_screen.dart`, `lib/screens/feed_screen.dart`, `lib/screens/settings_screen.dart`, `lib/screens/dashboard_screen.dart`, `lib/ncfed/local_notifications.dart`) plus two watch-side Swift files (`ApprovalsView.swift`, `WatchDataStore.swift`), four new Dart files (`lib/theme.dart`, `lib/ncfed/haptics.dart`, `lib/ncfed/app_lock.dart`, `lib/ncfed/conversation_search.dart`), `pubspec.yaml` (two new deps + version bump).
+**Scale/Scope**: Seven user stories, six existing files modified (`lib/main.dart`, `lib/screens/chat_screen.dart`, `lib/screens/feed_screen.dart`, `lib/screens/settings_screen.dart`, `lib/screens/dashboard_screen.dart`, `lib/ncfed/local_notifications.dart`) plus two watch-side Swift files (`ApprovalsView.swift`, `WatchDataStore.swift`), five new Dart files (`lib/theme.dart`, `lib/ncfed/haptics.dart`, `lib/ncfed/app_lock.dart`, `lib/ncfed/conversation_search.dart`, `lib/ncfed/answer_format.dart`), `pubspec.yaml` (two new deps + version bump).
 
 ## Constitution Check
 
@@ -100,6 +100,7 @@ mobile/netclaw-mobile/
 │       └── dashboard_screen.dart       # US7 (onOpenFeed/onOpenChat/onOpenApprovals callbacks + onTap wiring)
 ├── test/
 │   ├── theme_test.dart                          # NEW (US1)
+│   ├── no_hardcoded_colors_test.dart            # NEW (US1) — repo-hygiene scan of lib/screens/
 │   ├── haptics_test.dart                        # NEW (US5)
 │   ├── app_lock_test.dart                       # NEW (US4) — grace-period pure logic
 │   ├── conversation_search_test.dart            # NEW (US6)
