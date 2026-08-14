@@ -1185,6 +1185,182 @@ app.put('/api/env', (req, res) => {
   }
 });
 
+// ── Budget status & configuration (spec 109) ──────────────────────────────────
+//
+// Budget enforcement lives in the token-tracker skill (Python, src/netclaw_tokens/).
+// The HUD provides visibility and configuration — reading the current budget policy
+// from openclaw.json and the active session's cost from the sessions directory.
+
+app.get('/api/budget/status', (req, res) => {
+  try {
+    const config = JSON.parse(readText(path.join(process.env.HOME || '/root', '.openclaw', 'openclaw.json')) || '{}');
+    const policy = resolveBudgetPolicy(config);
+
+    // Find the most recent active session and estimate cost from its size/metadata
+    const sessionCost = estimateActiveSessionCost();
+
+    const pct = policy.sessionBudgetUsd > 0
+      ? Math.min(100, Math.round((sessionCost / policy.sessionBudgetUsd) * 100))
+      : 0;
+
+    let status = 'ok';
+    if (pct >= 100) status = 'halted';
+    else if (pct >= 80) status = 'critical';
+    else if (pct >= 50) status = 'warning';
+
+    res.json({
+      sessionCostUsd: Math.round(sessionCost * 100) / 100,
+      sessionBudgetUsd: policy.sessionBudgetUsd,
+      maxToolCallsPerTurn: policy.maxToolCallsPerTurn,
+      percentUsed: pct,
+      status,
+      model: policy.model || null,
+      interfaceDefaults: policy.interfaceDefaults || {},
+    });
+  } catch (err) {
+    res.json({
+      sessionCostUsd: 0,
+      sessionBudgetUsd: 5.0,
+      maxToolCallsPerTurn: 20,
+      percentUsed: 0,
+      status: 'unknown',
+      error: err.message,
+    });
+  }
+});
+
+app.get('/api/budget/config', (req, res) => {
+  try {
+    const config = JSON.parse(readText(path.join(process.env.HOME || '/root', '.openclaw', 'openclaw.json')) || '{}');
+    const budget = config?.agents?.defaults?.budget || {};
+    const interfaceDefaults = config?.agents?.defaults?.interfaceDefaults || {};
+    res.json({
+      budget: {
+        sessionBudgetUsd: budget.sessionBudgetUsd ?? 5.0,
+        maxToolCallsPerTurn: budget.maxToolCallsPerTurn ?? 20,
+        contextWarningTokens: budget.contextWarningTokens ?? 100000,
+        allowOverride: budget.allowOverride ?? true,
+        overrideIncrementUsd: budget.overrideIncrementUsd ?? 2.0,
+      },
+      interfaceDefaults,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/budget/config', (req, res) => {
+  const { budget, interfaceDefaults } = req.body || {};
+  if (!budget && !interfaceDefaults) {
+    return res.status(400).json({ error: 'Expected { budget: {...} } and/or { interfaceDefaults: {...} }' });
+  }
+
+  try {
+    const configPath = path.join(process.env.HOME || '/root', '.openclaw', 'openclaw.json');
+    const config = JSON.parse(readText(configPath) || '{}');
+
+    // Ensure path exists
+    if (!config.agents) config.agents = {};
+    if (!config.agents.defaults) config.agents.defaults = {};
+
+    // Merge budget values (only provided fields, don't clobber unset ones)
+    if (budget) {
+      if (!config.agents.defaults.budget) config.agents.defaults.budget = {};
+      const validKeys = ['sessionBudgetUsd', 'maxToolCallsPerTurn', 'contextWarningTokens', 'allowOverride', 'overrideIncrementUsd'];
+      for (const key of validKeys) {
+        if (budget[key] !== undefined) {
+          config.agents.defaults.budget[key] = budget[key];
+        }
+      }
+    }
+
+    // Merge interface defaults
+    if (interfaceDefaults) {
+      if (!config.agents.defaults.interfaceDefaults) config.agents.defaults.interfaceDefaults = {};
+      for (const [iface, settings] of Object.entries(interfaceDefaults)) {
+        config.agents.defaults.interfaceDefaults[iface] = {
+          ...(config.agents.defaults.interfaceDefaults[iface] || {}),
+          ...settings,
+        };
+      }
+    }
+
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+    broadcastWS('config:updated', { keys: ['budget'], generatedAt: new Date().toISOString() });
+    res.json({ ok: true, budget: config.agents.defaults.budget, interfaceDefaults: config.agents.defaults.interfaceDefaults });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Resolve budget policy from config (mirrors Python budget_policy.py logic).
+ * Returns merged defaults for display purposes.
+ */
+function resolveBudgetPolicy(config) {
+  const defaults = config?.agents?.defaults || {};
+  const budget = defaults.budget || {};
+  const interfaceDefaults = defaults.interfaceDefaults || {};
+
+  return {
+    sessionBudgetUsd: parseFloat(process.env.NETCLAW_SESSION_BUDGET_USD || '') || budget.sessionBudgetUsd || 5.0,
+    maxToolCallsPerTurn: budget.maxToolCallsPerTurn || 20,
+    contextWarningTokens: budget.contextWarningTokens || 100000,
+    allowOverride: budget.allowOverride !== false,
+    overrideIncrementUsd: budget.overrideIncrementUsd || 2.0,
+    model: null, // Global default; interface-specific in interfaceDefaults
+    interfaceDefaults,
+  };
+}
+
+/**
+ * Estimate cost of the most recently active session by reading its JSONL
+ * and summing any usage blocks. Returns 0 if no active session or no data.
+ */
+function estimateActiveSessionCost() {
+  try {
+    const sessionsDir = path.join(process.env.HOME || '/root', '.openclaw', 'agents', 'main', 'sessions');
+    const sessionsJson = path.join(sessionsDir, 'sessions.json');
+    if (!fs.existsSync(sessionsJson)) return 0;
+
+    const sessions = JSON.parse(readText(sessionsJson) || '{}');
+    // Find the most recently updated session
+    let newest = null;
+    let newestTime = 0;
+    for (const [, sess] of Object.entries(sessions)) {
+      const t = sess.updatedAt || 0;
+      if (t > newestTime) {
+        newestTime = t;
+        newest = sess;
+      }
+    }
+
+    if (!newest || !newest.sessionFile) return 0;
+    if (!fs.existsSync(newest.sessionFile)) return 0;
+
+    // Count message lines as a rough proxy for API calls
+    // Real cost tracking comes from Prometheus; this is a fast HUD estimate
+    const content = readText(newest.sessionFile) || '';
+    const lines = content.split('\n').filter(Boolean);
+    let assistantTurns = 0;
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        if (entry.type === 'message' && entry.message?.role === 'assistant') {
+          assistantTurns++;
+        }
+      } catch { /* skip unparseable lines */ }
+    }
+
+    // Rough estimate: each assistant turn ≈ 50K input tokens on Sonnet ($0.15) + 1K output ($0.015)
+    // This is intentionally conservative — better to show slightly high than low
+    const estimatedCostPerTurn = 0.17;
+    return assistantTurns * estimatedCostPerTurn;
+  } catch {
+    return 0;
+  }
+}
+
 // ── Testbed device config ──────────────────────────────────────────
 app.get('/api/testbed/raw', (req, res) => {
   res.type('text/yaml').send(readText(TESTBED_FILE) || '# No testbed found');
