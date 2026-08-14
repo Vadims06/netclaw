@@ -98,6 +98,7 @@ __all__ = [
     "GCFResponse",
     "TOONResponse",  # legacy alias
     "ToolUsageRecord",
+    "BudgetPolicy",
     # Functions (lazy imports to avoid circular dependencies)
     "count_tokens",
     "count_message_tokens",
@@ -105,6 +106,8 @@ __all__ = [
     "get_pricing",
     "serialize_response",
     "format_footer",
+    "load_budget_policy",
+    "resolve_session_config",
     # Classes
     "SessionLedger",
 ]
@@ -127,4 +130,10 @@ def __getattr__(name: str):
     if name == "SessionLedger":
         from .session_ledger import SessionLedger
         return SessionLedger
+    if name == "BudgetPolicy":
+        from .budget_policy import BudgetPolicy
+        return BudgetPolicy
+    if name in ("load_budget_policy", "resolve_session_config"):
+        from .budget_policy import load_budget_policy, resolve_session_config
+        return load_budget_policy if name == "load_budget_policy" else resolve_session_config
     raise AttributeError(f"module 'netclaw_tokens' has no attribute {name!r}")
