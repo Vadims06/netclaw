@@ -665,7 +665,8 @@ class FederationService:
 
     # ---- outbound channel (lower-AS initiates) ------------------------
 
-    async def open_channel(self, peer_as: int, router_id: str, host: str, port: int):
+    async def open_channel(self, peer_as: int, router_id: str, host: str, port: int,
+                           transport: "Optional[str]" = None):
         if not self._en2n_allowed():
             logger.info("iN2N Member role — not opening outbound eN2N channel (FR-014)")
             return
@@ -759,8 +760,10 @@ class FederationService:
             # so the reconnect supervisor re-dials this current address instead of a
             # stale one (the live bug the packet capture surfaced). A bad dial that
             # raises before here leaves the prior good address intact.
+            # Feature 108 (T008): persist transport alongside endpoint on successful dial.
             self.manager.upsert_peer(peer_as, router_id,
-                                     endpoint_host=host, endpoint_port=port)
+                                     endpoint_host=host, endpoint_port=port,
+                                     transport=transport)
             logger.info("Opened NCFED channel to %s", ident)
             # Feature 100 (FR-031): connecting is NOT the same as staying up.
             #

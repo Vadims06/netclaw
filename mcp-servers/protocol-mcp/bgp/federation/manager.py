@@ -273,6 +273,11 @@ class FederationManager:
             #   push_platform — 'fcm' (Android) | 'apns' (iOS) | NULL
             ("member", "push_platform", "TEXT"),
             ("member", "push_token", "TEXT"),
+            # feature 108: Cloudflare Tunnel transport — per-peer transport type and
+            # edge-gate status (data-model.md §1). Display-only; never affects
+            # _recompute_state/PeerState.
+            ("federation_peer", "transport", "TEXT NOT NULL DEFAULT 'ngrok'"),
+            ("federation_peer", "edge_gate", "TEXT NOT NULL DEFAULT 'none'"),
         ]:
             try:
                 self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
@@ -287,19 +292,22 @@ class FederationManager:
     # ---- peer registry ------------------------------------------------
 
     def upsert_peer(self, peer_as: int, router_id: str, display_name: Optional[str] = None,
-                    endpoint_host: Optional[str] = None, endpoint_port: Optional[int] = None):
+                    endpoint_host: Optional[str] = None, endpoint_port: Optional[int] = None,
+                    transport: Optional[str] = None, edge_gate: Optional[str] = None):
         ident = peer_identity(peer_as, router_id)
         now = _now()
         row = self._conn.execute("SELECT identity FROM federation_peer WHERE identity=?", (ident,)).fetchone()
         if row:
             sets, vals = [], []
             for col, val in (("display_name", display_name), ("endpoint_host", endpoint_host),
-                             ("endpoint_port", endpoint_port)):
+                             ("endpoint_port", endpoint_port),
+                             ("transport", transport), ("edge_gate", edge_gate)):
                 if val is not None:
                     sets.append(f"{col}=?"); vals.append(val)
             # Feature 063 (P1): a written endpoint bumps the freshness signal the
             # reconnect supervisor and operator view read — do it here so every
             # persist path (operator dial, peer endpoint_update) is consistent.
+            # Note: transport/edge_gate are NOT coupled to endpoint freshness.
             if endpoint_host is not None or endpoint_port is not None:
                 sets.append("endpoint_updated_at=?"); vals.append(now)
             sets.append("updated_at=?"); vals.append(now)
@@ -309,10 +317,12 @@ class FederationManager:
             endpoint_updated = now if (endpoint_host is not None or endpoint_port is not None) else None
             self._conn.execute(
                 "INSERT INTO federation_peer (identity, peer_as, router_id, display_name, "
-                "endpoint_host, endpoint_port, endpoint_updated_at, state, created_at, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                "endpoint_host, endpoint_port, endpoint_updated_at, transport, edge_gate, "
+                "state, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (ident, peer_as, router_id, display_name, endpoint_host, endpoint_port,
-                 endpoint_updated, PeerState.NOT_FEDERATED.value, now, now))
+                 endpoint_updated, transport or 'ngrok', edge_gate or 'none',
+                 PeerState.NOT_FEDERATED.value, now, now))
         self._conn.commit()
         return ident
 

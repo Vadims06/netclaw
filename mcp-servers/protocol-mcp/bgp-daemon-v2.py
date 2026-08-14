@@ -461,6 +461,9 @@ async def handle_n2n(method, path, body):
                     "channel_state": h["channel_state"], "last_seen": h["last_seen"],
                     "endpoint": f"{p.get('endpoint_host')}:{p.get('endpoint_port')}",
                     "endpoint_updated_at": p.get("endpoint_updated_at"),
+                    # Feature 108 (T014): transport visibility (FR-006)
+                    "transport": p.get("transport") or "ngrok",
+                    "edge_gate": p.get("edge_gate") or "none",
                     # Feature 100 (FR-014): dampened peers stay observable. Additive —
                     # no existing field renamed or retyped (contracts §6).
                     "attempts": h["attempts"],
@@ -491,7 +494,16 @@ async def handle_n2n(method, path, body):
             # `_start_edge` runs as a task, so a bare attribute read can race
             # startup — absent means "not yet decided", not "healthy".
             edge_status = getattr(fed, "edge_status", {"state": "starting"})
+            # Feature 108 (T015): local tunnel health probe
+            from bgp.federation.transport_health import probe_local_transport
+            _health_check_enabled = os.environ.get(
+                "N2N_TRANSPORT_HEALTH_CHECK", "true"
+            ).strip().lower() not in ("false", "0", "no")
+            local_transport = probe_local_transport(
+                mgr.list_peers(), enabled=_health_check_enabled
+            )
             return 200, {"identity": fed.local_identity, "peers": peers,
+                         "local_transport_healthy": local_transport,
                          "edge_nodes": edge, "edge_listener": edge_status}
 
         if path == "/n2n/peers/forget-endpoint" and method == "POST":
@@ -522,6 +534,29 @@ async def handle_n2n(method, path, body):
                 logger.warning("forget-endpoint audit failed for %s: %s", ident, e)
             return 200, result
 
+        # Feature 108 (T018): per-peer edge-gate toggle (FR-005, US2).
+        # This is the ONLY way edge_gate changes from its 'none' default —
+        # never implied by setting transport=cloudflare_tunnel.
+        if path == "/n2n/peer/edge_gate" and method == "POST":
+            peer_ident = body.get("peer")
+            new_gate = body.get("edge_gate")
+            if not peer_ident:
+                return 400, {"error": "missing required field 'peer'"}
+            if new_gate not in ("cloudflare_access", "none"):
+                return 400, {"error": "edge_gate must be 'cloudflare_access' or 'none'"}
+            existing = mgr.get_peer(peer_ident)
+            if not existing:
+                return 404, {"error": f"unknown peer {peer_ident}"}
+            # Parse AS/router-id from identity to call upsert_peer
+            m = re.match(r"as(\d+)-(.+)", peer_ident)
+            if not m:
+                return 400, {"error": "peer identity must be 'as<AS>-<router-id>'"}
+            pa, rid = int(m.group(1)), m.group(2)
+            mgr.upsert_peer(pa, rid, edge_gate=new_gate)
+            updated = mgr.get_peer(peer_ident)
+            return 200, {"peer": peer_ident, "edge_gate": updated["edge_gate"],
+                         "transport": updated.get("transport") or "ngrok"}
+
         if path == "/n2n/connect" and method == "POST":
             if not all(body.get(k) for k in ("peer", "host", "port")):
                 return 400, {"error": "missing required field 'peer', 'host', or 'port'"}
@@ -529,8 +564,10 @@ async def handle_n2n(method, path, body):
             if not m:
                 return 400, {"error": "peer must be 'as<AS>-<router-id>'"}
             pa, rid = int(m.group(1)), m.group(2)
+            # Feature 108 (T007): optional transport hint (ngrok, cloudflare_tunnel, etc.)
+            transport = body.get("transport")
             state = mgr.local_consent(pa, rid, body.get("display_name"))
-            asyncio.create_task(fed.open_channel(pa, rid, body["host"], int(body["port"])))
+            asyncio.create_task(fed.open_channel(pa, rid, body["host"], int(body["port"]), transport=transport))
             return 200, {"identity": body["peer"], "state": state.value, "dialing": True}
 
         if path == "/n2n/trust" and method == "POST":
