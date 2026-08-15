@@ -478,3 +478,62 @@ Border, not a dependency.
     Also unverified: backwards-compatibility behavior on a pre-Series-9
     watch or a Series 9/Ultra 2 watch running below watchOS 11 (FR-004) —
     no such device was available during this pass.
+- **Interactive and in-flight Live Activity (B3)** (spec
+  `113-live-activity-interactive-inflight`, 2026-08-15): the pending-approval
+  Live Activity gained Approve/Deny buttons (iOS 17+, `Button(intent:
+  ApprovalActionIntent())`) that foreground the app to Approvals — never
+  resolving anything directly, since a `LiveActivityIntent` cannot reliably
+  present the existing biometric/passcode confirmation from the background,
+  and this spec deliberately does not weaken that spec-073 invariant to make
+  the button "work." The activity also now dismisses correctly when resolved
+  from any surface (in-app, notification, watch), not just a tap on the
+  activity itself. Separately, a brand-new in-flight query Live Activity
+  starts per submitted question, showing the question and a live elapsed
+  timer, updated with the Border's own free-text progress detail — research
+  performed before writing this spec found the brief's original
+  `respondedMembers`/`expectedMembers` design describes a concept that
+  doesn't exist in the Border's actual sequential-delegation model (a
+  submitted ask is one agent turn discovering delegated members one at a
+  time, confirmed against a real captured trace), so this spec deliberately
+  narrowed scope to what the system genuinely knows rather than fabricate a
+  member count.
+  - **Verified**: `flutter analyze` clean, full `flutter test` suite passing
+    (397/397, zero regressions), including new coverage for
+    `live_activity.dart`'s start/update/end/startAsk/updateAsk/endAsk call
+    sequencing against a fake `MethodChannel` and the new
+    `netclaw://approvals`/`netclaw://chat/<taskId>` deep-link parsers. A full
+    `xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos`
+    → `BUILD SUCCEEDED`, compiling the three new Swift files
+    (`ApprovalActionIntent.swift`, `AskActivityAttributes.swift`,
+    `AskLiveActivityView.swift`) into their correct target(s) alongside the
+    existing `LiveActivityWidget` extension.
+  - **A real dual-Xcode-target-membership mistake was caught by the build,
+    not assumed correct**: `ApprovalActionIntent.swift` was first added
+    `Runner`-only (reasoning it only foregrounds the app), but
+    `PendingApprovalLiveActivityView.swift`'s `Button(intent:
+    ApprovalActionIntent())` calls are compiled *into* the
+    `LiveActivityWidget` extension target, which therefore needs the
+    concrete type too — `xcodebuild` failed with `cannot find
+    'ApprovalActionIntent' in scope` until fixed. Fixing that, in turn,
+    surfaced a second real problem: `UIApplication.shared` (used to open the
+    `netclaw://approvals` deep link) is unavailable in application
+    extensions, so the same file failed to compile a second way once
+    dual-membered. Fixed with a custom `IS_EXTENSION_TARGET`
+    `SWIFT_ACTIVE_COMPILATION_CONDITIONS` flag on the `LiveActivityWidget`
+    target and an `#if !IS_EXTENSION_TARGET` guard around that one call —
+    the extension's copy of `perform()` never actually executes at runtime
+    anyway (`openAppWhenRun` always dispatches execution into the app
+    process), so this is provably safe, not a workaround masking a real gap.
+    Neither problem was caught by `swiftc -parse`/SourceKit single-file
+    checks — only a real, full `xcodebuild` run found either, reinforcing
+    why this spec's own quickstart.md treats that as mandatory before
+    calling any Swift-side task done.
+  - **Not verified — needs a physical device**: everything Live-Activity-
+    rendering-specific in this spec is 🔌 DEVICE-only per its own spec.md —
+    the real interactive Lock Screen button and its foreground behavior, the
+    activity dismissing correctly when resolved elsewhere, the in-flight
+    activity's real ticking timer and Dynamic Island rendering, and its
+    `staleDate` actually taking effect on a genuinely abandoned ask (a
+    ~780-second wait, impractical to sit through in one verification pass —
+    verified by code review instead that the value mirrors the Border's own
+    ask-timeout ceiling, not an arbitrary guess).

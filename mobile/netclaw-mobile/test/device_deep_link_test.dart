@@ -45,6 +45,42 @@ void main() {
         'What is the current status of device switch-42?');
   });
 
+  group('isApprovalsDeepLink (spec 113)', () {
+    test('recognizes netclaw://approvals', () {
+      expect(isApprovalsDeepLink('netclaw://approvals'), isTrue);
+    });
+
+    test('rejects a different host', () {
+      expect(isApprovalsDeepLink('netclaw://device/switch-42'), isFalse);
+    });
+
+    test('rejects a different scheme', () {
+      expect(isApprovalsDeepLink('https://approvals'), isFalse);
+    });
+
+    test('rejects garbage that is not even a URI shape', () {
+      expect(isApprovalsDeepLink('not a link at all'), isFalse);
+    });
+  });
+
+  group('parseChatDeepLink (spec 113)', () {
+    test('parses a well-formed netclaw://chat/<taskId> link', () {
+      expect(parseChatDeepLink('netclaw://chat/task-123'), 'task-123');
+    });
+
+    test('rejects a different host', () {
+      expect(parseChatDeepLink('netclaw://device/switch-42'), isNull);
+    });
+
+    test('rejects a missing task id', () {
+      expect(parseChatDeepLink('netclaw://chat/'), isNull);
+    });
+
+    test('rejects garbage that is not even a URI shape', () {
+      expect(parseChatDeepLink('not a link at all'), isNull);
+    });
+  });
+
   group('DeviceDeepLinkHandler', () {
     test('a known-shape identifier produces the exact templated request', () async {
       final source = _RecordingEdgeRpcSource();
