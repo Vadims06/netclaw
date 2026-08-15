@@ -1,6 +1,6 @@
 # netclaw Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-08-14
+Auto-generated from all feature plans. Last updated: 2026-08-15
 
 ## Active Technologies
 - N/A (stateless server; subscription state held in-memory during runtime) (003-gnmi-mcp-server)
@@ -126,6 +126,8 @@ Auto-generated from all feature plans. Last updated: 2026-08-14
 - No new storage. US1/US2 read/write the existing `EnrollmentStore` (`ncfed_enrollment.json`) exactly as today; nothing new is persisted. (105-ios-appstore-readiness)
 - Dart 3.x / Flutter (SDK `^3.12.2` per `mobile/netclaw-mobile/pubspec.yaml`), Swift 5.0 (`ios/WatchApp Watch App/*.swift`, US5's watch-side haptics only) — same stack as specs 066–108, unchanged. + Two new: `flutter_markdown_plus` (^1.0.12, US2 — see research.md R1) and `share_plus` (^13.3.0, US2 — see research.md R2). Everything else reuses existing dependencies: `flutter_secure_storage` (US4's app-lock preference), `local_auth` (US4, already used by `approval_confirmation.dart`), `flutter_local_notifications` (US3). (109-mobile-polish-pass)
 - `flutter_secure_storage` gains two new keys (US4: app-lock enabled/disabled boolean, grace-period duration in seconds — research.md R5). No other new persisted state; US6's search/filter state is explicitly transient (FR-015) and US7 adds no state at all, only wiring. (109-mobile-polish-pass)
+- Dart 3.x / Flutter (SDK `^3.12.2` per `mobile/netclaw-mobile/pubspec.yaml`), Swift 5.0 (`ios/Runner/*.swift`, new `AppIntents` target membership) — same stack as specs 066–110, unchanged. Python 3.10+ for the one Border-side addition (`bgp/federation/*`, matching specs 052–110). + No new Dart or Python packages. Swift: Apple's `AppIntents` framework (system framework, iOS 16+, ships with the SDK — not a package dependency). Reuses existing `EdgeClient`, `EdgeAskClient`, `EdgeIdentityPlugin`, `ConversationStore`, `LocalNotifications`, `DeviceHeartbeatStore` (Dart) and `Authorizer` (Python) as-is. (111-siri-app-intents)
+- No new store. `ConversationStore`'s existing `origin` field gains one new valid value, `'siri'` (research.md R5) — no schema change, no migration. (111-siri-app-intents)
 
 - Python 3.10+ + FastMCP (MCP framework), grpcio + grpcio-tools (gRPC transport), pygnmi (gNMI client library), protobuf, cryptography (TLS handling) (003-gnmi-mcp-server)
 
@@ -145,9 +147,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.10+: Follow standard conventions
 
 ## Recent Changes
+- 111-siri-app-intents: Added Dart 3.x / Flutter (SDK `^3.12.2` per `mobile/netclaw-mobile/pubspec.yaml`), Swift 5.0 (`ios/Runner/*.swift`, new `AppIntents` target membership) — same stack as specs 066–110, unchanged. Python 3.10+ for the one Border-side addition (`bgp/federation/*`, matching specs 052–110). + No new Dart or Python packages. Swift: Apple's `AppIntents` framework (system framework, iOS 16+, ships with the SDK — not a package dependency). Reuses existing `EdgeClient`, `EdgeAskClient`, `EdgeIdentityPlugin`, `ConversationStore`, `LocalNotifications`, `DeviceHeartbeatStore` (Dart) and `Authorizer` (Python) as-is.
 - 109-mobile-polish-pass: Added Dart 3.x / Flutter (SDK `^3.12.2` per `mobile/netclaw-mobile/pubspec.yaml`), Swift 5.0 (`ios/WatchApp Watch App/*.swift`, US5's watch-side haptics only) — same stack as specs 066–108, unchanged. + Two new: `flutter_markdown_plus` (^1.0.12, US2 — see research.md R1) and `share_plus` (^13.3.0, US2 — see research.md R2). Everything else reuses existing dependencies: `flutter_secure_storage` (US4's app-lock preference), `local_auth` (US4, already used by `approval_confirmation.dart`), `flutter_local_notifications` (US3).
 - 107-push-render-deeplink: Added Dart 3.x / Flutter, SDK constraint `^3.12.2` (from `pubspec.yaml`) + No new packages. Reuses `firebase_messaging ^16.4.3`, `firebase_core ^4.12.1`, `flutter_local_notifications ^22.2.0`, all already present. Continues the 066–073 and 099 precedent of adding no dependency a story does not strictly require.
-- 105-ios-appstore-readiness: Added Dart 3.x / Flutter (SDK per `mobile/netclaw-mobile/pubspec.yaml`), Swift 5.0 (`ios/Runner/*.swift`) — same stack as specs 066–103, unchanged. + None new. `local_auth` (already a dependency, already used by `approval_confirmation.dart`) covers US2's biometric gate. US1 is pure Flutter widget code. US3 uses Flutter's and Xcode's existing command-line toolchain (`flutter build ipa`, `xcrun altool`) — no package added.
 
 
 <!-- MANUAL ADDITIONS START -->

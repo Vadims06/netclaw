@@ -400,3 +400,46 @@ Border, not a dependency.
     the intended, more conservative posture (a locked phone should not be able
     to approve a network change), not a regression, but it is a real change in
     what "tap Approve from the lock screen" does once app-lock is turned on.
+- **Siri / App Intents (B1a)** (spec `111-siri-app-intents`, 2026-08-15): three
+  native `AppIntent`s — `AskBorderIntent` ("Hey Siri, ask NetClaw [question]",
+  headless submit + spoken acknowledgment, real answer arrives later as a
+  local notification), `PendingApprovalsIntent`, and `BorderHealthIntent` —
+  exposed via one `AppShortcutsProvider` (Siri, the iPhone 15 Pro+ Action
+  Button, and Shortcuts automations, with zero manual setup). Each launches a
+  headless `FlutterEngine` (the same pattern spec 099's background refresh
+  established) rather than opening the app. `PendingApprovalsIntent` required
+  one new, narrowly-scoped Border-side RPC (`n2n/edge/approvals_list`) since
+  no existing passive/cached source could give a live count without
+  under-counting (research.md R3); `BorderHealthIntent` needed zero Border
+  changes, since "Border health" in this app has always been a passively
+  cached on-device value, not a request/response query (research.md R4).
+  - **Verified**: `flutter analyze` clean, full `flutter test` suite passing
+    (378/378, zero regressions), the new `tests/n2n/
+    test_edge_approvals_list.py` (3/3), the full `tests/n2n` suite
+    unaffected (455 passed, the same 14 pre-existing environment-only
+    failures — missing `chromadb`, a Python-version-dependent
+    `OSError`/`ConnectionRefusedError` string check — present and unaffected
+    both before and after this change), **and a full `xcodebuild -workspace
+    Runner.xcworkspace -scheme Runner -sdk iphoneos -configuration Debug
+    build CODE_SIGNING_ALLOWED=NO` → `BUILD SUCCEEDED`**, compiling and
+    linking all three new `AppIntent`s and the `AppShortcutsProvider` into
+    `Runner.app` with zero warnings in any of the five new Swift files. The
+    first `xcodebuild` attempt during this spec failed on a **stale**
+    `ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/
+    Package.swift` — regenerated with a hardcoded iOS 13 platform floor
+    instead of picking up `AppFrameworkInfo.plist`'s `MinimumOSVersion` 16.2
+    (the actual fix, already correctly in place, documented in spec 099's own
+    blog post). `flutter pub get` alone does not regenerate this file
+    correctly; `flutter build ios --config-only --debug` does. Worth noting
+    for future specs hitting the same class of failure spec 110 also
+    reported: it is a stale-cache artifact, not a genuine unfixable
+    limitation — re-running the config-only build resolves it.
+  - **Not verified — needs a physical device**: everything Siri/Action-
+    Button/Shortcuts-specific in this spec is 🔌 DEVICE-only per its own
+    spec.md — real voice invocation, the spoken acknowledgment timing, the
+    real-answer notification actually arriving, `ProcessInfo.
+    performExpiringActivity`'s actual granted runtime (`AskBorderIntent.
+    swift`'s best-effort post-acknowledgment window, research.md R8 — the
+    requested 25s budget is a request, not a guarantee, and its real-world
+    value is unverified), and the Border-unreachable/not-enrolled spoken
+    failure paths for all three intents.

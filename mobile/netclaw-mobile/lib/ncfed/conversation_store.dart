@@ -17,7 +17,8 @@ class ConversationTurn {
   // -- distinct from [state]; a completed-but-unacknowledged turn still
   // counts toward the unread badge.
   bool acknowledged;
-  // Which surface submitted this turn -- "phone" or "watch" (073/FR-016).
+  // Which surface submitted this turn -- "phone", "watch" (073/FR-016), or
+  // "siri" (111/FR-011, a Siri/App-Intents ask via a headless engine).
   // Purely informational; no requirement reads it back for behavior.
   String origin;
 

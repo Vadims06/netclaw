@@ -169,6 +169,18 @@ void main() {
       expect(store.turns[1].origin, 'watch');
     });
 
+    test('addPending accepts origin "siri", and it round-trips through toJson/fromJson '
+        'unchanged, exactly as "watch" already does (spec 111 FR-011, research.md R5)', () async {
+      final store = ConversationStore(dir);
+      await store.addPending('task-3', 'asked via Siri', origin: 'siri');
+
+      expect(store.turns.single.origin, 'siri');
+
+      final reloaded = ConversationStore(dir);
+      await reloaded.load();
+      expect(reloaded.turns.single.origin, 'siri');
+    });
+
     test('a turn written before this feature shipped (no acknowledged/origin keys) defaults to '
         'acknowledged=true and origin="phone" (research D5)', () async {
       final file = File('${dir.path}/ncfed_conversation.json');
