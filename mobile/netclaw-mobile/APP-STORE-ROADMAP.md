@@ -55,7 +55,7 @@ starting at TestFlight external testing / App Store submission.
 | 4 | **Archive/IPA, not a debug build** | ❌ Not yet produced — `flutter build ipa` (requires Phase 1 signing) | — |
 | 5 | **`NSCameraUsageDescription`/`NSMicrophoneUsageDescription`/`NSFaceIDUsageDescription`/`NSSpeechRecognitionUsageDescription`** | ✅ Already present and worded appropriately | `ios/Runner/Info.plist` |
 | 6 | **App description** | Set via `pubspec.yaml`'s `description` field — real (not the Flutter template default, unlike the same field's history on Android) | `pubspec.yaml:2` |
-| 7 | **Version** | `1.0.0+1` → `CFBundleShortVersionString=1.0.0`, `CFBundleVersion=1` (shared with Android via the same `pubspec.yaml`) | `pubspec.yaml:19` |
+| 7 | **Version** | `1.0.1+2` (bumped from `1.0.0+1` in spec `109-mobile-polish-pass`) → `CFBundleShortVersionString=1.0.1`, `CFBundleVersion=2` (shared with Android via the same `pubspec.yaml`) | `pubspec.yaml:19` |
 | 8 | **Push notifications (`firebase_messaging`/`firebase_core`)** | 🔨 **Decided 2026-07-26: finish it, don't strip it.** Needs a real Firebase project, `GoogleService-Info.plist`, an **APNs auth key** uploaded to Firebase, and the **Push Notifications + Background Modes** capabilities in Xcode. APNs token collection then becomes declarable data collection in the App Privacy questionnaire. Note the free Personal Team **cannot** do push — this route requires the paid program. | `pubspec.yaml:40,46`; `lib/main.dart` |
 
 ### Item 1 — already decided, unlike Android's original state

@@ -87,7 +87,7 @@ what remains is two items, one of them purely an operator action.
 | 4 | **AAB not APK** | ❌ still not produced — `flutter build appbundle` | — |
 | 5 | **`INTERNET` permission** | ✅ **done** — declared explicitly in the main manifest, no longer a merge side-effect. `RECORD_AUDIO` was fixed the same way, and `<queries>` for `android.speech.RecognitionService` was added after a real tester reported the mic dead on Android 11+. | `android/app/src/main/AndroidManifest.xml` |
 | 6 | **App description** | ✅ **done** — real description, no longer the Flutter template default. | `pubspec.yaml:2` |
-| 7 | **Version** | `1.0.0+1` → `versionName 1.0.0`, `versionCode 1` | `pubspec.yaml:19` |
+| 7 | **Version** | `1.0.1+2` (bumped from `1.0.0+1` in spec `109-mobile-polish-pass`) → `versionName 1.0.1`, `versionCode 2` | `pubspec.yaml:19` |
 
 ### Item 1 — settled, and now permanent
 

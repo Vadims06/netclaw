@@ -565,10 +565,15 @@ Approvals tab.
   Apple Watch Double Tap, `.accessoryCorner` complication) are explicitly out
   of scope and will each become their own future numbered spec, per the
   brief's own recommendation.
-- The two "pre-flight" stale-fact items in the brief (P1: `Runner.entitlements`
-  signing status is ambiguous; P2: the existing App Group is watchOS-only) are
-  Phase-B prerequisites, not required to be resolved for this spec, since
-  nothing in Phase A or C1 touches entitlements, App Groups, or code signing.
+- Of the brief's two "pre-flight" stale-fact items, P2 (the existing App Group
+  is watchOS-only) is a genuine Phase-B prerequisite, not touched by this
+  spec. P1 (`Runner.entitlements` signing status) turned out NOT to be
+  deferrable — FR-007's Time Sensitive entitlement requires knowing whether
+  that file is actually signed into the build, so it was resolved during
+  implementation rather than left open: `CODE_SIGN_ENTITLEMENTS` is
+  confirmed set in `project.pbxproj` (the paid-account migration happened;
+  the file's own comment was simply never updated), so the new entitlement
+  was added there directly.
 - `flutter_markdown_plus` is the resolved dependency for User Story 2's
   Markdown rendering (research.md R1) — the originally-considered
   `flutter_markdown` was confirmed discontinued by its own publisher, with

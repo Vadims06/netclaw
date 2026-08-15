@@ -184,11 +184,11 @@
 
 ## Phase 10: Polish & Cross-Cutting Concerns
 
-- [ ] T041 Bump `pubspec.yaml`'s `version` from `1.0.0+1` to `1.0.1+2` (FR-016)
-- [ ] T042 [P] Run `flutter analyze` and the full `flutter test` suite across the whole app (not just new test files) to confirm zero regressions and zero skipped tests (SC-007)
+- [x] T041 Bump `pubspec.yaml`'s `version` from `1.0.0+1` to `1.0.1+2` (FR-016)
+- [x] T042 [P] Run `flutter analyze` and the full `flutter test` suite across the whole app (not just new test files) to confirm zero regressions and zero skipped tests (SC-007)
 - [ ] T043 Execute quickstart.md's manual/🔌 DEVICE verification steps for every story that has one (US2's long-answer scroll check, US3's Focus-mode check, US4's biometric prompts, US5's phone-and-watch haptics)
-- [ ] T044 Update `mobile/netclaw-mobile/README.md`'s platform-notes section recording what was verified on real hardware versus left as an automated-tests-only claim, per specs 072/073's honesty convention (explicitly: US2's scroll-performance scenario, US5's watch-side haptics, any other 🔌 DEVICE item not exercised)
-- [ ] T045 Update `mobile/netclaw-mobile/APP-STORE-ROADMAP.md` if any of this spec's items turn out to need a portal/App Store Connect note (expected: none, since Phase A/C1 explicitly avoids new capabilities — confirm rather than assume)
+- [x] T044 Update `mobile/netclaw-mobile/README.md`'s platform-notes section recording what was verified on real hardware versus left as an automated-tests-only claim, per specs 072/073's honesty convention (explicitly: US2's scroll-performance scenario, US5's watch-side haptics, any other 🔌 DEVICE item not exercised)
+- [x] T045 Update `mobile/netclaw-mobile/APP-STORE-ROADMAP.md` if any of this spec's items turn out to need a portal/App Store Connect note (expected: none, since Phase A/C1 explicitly avoids new capabilities — confirm rather than assume)
 - [ ] T046 Per constitution Principle XVII, draft a milestone summary (WordPress blog post via the WordPress MCP server if configured; otherwise note the milestone here and remind the operator to publish manually) once all seven stories are complete
 
 ---
