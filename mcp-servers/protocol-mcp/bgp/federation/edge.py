@@ -73,6 +73,10 @@ EDGE_METHODS = (
     "n2n/edge/register_capabilities",
     "n2n/edge/capture",
     "n2n/edge/approval_resolve",
+    # spec 111 (Siri/App Intents, US2): phone-initiated, live count of
+    # currently-pending approvals for PendingApprovalsIntent — see
+    # FederationService._edge_on_approvals_list.
+    "n2n/edge/approvals_list",
 )
 
 # Methods reachable before the channel has authenticated (the handshake itself).

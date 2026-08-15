@@ -218,6 +218,8 @@ class FederationService:
             # feature 068: biometric-gated approvals + capability advertisement.
             "n2n/edge/register_capabilities": self._edge_on_register_capabilities,
             "n2n/edge/approval_resolve": self._edge_on_approval_resolve,
+            # spec 111, US2: PendingApprovalsIntent's live count.
+            "n2n/edge/approvals_list": self._edge_on_approvals_list,
         }
 
     def notify_approval(self, invocation_id, peer, target_type, target_name):
@@ -1660,6 +1662,22 @@ class FederationService:
             "resolved": True,
             "already_resolved": result["already_resolved"],
         }
+
+    async def _edge_on_approvals_list(self, channel, params):
+        """Live count of currently-pending approvals for `PendingApprovalsIntent`
+        (spec 111, US2, research.md R3). Calls the EXISTING
+        `Authorizer.pending_approvals()` unchanged — risk-wide, not filtered by
+        `channel.member_id`, matching this system's existing single-approver-
+        per-risk model (the same assumption `push_to_edge` already makes for
+        approval delivery). Deliberately NOT served from `EdgeQueue` replay or
+        any push-accumulated cache: an approval already delivered once to an
+        earlier connection but still unresolved would silently be missed by
+        either, which would violate FR-006's "live... not a stale/cached
+        value" requirement (research.md R3)."""
+        from .edge import RpcError
+        if not channel.trusted or not channel.member_id:
+            raise RpcError(-32023, "edge node not authenticated")
+        return {"count": len(self.authz.pending_approvals())}
 
     async def _edge_on_ask(self, channel, params):
         """Phone asks the Border something (feature 067, US1/US2/US3): create
