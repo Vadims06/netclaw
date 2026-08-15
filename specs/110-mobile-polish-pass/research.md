@@ -94,7 +94,7 @@ haptic call).
 
 **Rationale**: This is the existing, already-code-reviewed convention in
 this codebase for anything that would otherwise make a widget test touch a
-real platform channel; reusing it keeps `109`'s new files structurally
+real platform channel; reusing it keeps `110`'s new files structurally
 consistent with `066`–`108`'s prior work rather than introducing a second
 pattern for the same problem.
 

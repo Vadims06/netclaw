@@ -1,6 +1,6 @@
 # Feature Specification: NetClaw Mobile 1.0.1 Polish Pass (Phase A + C1)
 
-**Feature Branch**: `109-mobile-polish-pass`
+**Feature Branch**: `110-mobile-polish-pass`
 **Created**: 2026-08-14
 **Status**: Draft
 **Input**: User description: "NetClaw Mobile 1.0.1 polish pass, Phase A + C1 of `mobile/netclaw-mobile/NETCLAW-MOBILE-1.0.1-BRIEF.md` (2026-08-14, written against `main` as of spec 108): dark mode support, haptic feedback on key events, copy/share/select/markdown rendering for chat answers and feed messages, Time Sensitive notifications for approvals, a Face ID app-lock toggle, and search/filter across Chat and Feed. Version bump `pubspec.yaml` `1.0.0+1` → `1.0.1+2`. No new Xcode targets, no new capabilities, no Apple Developer portal work — those are Phase B (App Intents, widgets, Live Activities, Watch gestures, complications), each deferred to its own future numbered spec per the brief's own recommended split."

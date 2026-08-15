@@ -1,6 +1,6 @@
 # Tasks: NetClaw Mobile 1.0.1 Polish Pass (Phase A + C1)
 
-**Input**: Design documents from `/specs/109-mobile-polish-pass/`
+**Input**: Design documents from `/specs/110-mobile-polish-pass/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, quickstart.md
 
 **Tests**: Included — every prior mobile spec in this project (066–108) ships tests alongside implementation as standard practice, and spec.md's acceptance scenarios are directly testable.

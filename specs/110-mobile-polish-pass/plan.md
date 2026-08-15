@@ -1,7 +1,7 @@
 # Implementation Plan: NetClaw Mobile 1.0.1 Polish Pass (Phase A + C1)
 
-**Branch**: `109-mobile-polish-pass` | **Date**: 2026-08-14 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/109-mobile-polish-pass/spec.md`
+**Branch**: `110-mobile-polish-pass` | **Date**: 2026-08-14 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/110-mobile-polish-pass/spec.md`
 
 ## Summary
 
@@ -56,7 +56,7 @@ No violations. No entries needed in Complexity Tracking.
 ### Documentation (this feature)
 
 ```text
-specs/109-mobile-polish-pass/
+specs/110-mobile-polish-pass/
 ├── plan.md              # This file
 ├── research.md          # Phase 0 output
 ├── data-model.md         # Phase 1 output
