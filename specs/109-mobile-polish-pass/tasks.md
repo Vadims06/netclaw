@@ -168,15 +168,15 @@
 
 ### Tests for User Story 6
 
-- [ ] T035 [P] [US6] Write unit tests in `test/conversation_search_test.dart` for the pure filter function(s) over `List<ConversationTurn>`/`List<EdgeMessage>` covering: empty query returns everything, a query matching nothing returns an empty list, a query matching a subset returns only that subset (case-insensitive), a state filter and an origin filter combine with an active query via AND (not OR), and — critically — that the function returns filtered *items* (or indices mappable back to the original list), never a structure that could cause an "acknowledge the 2nd visible item" action to hit the wrong underlying item (FR-014). Confirm these fail before implementing.
-- [ ] T036 [P] [US6] Extend `test/chat_screen_test.dart` with tests for the search field/filter chips UI: live narrowing as text is typed, highlighted matches, filter chips composing with the query, acknowledging/deleting a turn while filtered affects the correct underlying turn, and search/filter state resetting on a fresh widget mount (not persisted). Confirm these fail before implementing.
-- [ ] T037 [P] [US6] Extend `test/feed_screen_test.dart` with the equivalent search-field tests for message bodies.
+- [x] T035 [P] [US6] Write unit tests in `test/conversation_search_test.dart` for the pure filter function(s) over `List<ConversationTurn>`/`List<EdgeMessage>` covering: empty query returns everything, a query matching nothing returns an empty list, a query matching a subset returns only that subset (case-insensitive), a state filter and an origin filter combine with an active query via AND (not OR), and — critically — that the function returns filtered *items* (or indices mappable back to the original list), never a structure that could cause an "acknowledge the 2nd visible item" action to hit the wrong underlying item (FR-014). Confirm these fail before implementing.
+- [x] T036 [P] [US6] Extend `test/chat_screen_test.dart` with tests for the search field/filter chips UI: live narrowing as text is typed, highlighted matches, filter chips composing with the query, acknowledging/deleting a turn while filtered affects the correct underlying turn, and search/filter state resetting on a fresh widget mount (not persisted). Confirm these fail before implementing.
+- [x] T037 [P] [US6] Extend `test/feed_screen_test.dart` with the equivalent search-field tests for message bodies.
 
 ### Implementation for User Story 6
 
-- [ ] T038 [P] [US6] Create `lib/ncfed/conversation_search.dart`: pure functions filtering a list of turns/messages by case-insensitive substring match plus optional state/origin filter sets, returning the filtered list without mutating or copying-and-losing-identity of the underlying items (FR-014)
-- [ ] T039 [US6] Add a search field and match-highlighting to `lib/screens/chat_screen.dart`'s turn list, plus filter chips for turn state and origin, wired through `conversation_search.dart`; ensure acknowledge/delete actions on a filtered item still resolve to the correct underlying turn (depends on T038)
-- [ ] T040 [US6] Add the equivalent search field and match-highlighting to `lib/screens/feed_screen.dart`'s message list (depends on T038)
+- [x] T038 [P] [US6] Create `lib/ncfed/conversation_search.dart`: pure functions filtering a list of turns/messages by case-insensitive substring match plus optional state/origin filter sets, returning the filtered list without mutating or copying-and-losing-identity of the underlying items (FR-014)
+- [x] T039 [US6] Add a search field and match-highlighting to `lib/screens/chat_screen.dart`'s turn list, plus filter chips for turn state and origin, wired through `conversation_search.dart`; ensure acknowledge/delete actions on a filtered item still resolve to the correct underlying turn (depends on T038)
+- [x] T040 [US6] Add the equivalent search field and match-highlighting to `lib/screens/feed_screen.dart`'s message list (depends on T038)
 
 **Checkpoint**: All seven user stories are independently functional.
 

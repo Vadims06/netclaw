@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../ncfed/conversation_search.dart';
 import '../ncfed/message_feed.dart';
 import 'answer_body.dart';
 import 'empty_state.dart';
@@ -47,6 +48,10 @@ class _FeedScreenState extends State<FeedScreen> {
   bool _loading = true;
   final _highlightKey = GlobalKey();
 
+  /// 109/US6: transient search state -- never persisted (FR-015).
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +59,12 @@ class _FeedScreenState extends State<FeedScreen> {
       if (mounted) setState(() => _loading = false);
       _scrollToHighlight();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -73,42 +84,83 @@ class _FeedScreenState extends State<FeedScreen> {
     });
   }
 
+  /// 109/US6: live text search over message bodies (FR-012). No filter
+  /// chips here -- FR-013 scopes those to Chat only, since state/origin are
+  /// turn concepts a Feed push doesn't carry.
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Search feed',
+          prefixIcon: const Icon(Icons.search),
+          isDense: true,
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                ),
+          border: const OutlineInputBorder(),
+        ),
+        onChanged: (value) => setState(() => _searchQuery = value),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    final messages = List.of(widget.store.messages)
+    final allMessages = List.of(widget.store.messages)
       ..sort((a, b) => a.pushedAt.compareTo(b.pushedAt));
-    if (messages.isEmpty) {
+    if (allMessages.isEmpty) {
       return const EmptyState(
         asset: 'assets/illustrations/empty_feed.png',
         text: 'No messages from the Border yet.',
       );
     }
-    return ListView.builder(
-      itemCount: messages.length,
-      itemBuilder: (context, index) {
-        final message = messages[index];
-        final highlighted = widget.highlightPushedAt != null &&
-            message.pushedAt == widget.highlightPushedAt;
-        return _MessageTile(
-          key: highlighted ? _highlightKey : null,
-          message: message,
-          highlighted: highlighted,
-          onAcknowledge: () async {
-            await widget.store.acknowledge(message.pushedAt);
-            if (mounted) setState(() {});
-            widget.onChanged?.call();
-          },
-          onDelete: () async {
-            await widget.store.delete(message.pushedAt);
-            if (mounted) setState(() {});
-            widget.onChanged?.call();
-          },
-          shareAction: widget.shareAction,
-        );
-      },
+    final messages = filterMessages(allMessages, query: _searchQuery);
+    final filtering = _searchQuery.trim().isNotEmpty;
+    return Column(
+      children: [
+        _buildSearchBar(),
+        Expanded(
+          child: messages.isEmpty
+              ? const Center(child: Text('No matching messages.'))
+              : ListView.builder(
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    final message = messages[index];
+                    final highlighted = !filtering &&
+                        widget.highlightPushedAt != null &&
+                        message.pushedAt == widget.highlightPushedAt;
+                    return _MessageTile(
+                      key: highlighted ? _highlightKey : null,
+                      message: message,
+                      highlighted: highlighted,
+                      onAcknowledge: () async {
+                        await widget.store.acknowledge(message.pushedAt);
+                        if (mounted) setState(() {});
+                        widget.onChanged?.call();
+                      },
+                      onDelete: () async {
+                        await widget.store.delete(message.pushedAt);
+                        if (mounted) setState(() {});
+                        widget.onChanged?.call();
+                      },
+                      shareAction: widget.shareAction,
+                      highlightQuery: _searchQuery,
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
@@ -122,6 +174,10 @@ class _MessageTile extends StatelessWidget {
   final VoidCallback onDelete;
   final Future<ShareResult> Function(ShareParams params)? shareAction;
 
+  /// 109/US6: the active search query, for highlighting matches in the
+  /// message body (when not Markdown-rendered).
+  final String highlightQuery;
+
   const _MessageTile({
     super.key,
     required this.message,
@@ -129,6 +185,7 @@ class _MessageTile extends StatelessWidget {
     required this.onDelete,
     this.highlighted = false,
     this.shareAction,
+    this.highlightQuery = '',
   });
 
   bool get _isText => message.contentType == MessageContentType.text;
@@ -272,6 +329,7 @@ class _MessageTile extends StatelessWidget {
           text: message.content,
           isTerminal: true,
           buildActions: _messageContextMenuItems,
+          highlightQuery: highlightQuery,
         );
       case MessageContentType.image:
         try {

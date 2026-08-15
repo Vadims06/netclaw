@@ -60,6 +60,27 @@ Future<Widget> _buildChatScreen(WidgetTester tester, String state,
   );
 }
 
+/// Seeds several turns with distinct requestText/state/origin combinations,
+/// for the search/filter tests (109/US6) below.
+Future<Widget> _buildChatScreenWithTurns(WidgetTester tester) async {
+  late Directory dir;
+  late ConversationStore store;
+  await tester.runAsync(() async {
+    dir = await Directory.systemTemp.createTemp('ncfed_chat_search_test_');
+    store = ConversationStore(dir);
+    await store.addPending('task-1', 'is BGP up on the core switch');
+    await store.updateState('task-1', 'completed', answerText: 'Yes, BGP is established.');
+    await store.addPending('task-2', 'check interface status');
+    await store.updateState('task-2', 'failed', answerText: 'Timed out.');
+    await store.addPending('task-3', 'reboot the router', origin: 'watch');
+    await store.updateState('task-3', 'cancelled');
+  });
+  addTearDown(() => dir.delete(recursive: true));
+  return MaterialApp(
+    home: Scaffold(body: ChatScreen(askClient: EdgeAskClient(_FakeEdgeRpcSource()), store: store)),
+  );
+}
+
 void main() {
   testWidgets('an in-progress turn shows a distinct state from a completed one (T015)',
       (tester) async {
@@ -231,6 +252,81 @@ void main() {
 
       expect(find.text('Working…'), findsOneWidget);
       expect(find.byType(SelectableText), findsNothing);
+    });
+  });
+
+  group('search and filter (109/US6)', () {
+    testWidgets('typing a query narrows the list live', (tester) async {
+      await tester.pumpWidget(await _buildChatScreenWithTurns(tester));
+      await tester.pump();
+
+      expect(find.text('is BGP up on the core switch'), findsOneWidget);
+      expect(find.text('check interface status'), findsOneWidget);
+      expect(find.text('reboot the router'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).first, 'BGP');
+      await tester.pump();
+
+      expect(find.text('is BGP up on the core switch'), findsOneWidget);
+      expect(find.text('check interface status'), findsNothing);
+      expect(find.text('reboot the router'), findsNothing);
+    });
+
+    testWidgets('clearing the query restores the full list', (tester) async {
+      await tester.pumpWidget(await _buildChatScreenWithTurns(tester));
+      await tester.pump();
+
+      final searchField = find.byType(TextField).first;
+      await tester.enterText(searchField, 'BGP');
+      await tester.pump();
+      await tester.enterText(searchField, '');
+      await tester.pump();
+
+      expect(find.text('is BGP up on the core switch'), findsOneWidget);
+      expect(find.text('check interface status'), findsOneWidget);
+      expect(find.text('reboot the router'), findsOneWidget);
+    });
+
+    testWidgets('a state filter chip composes with an active text query', (tester) async {
+      await tester.pumpWidget(await _buildChatScreenWithTurns(tester));
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField).first, 'interface');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilterChip, 'failed'));
+      await tester.pump();
+
+      expect(find.text('check interface status'), findsOneWidget);
+
+      // Same query, but require a state that this turn does NOT have.
+      await tester.tap(find.widgetWithText(FilterChip, 'failed')); // deselect
+      await tester.tap(find.widgetWithText(FilterChip, 'cancelled'));
+      await tester.pump();
+
+      expect(find.text('check interface status'), findsNothing);
+      expect(find.text('No matching turns.'), findsOneWidget);
+    });
+
+    testWidgets('an origin filter chip narrows to matching turns', (tester) async {
+      await tester.pumpWidget(await _buildChatScreenWithTurns(tester));
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(FilterChip, 'watch'));
+      await tester.pump();
+
+      expect(find.text('reboot the router'), findsOneWidget);
+      expect(find.text('is BGP up on the core switch'), findsNothing);
+      expect(find.text('check interface status'), findsNothing);
+    });
+
+    testWidgets('a query matching nothing shows an explicit empty state', (tester) async {
+      await tester.pumpWidget(await _buildChatScreenWithTurns(tester));
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField).first, 'nonexistent');
+      await tester.pump();
+
+      expect(find.text('No matching turns.'), findsOneWidget);
     });
   });
 }

@@ -31,6 +31,27 @@ Future<Widget> _buildFeedScreen(WidgetTester tester,
   );
 }
 
+/// Seeds several messages with distinct bodies, for the search tests
+/// (109/US6) below.
+Future<Widget> _buildFeedScreenWithMessages(WidgetTester tester) async {
+  late Directory dir;
+  late MessageFeedStore store;
+  await tester.runAsync(() async {
+    dir = await Directory.systemTemp.createTemp('ncfed_feed_search_test_');
+    store = MessageFeedStore(dir);
+    for (final content in ['All healthy.', 'BGP flapped on core-1.', 'Interface down.']) {
+      await store.append(EdgeMessage(
+        contentType: MessageContentType.text,
+        content: content,
+        designatedBy: 'agent',
+        pushedAt: DateTime.now().toUtc().add(Duration(seconds: content.length)),
+      ));
+    }
+  });
+  addTearDown(() => dir.delete(recursive: true));
+  return MaterialApp(home: Scaffold(body: FeedScreen(store: store)));
+}
+
 void main() {
   group('message copy/share/select/markdown (109/US2)', () {
     Future<String?> copiedText(WidgetTester tester, Future<void> Function() action) async {
@@ -105,6 +126,49 @@ void main() {
       await tester.pump();
 
       expect(find.text(cli), findsOneWidget);
+    });
+  });
+
+  group('search (109/US6)', () {
+    testWidgets('typing a query narrows the list live', (tester) async {
+      await tester.pumpWidget(await _buildFeedScreenWithMessages(tester));
+      await tester.pump();
+
+      expect(find.text('All healthy.'), findsOneWidget);
+      expect(find.text('BGP flapped on core-1.'), findsOneWidget);
+      expect(find.text('Interface down.'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'BGP');
+      await tester.pump();
+
+      expect(find.text('All healthy.'), findsNothing);
+      expect(find.text('BGP flapped on core-1.'), findsOneWidget);
+      expect(find.text('Interface down.'), findsNothing);
+    });
+
+    testWidgets('clearing the query restores the full list', (tester) async {
+      await tester.pumpWidget(await _buildFeedScreenWithMessages(tester));
+      await tester.pump();
+
+      final searchField = find.byType(TextField);
+      await tester.enterText(searchField, 'BGP');
+      await tester.pump();
+      await tester.enterText(searchField, '');
+      await tester.pump();
+
+      expect(find.text('All healthy.'), findsOneWidget);
+      expect(find.text('BGP flapped on core-1.'), findsOneWidget);
+      expect(find.text('Interface down.'), findsOneWidget);
+    });
+
+    testWidgets('a query matching nothing shows an explicit empty state', (tester) async {
+      await tester.pumpWidget(await _buildFeedScreenWithMessages(tester));
+      await tester.pump();
+
+      await tester.enterText(find.byType(TextField), 'nonexistent');
+      await tester.pump();
+
+      expect(find.text('No matching messages.'), findsOneWidget);
     });
   });
 }

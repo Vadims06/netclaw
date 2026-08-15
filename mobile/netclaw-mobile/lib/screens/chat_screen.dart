@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../ncfed/capture_client.dart';
+import '../ncfed/conversation_search.dart';
 import '../ncfed/conversation_store.dart';
 import '../ncfed/edge_ask_client.dart';
 import '../ncfed/haptics.dart';
@@ -14,6 +15,7 @@ import '../ncfed/turn_reconciler.dart';
 import '../ncfed/voice_transcription.dart';
 import 'answer_body.dart';
 import 'capture_screen.dart';
+import 'highlighted_text.dart';
 
 /// Chat screen (feature 067, FR-006): request/answer history, in-progress
 /// state while a task is pending, and a cancel action per in-progress turn
@@ -66,6 +68,16 @@ class _ChatScreenState extends State<ChatScreen>
   /// taskId -> latest progress detail from n2n/edge/task_progress.
   final Map<String, String> _progress = {};
 
+  /// 109/US6: transient search/filter state -- deliberately never persisted
+  /// (FR-015), reset to defaults on every fresh mount.
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  final Set<String> _selectedStates = {};
+  final Set<String> _selectedOrigins = {};
+
+  static const _stateChoices = ['pending', 'working', 'completed', 'failed', 'cancelled'];
+  static const _originChoices = ['phone', 'watch'];
+
   @override
   void initState() {
     super.initState();
@@ -116,6 +128,7 @@ class _ChatScreenState extends State<ChatScreen>
     widget.voiceTranscription.cancel();
     _scroll.dispose();
     _controller.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -327,37 +340,110 @@ class _ChatScreenState extends State<ChatScreen>
     widget.onChanged?.call();
   }
 
+  /// 109/US6: live text search plus state/origin filter chips (FR-012/
+  /// FR-013). Search/filter state lives entirely in this widget's own
+  /// State -- never persisted (FR-015), never touching `widget.store`.
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search chat',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    ),
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            children: [
+              for (final state in _stateChoices)
+                FilterChip(
+                  label: Text(state),
+                  selected: _selectedStates.contains(state),
+                  onSelected: (selected) => setState(() {
+                    if (selected) {
+                      _selectedStates.add(state);
+                    } else {
+                      _selectedStates.remove(state);
+                    }
+                  }),
+                ),
+              for (final origin in _originChoices)
+                FilterChip(
+                  label: Text(origin),
+                  selected: _selectedOrigins.contains(origin),
+                  onSelected: (selected) => setState(() {
+                    if (selected) {
+                      _selectedOrigins.add(origin);
+                    } else {
+                      _selectedOrigins.remove(origin);
+                    }
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    final turns = List.of(widget.store.turns)
+    final allTurns = List.of(widget.store.turns)
       ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+    final turns = filterTurns(allTurns,
+        query: _searchQuery, states: _selectedStates, origins: _selectedOrigins);
+    final filtering =
+        _searchQuery.trim().isNotEmpty || _selectedStates.isNotEmpty || _selectedOrigins.isNotEmpty;
     return Column(
       children: [
+        _buildSearchBar(),
         Expanded(
-          child: turns.isEmpty
+          child: allTurns.isEmpty
               ? const Center(child: Text('Ask your Border something.'))
-              : ListView.builder(
-                  controller: _scroll,
-                  itemCount: turns.length,
-                  itemBuilder: (context, index) {
-                    final highlighted = widget.highlightTaskId != null &&
-                        turns[index].taskId == widget.highlightTaskId;
-                    return _TurnTile(
-                      key: highlighted ? _highlightKey : null,
-                      turn: turns[index],
-                      highlighted: highlighted,
-                      progressDetail: _progress[turns[index].taskId],
-                      onCancel: () => _cancel(turns[index].taskId),
-                      onRetry: () => _retry(turns[index]),
-                      onAcknowledge: () => _acknowledge(turns[index].taskId),
-                      onDelete: () => _delete(turns[index].taskId),
-                      shareAction: widget.shareAction,
-                    );
-                  },
-                ),
+              : turns.isEmpty
+                  ? const Center(child: Text('No matching turns.'))
+                  : ListView.builder(
+                      controller: _scroll,
+                      itemCount: turns.length,
+                      itemBuilder: (context, index) {
+                        final highlighted = !filtering &&
+                            widget.highlightTaskId != null &&
+                            turns[index].taskId == widget.highlightTaskId;
+                        return _TurnTile(
+                          key: highlighted ? _highlightKey : null,
+                          turn: turns[index],
+                          highlighted: highlighted,
+                          progressDetail: _progress[turns[index].taskId],
+                          onCancel: () => _cancel(turns[index].taskId),
+                          onRetry: () => _retry(turns[index]),
+                          onAcknowledge: () => _acknowledge(turns[index].taskId),
+                          onDelete: () => _delete(turns[index].taskId),
+                          shareAction: widget.shareAction,
+                          highlightQuery: _searchQuery,
+                        );
+                      },
+                    ),
         ),
         SafeArea(
           child: Padding(
@@ -424,6 +510,10 @@ class _TurnTile extends StatelessWidget {
   /// research.md R4's injectable-function-with-production-default pattern).
   final Future<ShareResult> Function(ShareParams params)? shareAction;
 
+  /// 109/US6: the active search query, for highlighting matches in the
+  /// question header and (when not Markdown-rendered) the answer body.
+  final String highlightQuery;
+
   const _TurnTile({
     super.key,
     required this.turn,
@@ -434,6 +524,7 @@ class _TurnTile extends StatelessWidget {
     this.highlighted = false,
     this.progressDetail,
     this.shareAction,
+    this.highlightQuery = '',
   });
 
   bool get _isRetryable => turn.state == 'failed' || turn.state == 'cancelled';
@@ -597,7 +688,11 @@ class _TurnTile extends StatelessWidget {
                   const SizedBox(width: 6),
                 ],
                 Expanded(
-                  child: Text(turn.requestText, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  child: HighlightedText(
+                    turn.requestText,
+                    query: highlightQuery,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 if (_isUnread)
                   IconButton(
@@ -663,6 +758,7 @@ class _TurnTile extends StatelessWidget {
                         isTerminal: _isTerminal,
                         textColor: scheme.error,
                         buildActions: _answerContextMenuItems,
+                        highlightQuery: highlightQuery,
                       ),
                 Align(
                   alignment: Alignment.centerRight,
@@ -677,6 +773,7 @@ class _TurnTile extends StatelessWidget {
                 text: turn.answerText ?? '',
                 isTerminal: _isTerminal,
                 buildActions: _answerContextMenuItems,
+                highlightQuery: highlightQuery,
               ),
           ],
         ),

@@ -4,6 +4,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../ncfed/answer_format.dart';
+import 'highlighted_text.dart';
 
 /// Shared rendering for chat answers and feed message bodies (109/FR-004,
 /// FR-006). Renders as formatted Markdown only once [isTerminal] is true AND
@@ -36,12 +37,18 @@ class AnswerBody extends StatelessWidget {
   /// default Copy/Select-all toolbar.
   final List<ContextMenuButtonItem> Function(BuildContext)? buildActions;
 
+  /// 109/US6: when non-empty, highlights matches in the plain-preformatted-
+  /// text path only -- a Markdown-rendered answer is not highlighted, a
+  /// disclosed limitation (see class doc comment).
+  final String highlightQuery;
+
   const AnswerBody({
     super.key,
     required this.text,
     required this.isTerminal,
     this.textColor,
     this.buildActions,
+    this.highlightQuery = '',
   });
 
   Widget _contextMenuBuilder(BuildContext context, EditableTextState state) {
@@ -70,9 +77,21 @@ class AnswerBody extends StatelessWidget {
         builders: {'pre': _CodeBlockBuilder()},
       );
     }
-    return SelectableText(
+    final baseStyle = TextStyle(fontFamily: 'monospace', color: textColor);
+    if (highlightQuery.trim().isEmpty) {
+      return SelectableText(text, style: baseStyle, contextMenuBuilder: contextMenuBuilder);
+    }
+    final spans = buildHighlightSpans(
       text,
-      style: TextStyle(fontFamily: 'monospace', color: textColor),
+      highlightQuery.trim(),
+      baseStyle,
+      baseStyle.copyWith(
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+    return SelectableText.rich(
+      TextSpan(children: spans),
       contextMenuBuilder: contextMenuBuilder,
     );
   }
