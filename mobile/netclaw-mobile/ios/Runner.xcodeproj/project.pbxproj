@@ -15,6 +15,7 @@
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		357E0A01121626BD60032519 /* HeartbeatStatusStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6129DE6CAD59B231BA5725E5 /* HeartbeatStatusStore.swift */; };
 		386D1251CF96BBCAE1461D3D /* HeartbeatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50536064379DEE1951C55E48 /* HeartbeatView.swift */; };
+		3AD0DA835FD1019E91797E58 /* NetClawWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 86EB39563030D81600206946 /* NetClawWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		3EEE4A4394544DA06EA0A518 /* HeartbeatComplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1A88681C289C2A4993574F /* HeartbeatComplication.swift */; };
 		49BEAAEF69DD4D8F46C31214 /* LiveActivityBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13C1D53033EE4A7F78E8AA0E /* LiveActivityBridge.swift */; };
@@ -26,6 +27,8 @@
 		75C848AFE4C85BA548D5F8F5 /* ApprovalActionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D5BF838B9249487BC350187 /* ApprovalActionIntent.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		86EB39583030D81600206946 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86EB39573030D81600206946 /* WidgetKit.framework */; };
+		86EB395A3030D81600206946 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86EB39593030D81600206946 /* SwiftUI.framework */; };
 		8831D9AF2CB51ABC313C7499 /* PendingApprovalCountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E137B241FFB29D7E76F2E771 /* PendingApprovalCountStore.swift */; };
 		8FE94B2B99CAFE6CED9F69D9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9A4437B88234FA5ED367E5BF /* PrivacyInfo.xcprivacy */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
@@ -56,6 +59,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		1195CAFD9E5366106E2C1C88 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 86EB39553030D81600206946;
+			remoteInfo = NetClawWidgetExtension;
+		};
 		331C8085294A63A400263BE5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
@@ -126,6 +136,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				C852674E15C39970C9A9678E /* LiveActivityWidget.appex in Embed Foundation Extensions */,
+				3AD0DA835FD1019E91797E58 /* NetClawWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -162,6 +173,10 @@
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
 		7983B9826F39C95F7907AEA4 /* HistoryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
+		86EB39563030D81600206946 /* NetClawWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NetClawWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		86EB39573030D81600206946 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		86EB39593030D81600206946 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		86EB396F3030D82000206946 /* NetClawWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NetClawWidgetExtension.entitlements; sourceTree = "<group>"; };
 		899D52AD453861EA1A196A34 /* FeedView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		8E6C04595DA581CCE3A32C39 /* PendingApprovalComplication.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PendingApprovalComplication.swift; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
@@ -186,7 +201,41 @@
 		FDF3354E3FFD03DF087537CA /* WatchConnectivitySession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchConnectivitySession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		86EB396D3030D81700206946 /* Exceptions for "NetClawWidget" folder in "NetClawWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 86EB39553030D81600206946 /* NetClawWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		86EB395B3030D81600206946 /* NetClawWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				86EB396D3030D81700206946 /* Exceptions for "NetClawWidget" folder in "NetClawWidgetExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = NetClawWidget;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		86EB39533030D81600206946 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				86EB395A3030D81600206946 /* SwiftUI.framework in Frameworks */,
+				86EB39583030D81600206946 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		97C146EB1CF9000F007C117D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -224,6 +273,8 @@
 			isa = PBXGroup;
 			children = (
 				C99AD8D728EA1BF6A1D4CD46 /* watchOS */,
+				86EB39573030D81600206946 /* WidgetKit.framework */,
+				86EB39593030D81600206946 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -283,8 +334,10 @@
 		97C146E51CF9000F007C117D = {
 			isa = PBXGroup;
 			children = (
+				86EB396F3030D82000206946 /* NetClawWidgetExtension.entitlements */,
 				9740EEB11CF90186004384FC /* Flutter */,
 				97C146F01CF9000F007C117D /* Runner */,
+				86EB395B3030D81600206946 /* NetClawWidget */,
 				97C146EF1CF9000F007C117D /* Products */,
 				331C8082294A63A400263BE5 /* RunnerTests */,
 				23335FD8F891AB27FB4CEDE2 /* Frameworks */,
@@ -302,6 +355,7 @@
 				ECD3F5FECD3D095F16E19C7F /* WatchApp.app */,
 				E1BC7434D4DA5543407FE3CD /* LiveActivityWidget.appex */,
 				273652801983689749C43897 /* WatchComplication.appex */,
+				86EB39563030D81600206946 /* NetClawWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -403,6 +457,26 @@
 			productReference = E1BC7434D4DA5543407FE3CD /* LiveActivityWidget.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		86EB39553030D81600206946 /* NetClawWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 86EB396E3030D81700206946 /* Build configuration list for PBXNativeTarget "NetClawWidgetExtension" */;
+			buildPhases = (
+				86EB39523030D81600206946 /* Sources */,
+				86EB39533030D81600206946 /* Frameworks */,
+				86EB39543030D81600206946 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				86EB395B3030D81600206946 /* NetClawWidget */,
+			);
+			name = NetClawWidgetExtension;
+			productName = NetClawWidgetExtension;
+			productReference = 86EB39563030D81600206946 /* NetClawWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		97C146ED1CF9000F007C117D /* Runner */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 97C147051CF9000F007C117D /* Build configuration list for PBXNativeTarget "Runner" */;
@@ -421,6 +495,7 @@
 			dependencies = (
 				357E0FA35F31B8BED66D0C80 /* PBXTargetDependency */,
 				FA2500411352BCB0612D5377 /* PBXTargetDependency */,
+				99D4FCEEE364BC29BD7D1063 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			packageProductDependencies = (
@@ -456,6 +531,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 1510;
 				ORGANIZATIONNAME = "";
 				TargetAttributes = {
@@ -468,6 +544,9 @@
 					};
 					74BA3BA4675CE8A523ED938C = {
 						CreatedOnToolsVersion = 1510;
+					};
+					86EB39553030D81600206946 = {
+						CreatedOnToolsVersion = 26.6;
 					};
 					97C146ED1CF9000F007C117D = {
 						CreatedOnToolsVersion = 7.3.1;
@@ -501,6 +580,7 @@
 				BD2814341B2CA83CCE5BD761 /* WatchApp */,
 				74BA3BA4675CE8A523ED938C /* LiveActivityWidget */,
 				0B6028294AE52A99799DC8CE /* WatchComplication */,
+				86EB39553030D81600206946 /* NetClawWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -532,6 +612,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				ECEC4338AA23792FA3A304DC /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		86EB39543030D81600206946 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -606,6 +693,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		86EB39523030D81600206946 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		97C146EA1CF9000F007C117D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -667,6 +761,12 @@
 			name = WatchApp;
 			target = BD2814341B2CA83CCE5BD761 /* WatchApp */;
 			targetProxy = 768DF3738148B0B866C6F253 /* PBXContainerItemProxy */;
+		};
+		99D4FCEEE364BC29BD7D1063 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = NetClawWidgetExtension;
+			target = 86EB39553030D81600206946 /* NetClawWidgetExtension */;
+			targetProxy = 1195CAFD9E5366106E2C1C88 /* PBXContainerItemProxy */;
 		};
 		C9AAF2426B3F960C46927A1F /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -922,6 +1022,144 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		86EB396A3030D81700206946 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = NetClawWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A49777FMJG;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NetClawWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NetClawWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.automateyournetwork.netclaw.mobile.netclawwidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Debug;
+		};
+		86EB396B3030D81700206946 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = NetClawWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A49777FMJG;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NetClawWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NetClawWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.automateyournetwork.netclaw.mobile.netclawwidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Release;
+		};
+		86EB396C3030D81700206946 /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = NetClawWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A49777FMJG;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NetClawWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = NetClawWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.automateyournetwork.netclaw.mobile.netclawwidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Profile;
 		};
 		9028DE515AC568B1726B0E92 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1232,6 +1470,16 @@
 				331C8088294A63A400263BE5 /* Debug */,
 				331C8089294A63A400263BE5 /* Release */,
 				331C808A294A63A400263BE5 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		86EB396E3030D81700206946 /* Build configuration list for PBXNativeTarget "NetClawWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				86EB396A3030D81700206946 /* Debug */,
+				86EB396B3030D81700206946 /* Release */,
+				86EB396C3030D81700206946 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
