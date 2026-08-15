@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'edge_client.dart' show isRevokedByBorder;
+import 'haptics.dart';
 
 /// Ports `_in2n_member_dialer`'s exact backoff bounds (`bgp-daemon-v2.py`,
 /// research D4) to Dart: there is no missing Python reconnect capability to
@@ -38,14 +39,20 @@ class ReconnectSupervisor<T> {
   /// a permanent spinner.
   final void Function()? onUnrecoverable;
 
+  /// Injectable so tests never touch the real haptic platform channel
+  /// (109/research.md R4).
+  final Haptics _haptics;
+
   ReconnectSupervisor({
     required this.dial,
     required this.onConnected,
     this.onUnrecoverable,
     Future<void> Function(Duration duration)? sleep,
     bool initiallyConnected = false,
+    Haptics? haptics,
   })  : _sleep = sleep ?? Future.delayed,
-        _connected = initiallyConnected;
+        _connected = initiallyConnected,
+        _haptics = haptics ?? Haptics();
 
   /// The backoff duration the next failed dial would wait before retrying
   /// (T034 asserts this stays within [initialBackoff, maxBackoff]).
@@ -80,7 +87,14 @@ class ReconnectSupervisor<T> {
 
   /// The owner calls this when the active connection drops (e.g. from
   /// `EdgeClient.isClosed` turning true) so the next loop iteration re-dials.
+  ///
+  /// 109/FR-011: fires the connection-lost haptic only on the transition
+  /// INTO disconnected -- guarded on the previous `_connected` value so a
+  /// second call while already disconnected (or a subsequent failed retry
+  /// inside `run()`, which never calls this method again for the same
+  /// outage) never repeats it.
   void notifyDisconnected() {
+    if (_connected) _haptics.connectionLost();
     _connected = false;
   }
 

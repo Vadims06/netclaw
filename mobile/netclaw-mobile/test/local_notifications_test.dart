@@ -1,3 +1,4 @@
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:netclaw_mobile/ncfed/local_notifications.dart';
 
@@ -35,6 +36,33 @@ void main() {
       final feed = notificationPayload(type: 'feed', identifier: 'shared-id');
       final chat = notificationPayload(type: 'chat', identifier: 'shared-id');
       expect(feed, isNot(equals(chat)));
+    });
+  });
+
+  group('notification interruption level (109/FR-007)', () {
+    test('an approval notification is Time Sensitive on iOS/macOS', () {
+      final details = approvalNotificationDetails();
+      expect(details.iOS?.interruptionLevel, InterruptionLevel.timeSensitive);
+      expect(details.macOS?.interruptionLevel, InterruptionLevel.timeSensitive);
+    });
+
+    test('an approval notification is high importance/priority on Android', () {
+      final details = approvalNotificationDetails();
+      expect(details.android?.importance, Importance.high);
+      expect(details.android?.priority, Priority.high);
+    });
+
+    test('a feed/chat-answer notification does NOT carry Time Sensitive', () {
+      final details = messageNotificationDetails(badgeCount: 3);
+      expect(details.iOS?.interruptionLevel, isNull);
+      expect(details.macOS?.interruptionLevel, isNull);
+    });
+
+    test('a feed/chat-answer notification does not raise Android importance/priority', () {
+      final details = messageNotificationDetails(badgeCount: 3);
+      // Defaults, not the approval channel's explicit high/high.
+      expect(details.android?.importance, isNot(Importance.high));
+      expect(details.android?.priority, isNot(Priority.high));
     });
   });
 }

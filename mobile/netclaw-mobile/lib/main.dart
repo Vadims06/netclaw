@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'ncfed/app_lock.dart';
 import 'ncfed/approval_client.dart';
 import 'ncfed/background_refresh.dart';
 import 'ncfed/badge_lifecycle.dart';
@@ -20,6 +21,7 @@ import 'ncfed/edge_client.dart';
 import 'ncfed/edge_identity.dart';
 import 'ncfed/enrollment_qr_payload.dart';
 import 'ncfed/enrollment_store.dart';
+import 'ncfed/haptics.dart';
 import 'ncfed/heartbeat.dart';
 import 'ncfed/live_activity.dart';
 import 'ncfed/local_notifications.dart';
@@ -40,6 +42,7 @@ import 'screens/enrollment_screen.dart';
 import 'screens/feed_screen.dart';
 import 'screens/onboarding_explainer_screen.dart';
 import 'screens/settings_screen.dart';
+import 'theme.dart';
 
 /// Referenced only so [backgroundRefreshMain] (103/US3) stays part of the
 /// compiled program's import graph -- native code invokes it by name via a
@@ -59,11 +62,146 @@ class NetClawMobileApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'NetClaw Mobile',
-      // The claw mark's own orange (assets/icon/icon.png) — matches the
-      // brand, not an arbitrary Material default.
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE65733))),
-      home: const EnrollmentGate(),
+      theme: netclawTheme,
+      darkTheme: netclawDarkTheme,
+      themeMode: ThemeMode.system,
+      home: AppLockGate(child: EnrollmentGate()),
     );
+  }
+}
+
+enum _LockState { loading, locked, covered, unlocked }
+
+/// 109/US4: gates ALL app content (both the enrollment flow and the
+/// enrolled HomeShell) behind Face ID when the operator has turned the
+/// Settings toggle on. A no-op wrapper when the preference is off/unset --
+/// which every existing test and every device that never opts in continues
+/// to see (FR-008's first acceptance scenario).
+class AppLockGate extends StatefulWidget {
+  final Widget child;
+
+  /// Injectable so tests never touch the real secure-storage platform
+  /// channel (109/research.md R4).
+  final AppLockPreference? appLockPreference;
+
+  /// Injectable so tests never touch the real biometric platform channel —
+  /// mirrors `approval_confirmation.dart`'s own `authenticate` parameter.
+  final Future<bool> Function(String reason)? authenticate;
+
+  const AppLockGate({super.key, required this.child, this.appLockPreference, this.authenticate});
+
+  @override
+  State<AppLockGate> createState() => _AppLockGateState();
+}
+
+class _AppLockGateState extends State<AppLockGate> with WidgetsBindingObserver {
+  late final AppLockPreference _pref = widget.appLockPreference ?? AppLockPreference();
+  _LockState _state = _LockState.loading;
+  bool _enabled = false;
+  Duration _gracePeriod = defaultGracePeriod;
+  // Volatile, deliberately never persisted (data-model.md) -- a killed and
+  // relaunched process is always a cold start, which already requires auth
+  // regardless of any grace period.
+  DateTime? _lastForegroundedAt;
+  bool _authenticating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final enabled = await _pref.isEnabled();
+    final gracePeriod = await _pref.gracePeriod();
+    if (!mounted) return;
+    setState(() {
+      _enabled = enabled;
+      _gracePeriod = gracePeriod;
+      _state = enabled ? _LockState.locked : _LockState.unlocked;
+    });
+    if (enabled) _attemptUnlock();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_enabled) return;
+    switch (state) {
+      // FR-009's own gotcha: cover content BEFORE backgrounding (inactive
+      // fires first, ahead of the OS app-switcher snapshot), not after.
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        if (mounted && _state == _LockState.unlocked) {
+          setState(() => _state = _LockState.covered);
+        }
+      case AppLifecycleState.resumed:
+        if (_state == _LockState.covered) {
+          if (requiresReauth(
+              now: DateTime.now(), lastForegroundedAt: _lastForegroundedAt, gracePeriod: _gracePeriod)) {
+            setState(() => _state = _LockState.locked);
+            _attemptUnlock();
+          } else {
+            // Within the grace period -- no re-prompt (FR-009), and this
+            // counts as fresh presence, so the window effectively renews.
+            _lastForegroundedAt = DateTime.now();
+            setState(() => _state = _LockState.unlocked);
+          }
+        }
+      case AppLifecycleState.detached:
+        break;
+    }
+  }
+
+  Future<void> _attemptUnlock() async {
+    if (_authenticating) return; // FR-010: never a second concurrent prompt
+    _authenticating = true;
+    final ok = await authenticateForAppLock('Unlock NetClaw', authenticate: widget.authenticate);
+    _authenticating = false;
+    if (!mounted) return;
+    if (ok) {
+      _lastForegroundedAt = DateTime.now();
+      setState(() => _state = _LockState.unlocked);
+    }
+    // Failed/cancelled: FR-009's Acceptance Scenario 6 -- the lock screen
+    // remains, no app content is ever exposed. The operator can retry via
+    // the lock screen's own button (below).
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (_state) {
+      case _LockState.loading:
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      case _LockState.locked:
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline, size: 48),
+                const SizedBox(height: 16),
+                const Text('NetClaw is locked'),
+                const SizedBox(height: 16),
+                ElevatedButton(onPressed: _attemptUnlock, child: const Text('Unlock')),
+              ],
+            ),
+          ),
+        );
+      case _LockState.covered:
+        // Deliberately blank -- this is what the OS app-switcher snapshot
+        // captures, so it must not leak any app content (FR-009's gotcha).
+        return const Scaffold(body: SizedBox.expand());
+      case _LockState.unlocked:
+        return widget.child;
+    }
   }
 }
 
@@ -89,11 +227,16 @@ class EnrollmentGate extends StatefulWidget {
     required EdgeIdentity identity,
   }) reconnect;
 
-  const EnrollmentGate({
+  /// Injectable so tests never touch the real haptic platform channel
+  /// (109/research.md R4).
+  final Haptics haptics;
+
+  EnrollmentGate({
     super.key,
     this.documentsDirectory = getApplicationDocumentsDirectory,
     this.reconnect = EdgeClient.reconnect,
-  });
+    Haptics? haptics,
+  }) : haptics = haptics ?? Haptics();
 
   @override
   State<EnrollmentGate> createState() => _EnrollmentGateState();
@@ -180,6 +323,7 @@ class _EnrollmentGateState extends State<EnrollmentGate> {
             await _store!.save(stored);
           }
           if (!mounted) return;
+          widget.haptics.enrollmentSucceeded();
           navigator.pushReplacement(
             MaterialPageRoute(builder: (_) => HomeShell(client: client, stored: stored)),
           );
@@ -626,6 +770,23 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
+  /// The single tab-switch-plus-mark-read implementation, shared by the
+  /// bottom navigation AND the Dashboard's Unread/Pending tap-through
+  /// (109/US7, research.md R7) -- one place, so both callers agree on what
+  /// "opening Feed" means by construction, not by two implementations kept
+  /// in sync by hand.
+  void _selectTab(int index) => setState(() {
+        _tab = index;
+        // Opening the Feed is what marks it read; clear the badge and the
+        // one-shot notification highlight together. Indices shifted by one
+        // (099/FR-012) now that Dashboard occupies index 0.
+        if (index == 2) {
+          _unreadFeed = 0;
+          _highlightPushedAt = null;
+        }
+        if (index == 1) _highlightTaskId = null;
+      });
+
   Future<void> _scanDevice() async {
     if (_askClient == null || _conversationStore == null) return;
     await Navigator.of(context).push(MaterialPageRoute(
@@ -660,6 +821,9 @@ class _HomeShellState extends State<HomeShell> {
           conversationStore: _conversationStore,
           approvalClient: _approvalClient,
         ),
+        onOpenFeed: () => _selectTab(2),
+        onOpenChat: () => _selectTab(1),
+        onOpenApprovals: () => _selectTab(3),
       ),
       ChatScreen(
         askClient: _askClient!,
@@ -707,17 +871,7 @@ class _HomeShellState extends State<HomeShell> {
       body: IndexedStack(index: _tab, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() {
-          _tab = i;
-          // Opening the Feed is what marks it read; clear the badge and the
-          // one-shot notification highlight together. Indices shifted by one
-          // (099/FR-012) now that Dashboard occupies index 0.
-          if (i == 2) {
-            _unreadFeed = 0;
-            _highlightPushedAt = null;
-          }
-          if (i == 1) _highlightTaskId = null;
-        }),
+        onDestinationSelected: _selectTab,
         destinations: [
           const NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
           const NavigationDestination(icon: Icon(Icons.chat), label: 'Chat'),
@@ -760,7 +914,10 @@ class _HomeShellState extends State<HomeShell> {
     await EnrollmentStore(dir).clear();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const EnrollmentGate()),
+      // 109/FR-009: re-wrapped in AppLockGate, not a bare EnrollmentGate --
+      // otherwise a device with app-lock enabled would be left unprotected
+      // for the rest of the session after a Border-initiated revocation.
+      MaterialPageRoute(builder: (_) => AppLockGate(child: EnrollmentGate())),
     );
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
       content: Text('This device was removed by your Border. Enroll again to reconnect.'),
@@ -778,7 +935,8 @@ class _HomeShellState extends State<HomeShell> {
     await EnrollmentStore(dir).clear();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const EnrollmentGate()),
+      // 109/FR-009: same reasoning as _handleRevoked above.
+      MaterialPageRoute(builder: (_) => AppLockGate(child: EnrollmentGate())),
     );
   }
 

@@ -362,3 +362,41 @@ Border, not a dependency.
   BiometricPrompt need no key at all) — added to `Info.plist` alongside the
   existing camera/microphone keys, which now also cover the `camera` package's
   photo/video capture use (not exercised on iOS, same Xcode/Mac caveat as above).
+- **1.0.1 polish pass** (spec `109-mobile-polish-pass`, 2026-08-15, version bumped
+  `1.0.0+1` → `1.0.1+2`): dark mode (a proper dark `ColorScheme`, `themeMode:
+  ThemeMode.system`, a repo-hygiene test locking the color-literal sweep in going
+  forward), selectable/copyable/shareable Markdown-or-preformatted rendering for
+  chat answers and Feed messages (`flutter_markdown_plus` — `flutter_markdown` is
+  confirmed discontinued by its own publisher), Time Sensitive approval
+  notifications, an operator-adjustable Face ID app-lock gate wrapping the entire
+  app root, haptic feedback on six key events (phone + watch), live search/filter
+  across Chat and Feed, and a fix for the Dashboard's "Unread"/"Pending approvals"
+  rows previously doing nothing on tap.
+  - **Verified**: everything above via the automated suite — `flutter analyze`
+    clean, full `flutter test` suite passing (360/360, zero regressions, zero
+    skipped tests) — consistent with this spec's own scoping to avoid anything
+    that could only be proven on a physical device.
+  - **Verified via `xcodebuild`, not on real hardware**: the watch-side haptic
+    additions (`ApprovalsView.swift`/`WatchDataStore.swift`) compile cleanly
+    (`xcodebuild -workspace Runner.xcworkspace -scheme WatchApp -sdk
+    watchsimulator` → `BUILD SUCCEEDED`, both before and after the changes).
+    Whether they actually *feel* right on a wrist has not been checked.
+  - **Not verified — needs a physical device**: (1) the long-answer
+    scroll-performance scenario (profiling a ~5000-character answer for dropped
+    frames) — Clarifications (2026-08-14) scoped this to a manual/qualitative
+    check specifically because it cannot be proven by `flutter test`, and no
+    device pass has happened yet; (2) Time Sensitive delivery actually
+    surviving a real Focus mode (iOS Focus modes have no meaningful Simulator
+    equivalent); (3) the Face ID app-lock's actual biometric prompts — every
+    automated test exercises the injected `authenticate` fake, never
+    `local_auth`'s real platform channel; (4) all six phone-side haptics'
+    actual feel, same caveat as approvals confirmation/device-removal haptics
+    elsewhere in this document.
+  - One behavior change worth calling out explicitly rather than letting it be
+    discovered later: with app-lock enabled, an approval notification's
+    Approve/Deny action can no longer resolve until the app itself is
+    unlocked, because `HomeShell` — where the notification-response handler is
+    wired — does not mount at all until `AppLockGate` authenticates. This is
+    the intended, more conservative posture (a locked phone should not be able
+    to approve a network change), not a regression, but it is a real change in
+    what "tap Approve from the lock screen" does once app-lock is turned on.

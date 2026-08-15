@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:netclaw_mobile/ncfed/haptics.dart';
 import 'package:netclaw_mobile/ncfed/reconnect_supervisor.dart';
 
 void main() {
@@ -70,5 +71,61 @@ void main() {
     final future = supervisor.run();
     supervisor.stop();
     await future.timeout(const Duration(seconds: 1));
+  });
+
+  group('connection-lost haptic (109/FR-011)', () {
+    test('fires once on the transition into disconnected, not on repeated notifyDisconnected()',
+        () {
+      var connectionLostCount = 0;
+      final supervisor = ReconnectSupervisor<String>(
+        dial: () async => 'connected',
+        onConnected: (_) {},
+        sleep: (_) async {},
+        initiallyConnected: true,
+        haptics: Haptics(vibrate: () => connectionLostCount++),
+      );
+
+      supervisor.notifyDisconnected();
+      expect(connectionLostCount, 1);
+
+      // Still disconnected -- a second call must not repeat the haptic.
+      supervisor.notifyDisconnected();
+      expect(connectionLostCount, 1);
+    });
+
+    test('does not fire when never connected in the first place', () {
+      var connectionLostCount = 0;
+      final supervisor = ReconnectSupervisor<String>(
+        dial: () async => 'connected',
+        onConnected: (_) {},
+        sleep: (_) async {},
+        // initiallyConnected defaults to false.
+        haptics: Haptics(vibrate: () => connectionLostCount++),
+      );
+
+      supervisor.notifyDisconnected();
+      expect(connectionLostCount, 0);
+    });
+
+    test('fires again on a genuinely new disconnection after reconnecting', () async {
+      var connectionLostCount = 0;
+      late ReconnectSupervisor<String> supervisor;
+      supervisor = ReconnectSupervisor<String>(
+        dial: () async => 'connected',
+        onConnected: (_) {},
+        initiallyConnected: true,
+        haptics: Haptics(vibrate: () => connectionLostCount++),
+        sleep: (_) async => supervisor.stop(), // one lap of run() is enough
+      );
+
+      supervisor.notifyDisconnected(); // first outage
+      expect(connectionLostCount, 1);
+
+      await supervisor.run(); // dial() succeeds -- reconnects, resets _connected
+      expect(supervisor.isConnected, isTrue);
+
+      supervisor.notifyDisconnected(); // second, separate outage
+      expect(connectionLostCount, 2);
+    });
   });
 }

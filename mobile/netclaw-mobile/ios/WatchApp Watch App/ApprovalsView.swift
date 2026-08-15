@@ -1,5 +1,6 @@
 import LocalAuthentication
 import SwiftUI
+import WatchKit
 
 /// Mirrors the phone's `PendingApproval` (lib/ncfed/approval_client.dart) --
 /// relayed through `watch/approvals/list` (contracts/watch-relay.md §1).
@@ -69,8 +70,14 @@ struct ApprovalsView: View {
         let reply = await WatchConnectivitySession.shared.send(
             method: "watch/approvals/resolve",
             args: ["approval_id": approval.id, "action": action])
-        if reply?["resolved"] as? Bool != true {
+        // 109/US5: watch-native equivalent of the phone's approval-resolved
+        // haptics (research.md R6 -- no Dart bridge, this fires independently
+        // of anything the phone does).
+        if reply?["resolved"] as? Bool == true {
+            WKInterfaceDevice.current().play(.success)
+        } else {
             errorMessage = "Could not resolve — check your iPhone connection."
+            WKInterfaceDevice.current().play(.failure)
         }
         await store.refreshApprovals() // FR-005: a resolved approval must drop off the list
     }

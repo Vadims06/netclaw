@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'edge_client.dart';
+import 'haptics.dart';
 
 /// A pending approval pushed from the Border (feature 068, US1) — arrives
 /// as an `n2n/edge/message` with `content_type='approval'` (research D5),
@@ -45,8 +46,9 @@ class ApprovalClient {
   final EdgeRpcSource client;
   final _pending = <int, PendingApproval>{};
   final _updates = StreamController<List<PendingApproval>>.broadcast();
+  final Haptics _haptics;
 
-  ApprovalClient(this.client);
+  ApprovalClient(this.client, {Haptics? haptics}) : _haptics = haptics ?? Haptics();
 
   Stream<List<PendingApproval>> get pending => _updates.stream;
   List<PendingApproval> get currentPending => List.unmodifiable(_pending.values);
@@ -58,6 +60,7 @@ class ApprovalClient {
     final approval = PendingApproval.fromWire(params);
     _pending[approval.approvalId] = approval;
     _updates.add(currentPending);
+    _haptics.approvalArrived();
   }
 
   /// Resolves an approval. The caller MUST have already completed a
@@ -76,13 +79,20 @@ class ApprovalClient {
   /// first-time resolution.
   Future<bool> resolve(int approvalId, String action,
       {String confirmationMethod = 'biometric'}) async {
-    final reply = await client.call('n2n/edge/approval_resolve', {
-      'approval_id': approvalId,
-      'action': action,
-      if (confirmationMethod != 'biometric') 'confirmation_method': confirmationMethod,
-    });
+    final Map<String, dynamic> reply;
+    try {
+      reply = await client.call('n2n/edge/approval_resolve', {
+        'approval_id': approvalId,
+        'action': action,
+        if (confirmationMethod != 'biometric') 'confirmation_method': confirmationMethod,
+      });
+    } catch (_) {
+      _haptics.approvalResolveFailed();
+      rethrow;
+    }
     _pending.remove(approvalId);
     _updates.add(currentPending);
+    _haptics.approvalResolvedSuccessfully();
     return reply['already_resolved'] as bool? ?? false;
   }
 

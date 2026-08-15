@@ -3,13 +3,19 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../ncfed/capture_client.dart';
+import '../ncfed/conversation_search.dart';
 import '../ncfed/conversation_store.dart';
 import '../ncfed/edge_ask_client.dart';
+import '../ncfed/haptics.dart';
 import '../ncfed/turn_reconciler.dart';
 import '../ncfed/voice_transcription.dart';
+import 'answer_body.dart';
 import 'capture_screen.dart';
+import 'highlighted_text.dart';
 
 /// Chat screen (feature 067, FR-006): request/answer history, in-progress
 /// state while a task is pending, and a cancel action per in-progress turn
@@ -28,14 +34,25 @@ class ChatScreen extends StatefulWidget {
   /// `main.dart` can recompute the combined app badge (FR-008).
   final VoidCallback? onChanged;
 
+  /// Injectable so tests never touch the real share platform channel
+  /// (109/research.md R4).
+  final Future<ShareResult> Function(ShareParams params)? shareAction;
+
+  /// Injectable so tests never touch the real haptic platform channel
+  /// (109/research.md R4).
+  final Haptics haptics;
+
   ChatScreen({
     super.key,
     required this.askClient,
     required this.store,
     this.highlightTaskId,
     this.onChanged,
+    this.shareAction,
     VoiceTranscription? voiceTranscription,
-  }) : voiceTranscription = voiceTranscription ?? VoiceTranscription();
+    Haptics? haptics,
+  })  : voiceTranscription = voiceTranscription ?? VoiceTranscription(),
+        haptics = haptics ?? Haptics();
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -50,6 +67,16 @@ class _ChatScreenState extends State<ChatScreen>
   bool _listening = false;
   /// taskId -> latest progress detail from n2n/edge/task_progress.
   final Map<String, String> _progress = {};
+
+  /// 109/US6: transient search/filter state -- deliberately never persisted
+  /// (FR-015), reset to defaults on every fresh mount.
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  final Set<String> _selectedStates = {};
+  final Set<String> _selectedOrigins = {};
+
+  static const _stateChoices = ['pending', 'working', 'completed', 'failed', 'cancelled'];
+  static const _originChoices = ['phone', 'watch'];
 
   @override
   void initState() {
@@ -101,6 +128,7 @@ class _ChatScreenState extends State<ChatScreen>
     widget.voiceTranscription.cancel();
     _scroll.dispose();
     _controller.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -161,6 +189,7 @@ class _ChatScreenState extends State<ChatScreen>
     };
     final follow = _isNearBottom;
     await widget.store.updateState(update.taskId, stateName, answerText: update.outputText);
+    if (stateName == 'completed') widget.haptics.chatAnswerCompleted();
     if (mounted) setState(() {});
     if (follow) _jumpToNewest(animate: true);
   }
@@ -311,36 +340,110 @@ class _ChatScreenState extends State<ChatScreen>
     widget.onChanged?.call();
   }
 
+  /// 109/US6: live text search plus state/origin filter chips (FR-012/
+  /// FR-013). Search/filter state lives entirely in this widget's own
+  /// State -- never persisted (FR-015), never touching `widget.store`.
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search chat',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    ),
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (value) => setState(() => _searchQuery = value),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            children: [
+              for (final state in _stateChoices)
+                FilterChip(
+                  label: Text(state),
+                  selected: _selectedStates.contains(state),
+                  onSelected: (selected) => setState(() {
+                    if (selected) {
+                      _selectedStates.add(state);
+                    } else {
+                      _selectedStates.remove(state);
+                    }
+                  }),
+                ),
+              for (final origin in _originChoices)
+                FilterChip(
+                  label: Text(origin),
+                  selected: _selectedOrigins.contains(origin),
+                  onSelected: (selected) => setState(() {
+                    if (selected) {
+                      _selectedOrigins.add(origin);
+                    } else {
+                      _selectedOrigins.remove(origin);
+                    }
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    final turns = List.of(widget.store.turns)
+    final allTurns = List.of(widget.store.turns)
       ..sort((a, b) => a.submittedAt.compareTo(b.submittedAt));
+    final turns = filterTurns(allTurns,
+        query: _searchQuery, states: _selectedStates, origins: _selectedOrigins);
+    final filtering =
+        _searchQuery.trim().isNotEmpty || _selectedStates.isNotEmpty || _selectedOrigins.isNotEmpty;
     return Column(
       children: [
+        _buildSearchBar(),
         Expanded(
-          child: turns.isEmpty
+          child: allTurns.isEmpty
               ? const Center(child: Text('Ask your Border something.'))
-              : ListView.builder(
-                  controller: _scroll,
-                  itemCount: turns.length,
-                  itemBuilder: (context, index) {
-                    final highlighted = widget.highlightTaskId != null &&
-                        turns[index].taskId == widget.highlightTaskId;
-                    return _TurnTile(
-                      key: highlighted ? _highlightKey : null,
-                      turn: turns[index],
-                      highlighted: highlighted,
-                      progressDetail: _progress[turns[index].taskId],
-                      onCancel: () => _cancel(turns[index].taskId),
-                      onRetry: () => _retry(turns[index]),
-                      onAcknowledge: () => _acknowledge(turns[index].taskId),
-                      onDelete: () => _delete(turns[index].taskId),
-                    );
-                  },
-                ),
+              : turns.isEmpty
+                  ? const Center(child: Text('No matching turns.'))
+                  : ListView.builder(
+                      controller: _scroll,
+                      itemCount: turns.length,
+                      itemBuilder: (context, index) {
+                        final highlighted = !filtering &&
+                            widget.highlightTaskId != null &&
+                            turns[index].taskId == widget.highlightTaskId;
+                        return _TurnTile(
+                          key: highlighted ? _highlightKey : null,
+                          turn: turns[index],
+                          highlighted: highlighted,
+                          progressDetail: _progress[turns[index].taskId],
+                          onCancel: () => _cancel(turns[index].taskId),
+                          onRetry: () => _retry(turns[index]),
+                          onAcknowledge: () => _acknowledge(turns[index].taskId),
+                          onDelete: () => _delete(turns[index].taskId),
+                          shareAction: widget.shareAction,
+                          highlightQuery: _searchQuery,
+                        );
+                      },
+                    ),
         ),
         SafeArea(
           child: Padding(
@@ -388,6 +491,8 @@ class _ChatScreenState extends State<ChatScreen>
   }
 }
 
+enum _AnswerAction { copyAnswer, copyBoth, share }
+
 class _TurnTile extends StatelessWidget {
   final ConversationTurn turn;
   final VoidCallback onCancel;
@@ -401,6 +506,14 @@ class _TurnTile extends StatelessWidget {
   /// "Working…".
   final String? progressDetail;
 
+  /// Injectable so tests never touch the real share platform channel (109/
+  /// research.md R4's injectable-function-with-production-default pattern).
+  final Future<ShareResult> Function(ShareParams params)? shareAction;
+
+  /// 109/US6: the active search query, for highlighting matches in the
+  /// question header and (when not Markdown-rendered) the answer body.
+  final String highlightQuery;
+
   const _TurnTile({
     super.key,
     required this.turn,
@@ -410,11 +523,19 @@ class _TurnTile extends StatelessWidget {
     required this.onDelete,
     this.highlighted = false,
     this.progressDetail,
+    this.shareAction,
+    this.highlightQuery = '',
   });
 
   bool get _isRetryable => turn.state == 'failed' || turn.state == 'cancelled';
 
   bool get _inProgress => turn.state == 'pending' || turn.state == 'working';
+
+  /// 109/FR-005: the overflow menu / long-press actions operate on the
+  /// answer, so they only make sense once there is one.
+  bool get _hasAnswer => (turn.answerText ?? '').isNotEmpty;
+
+  bool get _isTerminal => turn.state == 'completed' || turn.state == 'failed';
 
   /// Matches `ConversationStore.unreadCount`'s own definition (073/FR-011):
   /// an in-progress turn has nothing to acknowledge yet.
@@ -425,9 +546,91 @@ class _TurnTile extends StatelessWidget {
     final card = _card(context);
     // "Or if you click on fail it asks to retry" — make the whole tile a retry
     // affordance, not just the button, so a failed turn is never a dead end.
+    // 109/FR-005's long-press fast-path lives in AnswerBody's own
+    // contextMenuBuilder (see answer_body.dart's doc comment for why it
+    // isn't an ancestor onLongPress here).
     if (!_isRetryable) return card;
     return InkWell(onTap: () => _confirmRetry(context), child: card);
   }
+
+  Future<void> _showAnswerActions(BuildContext context) async {
+    final action = await showModalBottomSheet<_AnswerAction>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.copy),
+            title: const Text('Copy answer'),
+            onTap: () => Navigator.pop(ctx, _AnswerAction.copyAnswer),
+          ),
+          ListTile(
+            leading: const Icon(Icons.copy_all),
+            title: const Text('Copy question + answer'),
+            onTap: () => Navigator.pop(ctx, _AnswerAction.copyBoth),
+          ),
+          ListTile(
+            leading: const Icon(Icons.share),
+            title: const Text('Share'),
+            onTap: () => Navigator.pop(ctx, _AnswerAction.share),
+          ),
+        ]),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+    await _runAnswerAction(context, action);
+  }
+
+  /// Shared by the overflow menu (bottom sheet, above) and the long-press
+  /// context menu (answer_body.dart's `buildActions`) — one implementation,
+  /// two entry points, per FR-005's "not a second, different action."
+  Future<void> _runAnswerAction(BuildContext context, _AnswerAction action) async {
+    switch (action) {
+      case _AnswerAction.copyAnswer:
+        await Clipboard.setData(ClipboardData(text: turn.answerText ?? ''));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('Answer copied')));
+        }
+      case _AnswerAction.copyBoth:
+        await Clipboard.setData(
+            ClipboardData(text: '${turn.requestText}\n\n${turn.answerText ?? ''}'));
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied')));
+        }
+      case _AnswerAction.share:
+        final share = shareAction ?? SharePlus.instance.share;
+        await share(ShareParams(
+          text: turn.answerText,
+          files: turn.photoPath != null ? [XFile(turn.photoPath!)] : null,
+        ));
+    }
+  }
+
+  /// Long-press context-menu buttons for `AnswerBody.buildActions` — the
+  /// same three actions as the overflow menu.
+  List<ContextMenuButtonItem> _answerContextMenuItems(BuildContext context) => [
+        ContextMenuButtonItem(
+          label: 'Copy answer',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _runAnswerAction(context, _AnswerAction.copyAnswer);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Copy question + answer',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _runAnswerAction(context, _AnswerAction.copyBoth);
+          },
+        ),
+        ContextMenuButtonItem(
+          label: 'Share',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _runAnswerAction(context, _AnswerAction.share);
+          },
+        ),
+      ];
 
   Future<void> _confirmRetry(BuildContext context) async {
     final ok = await showDialog<bool>(
@@ -485,13 +688,26 @@ class _TurnTile extends StatelessWidget {
                   const SizedBox(width: 6),
                 ],
                 Expanded(
-                  child: Text(turn.requestText, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  child: HighlightedText(
+                    turn.requestText,
+                    query: highlightQuery,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 if (_isUnread)
                   IconButton(
                     icon: const Icon(Icons.check_circle_outline, size: 20),
                     tooltip: 'Acknowledge',
                     onPressed: onAcknowledge,
+                  ),
+                // 109/FR-005: always-visible overflow menu -- the primary
+                // way to reach copy/share; long-press (build(), above) is a
+                // fast-path shortcut to this identical menu.
+                if (_hasAnswer)
+                  IconButton(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    tooltip: 'Answer actions',
+                    onPressed: () => _showAnswerActions(context),
                   ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 20),
@@ -508,8 +724,8 @@ class _TurnTile extends StatelessWidget {
                   File(turn.photoPath!),
                   height: 160,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Text('[Photo unavailable]', style: TextStyle(color: Colors.grey)),
+                  errorBuilder: (context, error, stackTrace) => Text('[Photo unavailable]',
+                      style: TextStyle(color: scheme.onSurfaceVariant)),
                 ),
               ),
             ],
@@ -526,7 +742,7 @@ class _TurnTile extends StatelessWidget {
               )
             else if (turn.state == 'cancelled')
               Row(children: [
-                const Text('Cancelled', style: TextStyle(color: Colors.grey)),
+                Text('Cancelled', style: TextStyle(color: scheme.onSurfaceVariant)),
                 const Spacer(),
                 TextButton.icon(
                     onPressed: onRetry,
@@ -535,8 +751,15 @@ class _TurnTile extends StatelessWidget {
               ])
             else if (turn.state == 'failed')
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(turn.answerText ?? 'Failed',
-                    style: const TextStyle(color: Colors.red)),
+                turn.answerText == null
+                    ? Text('Failed', style: TextStyle(color: scheme.error))
+                    : AnswerBody(
+                        text: turn.answerText!,
+                        isTerminal: _isTerminal,
+                        textColor: scheme.error,
+                        buildActions: _answerContextMenuItems,
+                        highlightQuery: highlightQuery,
+                      ),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
@@ -546,7 +769,12 @@ class _TurnTile extends StatelessWidget {
                 ),
               ])
             else
-              Text(turn.answerText ?? ''),
+              AnswerBody(
+                text: turn.answerText ?? '',
+                isTerminal: _isTerminal,
+                buildActions: _answerContextMenuItems,
+                highlightQuery: highlightQuery,
+              ),
           ],
         ),
       ),

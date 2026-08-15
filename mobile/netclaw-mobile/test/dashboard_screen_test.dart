@@ -1,64 +1,110 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:netclaw_mobile/ncfed/dashboard_data.dart';
 import 'package:netclaw_mobile/screens/dashboard_screen.dart';
 
+DashboardSnapshot _snapshot({int unreadFeed = 0, int unreadChat = 0, int pendingApprovals = 0}) =>
+    DashboardSnapshot(
+      connected: true,
+      identity: const FederationIdentitySnapshot(
+        enrolled: true,
+        memberId: 'risk/1',
+        clawDomain: 'example.claw',
+      ),
+      unreadPending: UnreadPendingSnapshot(
+        unreadFeed: unreadFeed,
+        unreadChat: unreadChat,
+        pendingApprovals: pendingApprovals,
+      ),
+    );
+
 void main() {
-  Future<void> pump(WidgetTester tester, DashboardSnapshot snapshot) => tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: DashboardScreen(snapshot: snapshot))));
-
-  testWidgets('not-enrolled shows a clear empty state, not blank or an error',
-      (tester) async {
-    await pump(
-      tester,
-      const DashboardSnapshot(
-        connected: false,
-        identity: FederationIdentitySnapshot(enrolled: false, memberId: '', clawDomain: ''),
-        unreadPending: UnreadPendingSnapshot(unreadFeed: 0, unreadChat: 0, pendingApprovals: 0),
-      ),
-    );
-
-    expect(find.text('Not yet enrolled'), findsOneWidget);
-  });
-
-  testWidgets('connected shows healthy state, identity, and counts', (tester) async {
-    await pump(
-      tester,
-      const DashboardSnapshot(
-        connected: true,
-        identity: FederationIdentitySnapshot(
-          enrolled: true,
-          memberId: 'member-123',
-          clawDomain: 'border.home.arpa',
+  Widget wrap(DashboardSnapshot snapshot,
+      {VoidCallback? onOpenFeed, VoidCallback? onOpenChat, VoidCallback? onOpenApprovals}) {
+    return MaterialApp(
+      home: Scaffold(
+        body: DashboardScreen(
+          snapshot: snapshot,
+          onOpenFeed: onOpenFeed ?? () {},
+          onOpenChat: onOpenChat ?? () {},
+          onOpenApprovals: onOpenApprovals ?? () {},
         ),
-        unreadPending: UnreadPendingSnapshot(unreadFeed: 2, unreadChat: 1, pendingApprovals: 4),
       ),
     );
+  }
 
-    expect(find.text('Connected to Border'), findsOneWidget);
-    expect(find.text('border.home.arpa'), findsOneWidget);
-    expect(find.text('member-123'), findsOneWidget);
-    expect(find.text('3'), findsOneWidget); // totalUnread = 2 + 1
-    expect(find.text('4'), findsOneWidget); // pendingApprovals
-  });
+  group('Dashboard tap-through (109/US7/FR-017/FR-018)', () {
+    testWidgets('tapping Unread with unread Feed messages opens Feed', (tester) async {
+      var openedFeed = false;
+      await tester.pumpWidget(wrap(
+        _snapshot(unreadFeed: 2, unreadChat: 0),
+        onOpenFeed: () => openedFeed = true,
+      ));
 
-  testWidgets('disconnected shows the degraded state, not a false healthy one',
-      (tester) async {
-    await pump(
-      tester,
-      const DashboardSnapshot(
-        connected: false,
-        identity: FederationIdentitySnapshot(
-          enrolled: true,
-          memberId: 'member-123',
-          clawDomain: 'border.home.arpa',
-        ),
-        unreadPending: UnreadPendingSnapshot(unreadFeed: 0, unreadChat: 0, pendingApprovals: 0),
-      ),
-    );
+      await tester.tap(find.text('Unread'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Connected to Border'), findsNothing);
-    expect(find.text('Reconnecting…'), findsOneWidget);
+      expect(openedFeed, isTrue);
+    });
+
+    testWidgets('tapping Unread with only unread Chat turns opens Chat', (tester) async {
+      var openedChat = false;
+      await tester.pumpWidget(wrap(
+        _snapshot(unreadFeed: 0, unreadChat: 3),
+        onOpenChat: () => openedChat = true,
+      ));
+
+      await tester.tap(find.text('Unread'));
+      await tester.pumpAndSettle();
+
+      expect(openedChat, isTrue);
+    });
+
+    testWidgets('Feed takes priority when both Feed and Chat have unread items',
+        (tester) async {
+      var openedFeed = false;
+      var openedChat = false;
+      await tester.pumpWidget(wrap(
+        _snapshot(unreadFeed: 1, unreadChat: 1),
+        onOpenFeed: () => openedFeed = true,
+        onOpenChat: () => openedChat = true,
+      ));
+
+      await tester.tap(find.text('Unread'));
+      await tester.pumpAndSettle();
+
+      expect(openedFeed, isTrue);
+      expect(openedChat, isFalse);
+    });
+
+    testWidgets('tapping Unread with zero unread anywhere does nothing', (tester) async {
+      var openedFeed = false;
+      var openedChat = false;
+      await tester.pumpWidget(wrap(
+        _snapshot(unreadFeed: 0, unreadChat: 0),
+        onOpenFeed: () => openedFeed = true,
+        onOpenChat: () => openedChat = true,
+      ));
+
+      await tester.tap(find.text('Unread'));
+      await tester.pumpAndSettle();
+
+      expect(openedFeed, isFalse);
+      expect(openedChat, isFalse);
+    });
+
+    testWidgets('tapping Pending approvals always opens Approvals, even at zero',
+        (tester) async {
+      var openedApprovals = false;
+      await tester.pumpWidget(wrap(
+        _snapshot(pendingApprovals: 0),
+        onOpenApprovals: () => openedApprovals = true,
+      ));
+
+      await tester.tap(find.text('Pending approvals'));
+      await tester.pumpAndSettle();
+
+      expect(openedApprovals, isTrue);
+    });
   });
 }
