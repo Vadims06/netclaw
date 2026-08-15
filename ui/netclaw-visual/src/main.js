@@ -129,6 +129,7 @@ const dom = {
   footerSocket: document.getElementById('footer-socket'),
   footerModel: document.getElementById('footer-model'),
   footerGateway: document.getElementById('footer-gateway'),
+  footerBudget: document.getElementById('footer-budget'),
   footerUpdated: document.getElementById('footer-updated'),
   chatDrawer: document.getElementById('chat-drawer'),
   chatMessages: document.getElementById('chat-messages'),
@@ -881,6 +882,9 @@ function renderMetrics(graph) {
   dom.footerModel.textContent = graph.config?.agents?.defaults?.model?.primary?.replace('anthropic/', '') || 'unknown';
   dom.footerGateway.textContent = graph.config?.gateway?.mode || 'unknown';
   dom.footerUpdated.textContent = new Date(graph.generatedAt).toLocaleTimeString();
+
+  // Budget status poll (spec 109)
+  pollBudgetStatus();
 }
 
 function applyFilters() {
@@ -3140,3 +3144,42 @@ async function restoreSavedLayout() {
 }
 
 boot();
+
+// ── Budget status polling (spec 109) ──────────────────────────────────────────
+//
+// Polls /api/budget/status every 10s and updates the footer indicator.
+// Color coding: green (ok) → amber (>50%) → red (>80%) → pulsing red (halted).
+
+async function pollBudgetStatus() {
+  if (!dom.footerBudget) return;
+  try {
+    const res = await fetch('/api/budget/status');
+    if (!res.ok) { dom.footerBudget.textContent = '--'; return; }
+    const data = await res.json();
+
+    const cost = data.sessionCostUsd?.toFixed(2) ?? '0.00';
+    const cap = data.sessionBudgetUsd?.toFixed(2) ?? '5.00';
+    dom.footerBudget.textContent = `$${cost} / $${cap}`;
+
+    // Color coding
+    dom.footerBudget.classList.remove('budget-ok', 'budget-warning', 'budget-critical', 'budget-halted');
+    if (data.status === 'halted') {
+      dom.footerBudget.classList.add('budget-halted');
+      dom.footerBudget.title = 'Session budget exhausted — say "continue" to extend';
+    } else if (data.status === 'critical') {
+      dom.footerBudget.classList.add('budget-critical');
+      dom.footerBudget.title = `${data.percentUsed}% of session budget used`;
+    } else if (data.status === 'warning') {
+      dom.footerBudget.classList.add('budget-warning');
+      dom.footerBudget.title = `${data.percentUsed}% of session budget used`;
+    } else {
+      dom.footerBudget.classList.add('budget-ok');
+      dom.footerBudget.title = `Session budget: ${data.percentUsed}% used`;
+    }
+  } catch {
+    dom.footerBudget.textContent = '--';
+  }
+}
+
+// Poll budget every 10 seconds
+setInterval(pollBudgetStatus, 10_000);

@@ -1287,3 +1287,36 @@ input {
   border: 2px solid #ffd97a; border-radius: 5px;
   font-size: 12px; z-index: 60;
 }
+
+/* ── Budget indicator (spec 109) ──────────────────────────────────── */
+.budget-indicator {
+  cursor: pointer;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.budget-indicator.budget-ok {
+  color: #4cc9f0; /* Cyan — matches HUD palette */
+}
+
+.budget-indicator.budget-warning {
+  color: #f8961e; /* Amber */
+  text-shadow: 0 0 6px rgba(248, 150, 30, 0.4);
+}
+
+.budget-indicator.budget-critical {
+  color: #ef476f; /* Red */
+  text-shadow: 0 0 8px rgba(239, 71, 111, 0.5);
+}
+
+.budget-indicator.budget-halted {
+  color: #ef476f;
+  text-shadow: 0 0 12px rgba(239, 71, 111, 0.7);
+  animation: budget-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes budget-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
