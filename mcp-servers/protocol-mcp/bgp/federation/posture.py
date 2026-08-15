@@ -80,9 +80,16 @@ def _channel_security(service) -> dict:
     try:
         peers = service.manager.list_peers()
         by_model, degraded = {}, 0
+        # Feature 108 (T013): transport aggregation alongside trust-model counts.
+        by_transport, edge_gated = {}, 0
         for p in peers:
             tm = p.get("trust_model") or "legacy"
             by_model[tm] = by_model.get(tm, 0) + 1
+            # Feature 108 (T013): count peers by transport type and edge-gate presence.
+            tr = p.get("transport") or "ngrok"
+            by_transport[tr] = by_transport.get(tr, 0) + 1
+            if (p.get("edge_gate") or "none") != "none":
+                edge_gated += 1
             if tm == "legacy" or p.get("verify_state") == "refused-pending-patch":
                 degraded += 1
         amber = red = failing = 0
@@ -113,10 +120,16 @@ def _channel_security(service) -> dict:
             k = _tls.channel_kex(sslobj)
             k["identity"] = ident
             k["pq"] = "available" if _tls.is_pq_group(k.get("kex_group")) else "unavailable"
+            # Feature 108 (T013): per-channel transport/edge_gate from peer row.
+            peer_row = next((p for p in peers if p.get("identity") == ident), None)
+            if peer_row:
+                k["transport"] = peer_row.get("transport") or "ngrok"
+                k["edge_gate"] = peer_row.get("edge_gate") or "none"
             channels_kex.append(k)
         return {"mode": ("enforce" if getattr(service, "cert_enforce", False) else
                          ("on" if getattr(service, "cert_mode", False) else "off")),
                 "by_trust_model": by_model, "degraded": degraded,
+                "by_transport": by_transport, "edge_gated": edge_gated,
                 "amber": amber, "red": red, "renewals_failing": failing,
                 "pq_mode": getattr(service, "pq_mode", "opportunistic"),
                 "pq_available": getattr(service, "pq_available", False),

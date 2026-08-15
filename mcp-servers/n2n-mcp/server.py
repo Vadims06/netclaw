@@ -592,6 +592,25 @@ async def n2n_forget_endpoint(peer: str, actor: str = "operator") -> str:
 
 
 @mcp.tool()
+async def n2n_set_edge_gate(peer: str, edge_gate: str) -> str:
+    """Set the edge access-control gate for a peer (feature 108, FR-005).
+
+    This is the ONLY way to enable/disable Cloudflare Access for a specific peer.
+    Setting transport=cloudflare_tunnel does NOT imply an edge gate — they are
+    independent, separate opt-in decisions (see Clarifications in spec 108).
+
+    The daemon validates that the peer exists and that edge_gate is one of the
+    accepted values; errors are returned as-is.
+
+    Args:
+        peer: Peer identity (e.g. "as65007-7.7.7.7")
+        edge_gate: "cloudflare_access" (enable) or "none" (disable)
+    """
+    return _gcf_dumps(await _post("/n2n/peer/edge_gate",
+                                  {"peer": peer, "edge_gate": edge_gate}))
+
+
+@mcp.tool()
 async def n2n_trust(peer: str, tools: str = "", chat: bool = True) -> str:
     """One-step trust: enable chat and grant a set of tools/skills to a peer in a
     single call (instead of separate consent + grant + config steps).
