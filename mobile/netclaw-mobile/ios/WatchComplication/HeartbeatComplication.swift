@@ -63,6 +63,9 @@ struct HeartbeatComplication: Widget {
         }
         .configurationDisplayName("NetClaw Status")
         .description("Shows the latest device heartbeat at a glance.")
-        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        // 112/FR-007: .accessoryCorner reuses this SAME view unchanged (research.md
+        // R4) -- the existing Image/Text + .widgetLabel pairing above is already the
+        // icon-plus-curved-label shape a corner slot renders.
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
     }
 }

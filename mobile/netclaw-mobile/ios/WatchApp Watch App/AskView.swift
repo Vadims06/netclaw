@@ -27,11 +27,14 @@ struct AskView: View {
                     ScrollView { Text(answerText) }
                     // On-demand "read aloud" (073/FR-017/FR-018) -- never
                     // triggered automatically, only by this explicit tap.
-                    Button {
-                        SpeechPlayback.shared.speak(answerText)
-                    } label: {
-                        Label("Read aloud", systemImage: "speaker.wave.2")
-                    }
+                    // 112/FR-005: Double Tap also triggers this SAME button --
+                    // "the stakes are zero" here, unlike ApprovalsView's gated
+                    // Approve button (research.md R1). Gated by an availability
+                    // check, not a deployment-target bump (research.md R3) --
+                    // this is the only .primaryAction claim in this view's own
+                    // hierarchy, so it does not conflict with ApprovalsView's
+                    // separate claim on a different screen.
+                    readAloudButton
                     Button("Ask another") { reset() }
                 case .failed:
                     Text("Couldn't get an answer.").foregroundStyle(.red)
@@ -44,6 +47,20 @@ struct AskView: View {
             }
         }
         .padding()
+    }
+
+    @ViewBuilder
+    private var readAloudButton: some View {
+        let button = Button {
+            SpeechPlayback.shared.speak(answerText)
+        } label: {
+            Label("Read aloud", systemImage: "speaker.wave.2")
+        }
+        if #available(watchOS 11.0, *) {
+            button.handGestureShortcut(.primaryAction)
+        } else {
+            button
+        }
     }
 
     private func reset() {
