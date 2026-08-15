@@ -23,6 +23,7 @@
 		72DCBAEB43B3A7560EDF0F06 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 899D52AD453861EA1A196A34 /* FeedView.swift */; };
 		731902043F88E98C8A8BB692 /* PendingApprovalLiveActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AC49A097EA8223766C69C1B /* PendingApprovalLiveActivityView.swift */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
+		75C848AFE4C85BA548D5F8F5 /* ApprovalActionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D5BF838B9249487BC350187 /* ApprovalActionIntent.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		8831D9AF2CB51ABC313C7499 /* PendingApprovalCountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E137B241FFB29D7E76F2E771 /* PendingApprovalCountStore.swift */; };
@@ -30,7 +31,9 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		A0F91D422CAE5A9A1262B105 /* ApprovalActionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D5BF838B9249487BC350187 /* ApprovalActionIntent.swift */; };
 		A8E85D3836C0AFE112E6A607 /* WatchApp.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = ECD3F5FECD3D095F16E19C7F /* WatchApp.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AA353EE7FFEBD393376659DD /* AskActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E68984CC7D1A34114C776473 /* AskActivityAttributes.swift */; };
 		AB6665C540181052E633EB50 /* WatchRelayPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F670FCA531F3F4E9726ABFE /* WatchRelayPlugin.swift */; };
 		B47997F75C18DD99FE2DC6CA /* WatchRelayPluginTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D05F988A1C8236B7562997 /* WatchRelayPluginTests.swift */; };
 		B78BDB52F47BF26E1157716A /* WatchAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11ECA5A4B25A9137F9746B1C /* WatchAppApp.swift */; };
@@ -44,6 +47,8 @@
 		DE003694E3533C1D090ADD9A /* PendingApprovalActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293A1D304532ECFF692D458B /* PendingApprovalActivityAttributes.swift */; };
 		E30895FEA1D8C6A7031B8903 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7983B9826F39C95F7907AEA4 /* HistoryView.swift */; };
 		ECEC4338AA23792FA3A304DC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0512EDA37E8AF7839C85B83 /* Assets.xcassets */; };
+		EEF68E6DA028D2426E4797B0 /* AskLiveActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758E90F2E89A0746E9995339 /* AskLiveActivityView.swift */; };
+		F174AAF58CA25C73F02BE34B /* AskActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E68984CC7D1A34114C776473 /* AskActivityAttributes.swift */; };
 		F5AC82BC8D19636F1E3FE002 /* ApprovalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2AF35EC3369EB1FF9FD76AE /* ApprovalsView.swift */; };
 		FB1A625F9305635EC2988042 /* AskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E8F7BB479463A6EDEC2DC9 /* AskView.swift */; };
 		FC7EF0B77D370C70F5BB2DBF /* WatchDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC63342F72A58D27A4A1CB24 /* WatchDataStore.swift */; };
@@ -129,6 +134,7 @@
 
 /* Begin PBXFileReference section */
 		0A1A88681C289C2A4993574F /* HeartbeatComplication.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeartbeatComplication.swift; sourceTree = "<group>"; };
+		0D5BF838B9249487BC350187 /* ApprovalActionIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ApprovalActionIntent.swift; sourceTree = "<group>"; };
 		11ECA5A4B25A9137F9746B1C /* WatchAppApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchAppApp.swift; sourceTree = "<group>"; };
 		13C1D53033EE4A7F78E8AA0E /* LiveActivityBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveActivityBridge.swift; sourceTree = "<group>"; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
@@ -150,6 +156,7 @@
 		6129DE6CAD59B231BA5725E5 /* HeartbeatStatusStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeartbeatStatusStore.swift; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		758E90F2E89A0746E9995339 /* AskLiveActivityView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AskLiveActivityView.swift; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		7892DD000E2EF1D894D34525 /* X509SelfSigned.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = X509SelfSigned.swift; sourceTree = "<group>"; };
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
@@ -171,6 +178,7 @@
 		D149057AE21A52CCF6F30439 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		E137B241FFB29D7E76F2E771 /* PendingApprovalCountStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PendingApprovalCountStore.swift; sourceTree = "<group>"; };
 		E1BC7434D4DA5543407FE3CD /* LiveActivityWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveActivityWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		E68984CC7D1A34114C776473 /* AskActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AskActivityAttributes.swift; sourceTree = "<group>"; };
 		ECD3F5FECD3D095F16E19C7F /* WatchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WatchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F0D05F988A1C8236B7562997 /* WatchRelayPluginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRelayPluginTests.swift; sourceTree = "<group>"; };
 		F28CB5A04B49A7B79D9E6AC5 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -254,6 +262,8 @@
 				293A1D304532ECFF692D458B /* PendingApprovalActivityAttributes.swift */,
 				3AC49A097EA8223766C69C1B /* PendingApprovalLiveActivityView.swift */,
 				3C6569F581DE30075857A091 /* Info.plist */,
+				E68984CC7D1A34114C776473 /* AskActivityAttributes.swift */,
+				758E90F2E89A0746E9995339 /* AskLiveActivityView.swift */,
 			);
 			path = LiveActivityWidget;
 			sourceTree = "<group>";
@@ -314,6 +324,7 @@
 				5F670FCA531F3F4E9726ABFE /* WatchRelayPlugin.swift */,
 				13C1D53033EE4A7F78E8AA0E /* LiveActivityBridge.swift */,
 				D149057AE21A52CCF6F30439 /* GoogleService-Info.plist */,
+				0D5BF838B9249487BC350187 /* ApprovalActionIntent.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -479,7 +490,7 @@
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
-				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
+				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
@@ -589,6 +600,9 @@
 			files = (
 				01A006D824F9BE6E4E1618CD /* PendingApprovalActivityAttributes.swift in Sources */,
 				731902043F88E98C8A8BB692 /* PendingApprovalLiveActivityView.swift in Sources */,
+				AA353EE7FFEBD393376659DD /* AskActivityAttributes.swift in Sources */,
+				EEF68E6DA028D2426E4797B0 /* AskLiveActivityView.swift in Sources */,
+				75C848AFE4C85BA548D5F8F5 /* ApprovalActionIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -604,6 +618,8 @@
 				AB6665C540181052E633EB50 /* WatchRelayPlugin.swift in Sources */,
 				49BEAAEF69DD4D8F46C31214 /* LiveActivityBridge.swift in Sources */,
 				DE003694E3533C1D090ADD9A /* PendingApprovalActivityAttributes.swift in Sources */,
+				F174AAF58CA25C73F02BE34B /* AskActivityAttributes.swift in Sources */,
+				A0F91D422CAE5A9A1262B105 /* ApprovalActionIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -878,6 +894,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = ca.automateyournetwork.netclaw.mobile.liveactivitywidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) IS_EXTENSION_TARGET";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -900,6 +917,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = ca.automateyournetwork.netclaw.mobile.liveactivitywidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) IS_EXTENSION_TARGET";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -1189,6 +1207,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = ca.automateyournetwork.netclaw.mobile.liveactivitywidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) IS_EXTENSION_TARGET";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -1260,7 +1279,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */ = {
+		781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage;
 		};

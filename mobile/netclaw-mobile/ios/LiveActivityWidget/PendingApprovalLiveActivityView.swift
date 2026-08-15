@@ -10,15 +10,26 @@ import WidgetKit
 struct PendingApprovalLiveActivityView: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: PendingApprovalActivityAttributes.self) { context in
-            HStack {
-                Image(systemName: "checkmark.shield")
-                VStack(alignment: .leading) {
-                    Text("Pending approval")
-                        .font(.headline)
-                    Text(context.state.targetName)
-                        .font(.subheadline)
+            VStack(alignment: .leading) {
+                HStack {
+                    Image(systemName: "checkmark.shield")
+                    VStack(alignment: .leading) {
+                        Text("Pending approval")
+                            .font(.headline)
+                        Text(context.state.targetName)
+                            .font(.subheadline)
+                    }
+                    Spacer()
                 }
-                Spacer()
+                // 113/FR-001/FR-002: interactive only on iOS 17+ -- on
+                // earlier OS versions this activity renders exactly as it
+                // did before this spec (informational only).
+                if #available(iOS 17.0, *) {
+                    HStack {
+                        Button("Approve", intent: ApprovalActionIntent())
+                        Button("Deny", intent: ApprovalActionIntent())
+                    }
+                }
             }
             .padding()
             .activityBackgroundTint(Color.black.opacity(0.8))
@@ -31,6 +42,14 @@ struct PendingApprovalLiveActivityView: Widget {
                             .font(.headline)
                         Text(context.state.targetName)
                             .font(.subheadline)
+                    }
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    if #available(iOS 17.0, *) {
+                        HStack {
+                            Button("Approve", intent: ApprovalActionIntent())
+                            Button("Deny", intent: ApprovalActionIntent())
+                        }
                     }
                 }
             } compactLeading: {
@@ -49,5 +68,6 @@ struct PendingApprovalLiveActivityView: Widget {
 struct LiveActivityWidgetBundle: WidgetBundle {
     var body: some Widget {
         PendingApprovalLiveActivityView()
+        AskLiveActivityView()
     }
 }

@@ -20,6 +20,28 @@ String? parseDeviceDeepLink(String raw) {
 String deviceStatusRequestText(String deviceId) =>
     'What is the current status of device $deviceId?';
 
+/// Recognizes `netclaw://approvals` (spec 113, research.md R2) — the URL an
+/// `ApprovalActionIntent` opens via `UIApplication.shared.open(...)` when the
+/// operator taps Approve/Deny on the pending-approval Live Activity. Reuses
+/// this app's existing `netclaw://` scheme/`app_links` plumbing rather than a
+/// second, parallel foreground-navigation mechanism.
+bool isApprovalsDeepLink(String raw) {
+  final uri = Uri.tryParse(raw);
+  return uri != null && uri.scheme == 'netclaw' && uri.host == 'approvals';
+}
+
+/// Extracts the task id from a `netclaw://chat/<taskId>` URI string, or
+/// `null` if the string isn't that shape (spec 113, research.md R3) — the
+/// URL the in-flight query Live Activity's `.widgetURL(...)` opens when
+/// tapped, mirroring [parseDeviceDeepLink]'s shape exactly.
+String? parseChatDeepLink(String raw) {
+  final uri = Uri.tryParse(raw);
+  if (uri == null || uri.scheme != 'netclaw' || uri.host != 'chat') return null;
+  final taskId = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+  if (taskId == null || taskId.isEmpty) return null;
+  return taskId;
+}
+
 /// Resolves a device deep link (URI or QR) into an automatically-submitted
 /// `n2n/edge/ask` request (feature 067, US5). An unrecognized-but-well-formed
 /// deep link (e.g. `netclaw://device/does-not-exist`) is NOT distinguished
@@ -42,9 +64,18 @@ class DeviceDeepLinkHandler {
 /// Wires OS-level `netclaw://` links (cold-start AND foreground-tap) to
 /// `DeviceDeepLinkHandler` — T022's "cold-start-from-link and a
 /// foreground-tap both land on chat_screen.dart" requirement.
+///
+/// Spec 113 broadened this beyond `netclaw://device/<id>`: it is the single
+/// already-wired `app_links` listener in this app, so the Live Activity's
+/// own two new URL shapes (`netclaw://approvals`, `netclaw://chat/<taskId>`,
+/// research.md R2/R3) are dispatched here too rather than through a second,
+/// parallel listener — [onOpenApprovals]/[onOpenChatTask] are optional so
+/// existing callers that only care about device links are unaffected.
 class DeviceDeepLinkListener {
   final DeviceDeepLinkHandler handler;
   final void Function(String taskId, String requestText) onSubmitted;
+  final void Function()? onOpenApprovals;
+  final void Function(String taskId)? onOpenChatTask;
   // Previously a failed ask() here (disconnected, timeout) was completely
   // silent -- the operator taps a device link and, from their perspective,
   // simply nothing happens, with no way to tell why. Defaults to a debug
@@ -56,6 +87,8 @@ class DeviceDeepLinkListener {
   DeviceDeepLinkListener({
     required this.handler,
     required this.onSubmitted,
+    this.onOpenApprovals,
+    this.onOpenChatTask,
     void Function(Object error)? onError,
     AppLinks? appLinks,
   })  : onError = onError ?? ((e) => debugPrint('device deep link failed: $e')),
@@ -68,7 +101,17 @@ class DeviceDeepLinkListener {
   }
 
   Future<void> _handleUri(Uri uri) async {
-    final deviceId = parseDeviceDeepLink(uri.toString());
+    final raw = uri.toString();
+    if (isApprovalsDeepLink(raw)) {
+      onOpenApprovals?.call();
+      return;
+    }
+    final chatTaskId = parseChatDeepLink(raw);
+    if (chatTaskId != null) {
+      onOpenChatTask?.call(chatTaskId);
+      return;
+    }
+    final deviceId = parseDeviceDeepLink(raw);
     if (deviceId == null) return;
     final text = deviceStatusRequestText(deviceId);
     try {
