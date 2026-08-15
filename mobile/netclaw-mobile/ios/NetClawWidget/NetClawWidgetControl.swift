@@ -1,77 +1,38 @@
-//
-//  NetClawWidgetControl.swift
-//  NetClawWidget
-//
-//  Created by John Capobianco on 8/15/26.
-//
-
 import AppIntents
 import SwiftUI
 import WidgetKit
 
+/// Control Center control (spec 114, User Story 3): shows the current
+/// pending-approval count and, when tapped, foregrounds Chat ready to type
+/// (`OpenChatIntent`, `AppIntent.swift`) -- never a headless, textless
+/// `AskBorderIntent` invocation (research.md R2, spec 111's intent requires
+/// a question string Control Center has no surface to collect).
 struct NetClawWidgetControl: ControlWidget {
-    static let kind: String = "ca.automateyournetwork.netclaw.mobile.watchapp.NetClawWidget"
+    static let kind: String = "ca.automateyournetwork.netclaw.mobile.netclawwidget.control"
 
     var body: some ControlWidgetConfiguration {
-        AppIntentControlConfiguration(
+        StaticControlConfiguration(
             kind: Self.kind,
             provider: Provider()
         ) { value in
-            ControlWidgetToggle(
-                "Start Timer",
-                isOn: value.isRunning,
-                action: StartTimerIntent(value.name)
-            ) { isRunning in
-                Label(isRunning ? "On" : "Off", systemImage: "timer")
+            ControlWidgetButton(action: OpenChatIntent()) {
+                Label("\(value) pending", systemImage: "checkmark.shield")
             }
         }
-        .displayName("Timer")
-        .description("A an example control that runs a timer.")
+        .displayName("NetClaw")
+        .description("Pending approvals, and a tap to ask NetClaw something.")
     }
 }
 
 extension NetClawWidgetControl {
-    struct Value {
-        var isRunning: Bool
-        var name: String
-    }
+    struct Provider: ControlValueProvider {
+        // 114/FR-008/research.md R5: reads the same cached WidgetDataStore
+        // value the home-screen and Lock Screen widgets read -- never a
+        // fresh network call on every Control Center refresh.
+        var previewValue: Int { 0 }
 
-    struct Provider: AppIntentControlValueProvider {
-        func previewValue(configuration: TimerConfiguration) -> Value {
-            NetClawWidgetControl.Value(isRunning: false, name: configuration.timerName)
+        func currentValue() async throws -> Int {
+            WidgetDataStore.readPendingCount()
         }
-
-        func currentValue(configuration: TimerConfiguration) async throws -> Value {
-            let isRunning = true // Check if the timer is running
-            return NetClawWidgetControl.Value(isRunning: isRunning, name: configuration.timerName)
-        }
-    }
-}
-
-struct TimerConfiguration: ControlConfigurationIntent {
-    static let title: LocalizedStringResource = "Timer Name Configuration"
-
-    @Parameter(title: "Timer Name", default: "Timer")
-    var timerName: String
-}
-
-struct StartTimerIntent: SetValueIntent {
-    static let title: LocalizedStringResource = "Start a timer"
-
-    @Parameter(title: "Timer Name")
-    var name: String
-
-    @Parameter(title: "Timer is running")
-    var value: Bool
-
-    init() {}
-
-    init(_ name: String) {
-        self.name = name
-    }
-
-    func perform() async throws -> some IntentResult {
-        // Start the timer…
-        return .result()
     }
 }

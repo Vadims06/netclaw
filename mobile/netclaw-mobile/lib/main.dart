@@ -25,6 +25,7 @@ import 'ncfed/haptics.dart';
 import 'ncfed/heartbeat.dart';
 import 'ncfed/ask_live_activity.dart';
 import 'ncfed/live_activity.dart';
+import 'ncfed/widget_data.dart';
 import 'ncfed/local_notifications.dart';
 import 'ncfed/message_feed.dart';
 import 'ncfed/notification_deep_link.dart';
@@ -441,6 +442,7 @@ class _HomeShellState extends State<HomeShell> {
           liveActivity.update(approvalId: resolvedId, status: 'resolved');
         }
         previousPendingIds = currentIds;
+        mirrorPendingCount(pending.length); // 114/FR-001
         if (pending.isNotEmpty) {
           liveActivity.start(approvalId: pending.first.approvalId, targetName: pending.first.targetName);
         } else {
@@ -498,7 +500,9 @@ class _HomeShellState extends State<HomeShell> {
           // must not be skipped just because the app happens to be
           // backgrounded when a heartbeat lands.
           if (looksLikeDeviceHeartbeat(message)) {
-            DeviceHeartbeatStore(dir).save(DeviceHeartbeatStatus.fromMessage(message));
+            final status = DeviceHeartbeatStatus.fromMessage(message);
+            DeviceHeartbeatStore(dir).save(status);
+            mirrorHealth(status); // 114/FR-001
           }
           // Spec 107/US1: the feed just gained a message, so a notification tap
           // still waiting for one may now be satisfiable. This is the signal that
@@ -642,6 +646,15 @@ class _HomeShellState extends State<HomeShell> {
             _highlightTaskId = turn.taskId;
           });
         },
+        // 114/US2: a health-related widget tap (research.md R3).
+        onOpenDashboard: () {
+          if (mounted) _selectTab(0);
+        },
+        // 114/US3: the Control Center control's tap target (research.md
+        // R2) -- opens Chat with no specific turn highlighted.
+        onOpenChat: () {
+          if (mounted) _selectTab(1);
+        },
       );
       _deepLinkListener!.start();
       _wireReconnect();
@@ -668,6 +681,7 @@ class _HomeShellState extends State<HomeShell> {
         unreadChat: conversationStore.unreadCount,
       ),
     );
+    mirrorUnreadCount(feedStore.unreadCount); // 114/FR-001
   }
 
   /// Auto-redials on a dropped connection (068 polish, ports 066's

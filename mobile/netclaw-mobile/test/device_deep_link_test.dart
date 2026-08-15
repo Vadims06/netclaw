@@ -81,6 +81,39 @@ void main() {
     });
   });
 
+  group('isDashboardDeepLink (spec 114)', () {
+    test('recognizes netclaw://dashboard', () {
+      expect(isDashboardDeepLink('netclaw://dashboard'), isTrue);
+    });
+
+    test('rejects a different host', () {
+      expect(isDashboardDeepLink('netclaw://approvals'), isFalse);
+    });
+
+    test('rejects garbage that is not even a URI shape', () {
+      expect(isDashboardDeepLink('not a link at all'), isFalse);
+    });
+  });
+
+  group('isPlainChatDeepLink (spec 114)', () {
+    test('recognizes netclaw://chat with no task id', () {
+      expect(isPlainChatDeepLink('netclaw://chat'), isTrue);
+    });
+
+    test('does not match a chat link that DOES carry a task id '
+        '(that is parseChatDeepLink\'s shape instead)', () {
+      expect(isPlainChatDeepLink('netclaw://chat/task-123'), isFalse);
+    });
+
+    test('rejects a different host', () {
+      expect(isPlainChatDeepLink('netclaw://dashboard'), isFalse);
+    });
+
+    test('rejects garbage that is not even a URI shape', () {
+      expect(isPlainChatDeepLink('not a link at all'), isFalse);
+    });
+  });
+
   group('DeviceDeepLinkHandler', () {
     test('a known-shape identifier produces the exact templated request', () async {
       final source = _RecordingEdgeRpcSource();
