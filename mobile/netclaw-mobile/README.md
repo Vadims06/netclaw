@@ -537,3 +537,56 @@ Border, not a dependency.
     ~780-second wait, impractical to sit through in one verification pass —
     verified by code review instead that the value mirrors the Border's own
     ask-timeout ceiling, not an arbitrary guess).
+- **Home screen, Lock Screen, and Control Center widgets (B1b+B2)** (spec
+  `114-widgets-controlwidget`, 2026-08-15, iOS 18+ only — the operator
+  explicitly authorized dropping pre-iOS-18 support for this one target):
+  a new `NetClawWidgetExtension` target (created by the operator via Xcode's
+  own Widget Extension wizard, registered with a new phone-only App Group,
+  `group.ca.automateyournetwork.netclaw.mobile.ios`) now shows Border
+  health, pending-approval count, and the last heartbeat's age — on the home
+  screen (small/medium), the Lock Screen (`.accessoryCircular`/
+  `.accessoryRectangular`/`.accessoryInline`), and Control Center. Every
+  reading is explicitly timestamped, never implied live; no widget shows any
+  per-approval detail, matching the existing Live Activity's identical
+  restriction. Tapping any widget deep-links via the same `netclaw://`
+  mechanism specs 111/113 already established.
+  - **A real, two-part target-setup defect was found and fixed before any
+    feature code was written**, caught by a full `xcodebuild` run, not
+    assumed correct from the operator's own Xcode wizard output: the new
+    target had been embedded under `WatchApp` instead of `Runner` (wrong
+    bundle identifier, `ca.automateyournetwork.netclaw.mobile.watchapp
+    .NetClawWidget`; wrong, old watch-only App Group in its own
+    entitlements; `TARGETED_DEVICE_FAMILY = 4`, the Watch code, instead of
+    `1,2` for iPhone/iPad). Fixed via the `xcodeproj` gem: moved the target
+    dependency and embed-phase reference from `WatchApp` to `Runner`,
+    corrected the bundle identifier to
+    `ca.automateyournetwork.netclaw.mobile.netclawwidget`, corrected the
+    entitlements to the new phone App Group, and corrected the device
+    family. Xcode's own default `ControlWidget` template code also required
+    iOS 18 (`buildExpression`) while inheriting the project's 16.2 floor —
+    fixed by setting the new target's own deployment target to 18.0,
+    explicitly authorized by the operator for this target only (`Runner`'s
+    and `WatchApp`'s own floors are unchanged).
+  - **The brief's own Control Center design was corrected during planning,
+    before implementation**: the source brief described tapping the control
+    as invoking `AskBorderIntent` directly, but that intent requires a
+    `question: String` parameter Control Center has no text-entry surface to
+    collect. The control instead shows the cached pending count and, on tap,
+    foregrounds Chat ready to type — reusing the exact `openAppWhenRun` +
+    `netclaw://` pattern spec 113's Approve/Deny buttons already
+    established, including the same `IS_EXTENSION_TARGET` compile-guard
+    technique for its own `UIApplication.shared` call (also newly applied to
+    the `NetClawWidgetExtension` target, which didn't have that flag yet).
+  - **Verified**: `flutter analyze` clean, full `flutter test` suite passing
+    (408/408, zero regressions), including new coverage for
+    `widget_data.dart`'s mirror-call wiring and the two new
+    `netclaw://dashboard`/`netclaw://chat` deep-link parsers. A full
+    `xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos`
+    → `BUILD SUCCEEDED`, zero warnings anywhere in the new/changed files,
+    compiling all of `NetClawWidget.swift`/`NetClawWidgetControl.swift`/
+    `AppIntent.swift`'s real content (no Xcode placeholder "favorite emoji"/
+    "timer" template code remains anywhere).
+  - **Not verified — needs a physical device**: everything in this spec is
+    🔌 DEVICE-only per its own spec.md — real widget placement and rendering
+    on an actual home screen/Lock Screen, real refresh timing under iOS's
+    own budget, and real Control Center interaction.

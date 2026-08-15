@@ -128,5 +128,10 @@ private let backgroundRefreshMinimumInterval: TimeInterval = 15 * 60
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LiveActivityBridge") {
       LiveActivityBridge.register(with: registrar)
     }
+    // 114/FR-001: mirrors Border health/pending/unread counts into the
+    // widget/control extension's shared App Group.
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "WidgetBridgePlugin") {
+      WidgetBridgePlugin.register(with: registrar)
+    }
   }
 }
