@@ -21,6 +21,7 @@ import 'ncfed/edge_client.dart';
 import 'ncfed/edge_identity.dart';
 import 'ncfed/enrollment_qr_payload.dart';
 import 'ncfed/enrollment_store.dart';
+import 'ncfed/haptics.dart';
 import 'ncfed/heartbeat.dart';
 import 'ncfed/live_activity.dart';
 import 'ncfed/local_notifications.dart';
@@ -64,7 +65,7 @@ class NetClawMobileApp extends StatelessWidget {
       theme: netclawTheme,
       darkTheme: netclawDarkTheme,
       themeMode: ThemeMode.system,
-      home: const AppLockGate(child: EnrollmentGate()),
+      home: AppLockGate(child: EnrollmentGate()),
     );
   }
 }
@@ -226,11 +227,16 @@ class EnrollmentGate extends StatefulWidget {
     required EdgeIdentity identity,
   }) reconnect;
 
-  const EnrollmentGate({
+  /// Injectable so tests never touch the real haptic platform channel
+  /// (109/research.md R4).
+  final Haptics haptics;
+
+  EnrollmentGate({
     super.key,
     this.documentsDirectory = getApplicationDocumentsDirectory,
     this.reconnect = EdgeClient.reconnect,
-  });
+    Haptics? haptics,
+  }) : haptics = haptics ?? Haptics();
 
   @override
   State<EnrollmentGate> createState() => _EnrollmentGateState();
@@ -317,6 +323,7 @@ class _EnrollmentGateState extends State<EnrollmentGate> {
             await _store!.save(stored);
           }
           if (!mounted) return;
+          widget.haptics.enrollmentSucceeded();
           navigator.pushReplacement(
             MaterialPageRoute(builder: (_) => HomeShell(client: client, stored: stored)),
           );
@@ -907,7 +914,10 @@ class _HomeShellState extends State<HomeShell> {
     await EnrollmentStore(dir).clear();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const EnrollmentGate()),
+      // 109/FR-009: re-wrapped in AppLockGate, not a bare EnrollmentGate --
+      // otherwise a device with app-lock enabled would be left unprotected
+      // for the rest of the session after a Border-initiated revocation.
+      MaterialPageRoute(builder: (_) => AppLockGate(child: EnrollmentGate())),
     );
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
       content: Text('This device was removed by your Border. Enroll again to reconnect.'),
@@ -925,7 +935,8 @@ class _HomeShellState extends State<HomeShell> {
     await EnrollmentStore(dir).clear();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const EnrollmentGate()),
+      // 109/FR-009: same reasoning as _handleRevoked above.
+      MaterialPageRoute(builder: (_) => AppLockGate(child: EnrollmentGate())),
     );
   }
 

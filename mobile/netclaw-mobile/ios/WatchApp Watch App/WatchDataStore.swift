@@ -1,5 +1,6 @@
 import Foundation
 import WidgetKit
+import WatchKit
 
 /// Preloads Approvals + Feed concurrently as soon as the watch app launches,
 /// instead of each tab triggering its own blocking WatchConnectivity
@@ -76,6 +77,13 @@ final class WatchDataStore: ObservableObject {
         }
     }
 
+    // 109/US5: refreshApprovals() re-fetches the FULL current list on every
+    // call (pull-to-refresh, periodic poll, preload's own retry) -- tracking
+    // previously-seen ids is what lets the "approval arrives" haptic fire
+    // only on a genuinely new approval_id, not on every re-fetch of the same
+    // still-pending set.
+    private var seenApprovalIds: Set<Int> = []
+
     func refreshApprovals() async {
         let reply = await WatchConnectivitySession.shared.send(method: "watch/approvals/list")
         approvalsConnection = WatchConnectivitySession.connectionState(from: reply)
@@ -89,6 +97,11 @@ final class WatchDataStore: ObservableObject {
                 return WatchApproval(id: id, targetType: targetType, targetName: targetName,
                                       requestingAgent: requestingAgent, riskName: dict["risk_name"] as? String)
             }
+            let currentIds = Set(approvals.map(\.id))
+            if approvalsLoaded && !currentIds.subtracting(seenApprovalIds).isEmpty {
+                WKInterfaceDevice.current().play(.notification)
+            }
+            seenApprovalIds = currentIds
         } else {
             approvals = []
         }

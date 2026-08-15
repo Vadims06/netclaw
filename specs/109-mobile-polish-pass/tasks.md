@@ -147,14 +147,14 @@
 
 ### Tests for User Story 5
 
-- [ ] T030 [P] [US5] Write unit tests in `test/haptics_test.dart` against an injected recording fake covering: each of the six events (approval arrives, approval resolved successfully, approval resolve failed, chat answer completes, enrollment succeeds, Border connection lost) invokes exactly the haptic call mapped to it, and that a bounded sequence of reconnect retry failures after the initial disconnect produces no additional haptic calls (the retry-loop debounce). Confirm these fail before implementing.
+- [x] T030 [P] [US5] Write unit tests in `test/haptics_test.dart` against an injected recording fake covering: each of the six events (approval arrives, approval resolved successfully, approval resolve failed, chat answer completes, enrollment succeeds, Border connection lost) invokes exactly the haptic call mapped to it, and that a bounded sequence of reconnect retry failures after the initial disconnect produces no additional haptic calls (the retry-loop debounce). Confirm these fail before implementing.
 
 ### Implementation for User Story 5
 
-- [ ] T031 [P] [US5] Create `lib/ncfed/haptics.dart`: an injectable wrapper (production default calling `HapticFeedback.heavyImpact()`/`.mediumImpact()`/`.vibrate()`/`.lightImpact()` per spec.md's event table) exposing one function per event, following the injectable-function pattern in `voice_transcription.dart`/`reconnect_supervisor.dart` (research.md R4)
-- [ ] T032 [US5] Wire haptic calls into `lib/ncfed/approval_client.dart` (approval arrives / resolved successfully / resolve failed), `lib/screens/chat_screen.dart`'s `askClient.updates` listener (chat answer completes), `lib/ncfed/enrollment_flow.dart` (enrollment succeeds) (depends on T031)
-- [ ] T033 [US5] Wire the connection-lost haptic into `lib/ncfed/reconnect_supervisor.dart`, firing only on the transition into the disconnected state (not on each subsequent retry attempt within the same disconnected period) (depends on T031)
-- [ ] T034 [P] [US5] 🔌 DEVICE — Add the watch-native equivalent haptic calls (`WKInterfaceDevice.current().play(.notification/.success/.failure/.click/.retry)`) directly in `ios/WatchApp Watch App/ApprovalsView.swift` and `WatchDataStore.swift` for the same six events (research.md R6 — no Dart bridge, Swift-only change)
+- [x] T031 [P] [US5] Create `lib/ncfed/haptics.dart`: an injectable wrapper (production default calling `HapticFeedback.heavyImpact()`/`.mediumImpact()`/`.vibrate()`/`.lightImpact()` per spec.md's event table) exposing one function per event, following the injectable-function pattern in `voice_transcription.dart`/`reconnect_supervisor.dart` (research.md R4)
+- [x] T032 [US5] Wire haptic calls into `lib/ncfed/approval_client.dart` (approval arrives / resolved successfully / resolve failed), `lib/screens/chat_screen.dart`'s `askClient.updates` listener (chat answer completes), `lib/ncfed/enrollment_flow.dart` (enrollment succeeds) (depends on T031)
+- [x] T033 [US5] Wire the connection-lost haptic into `lib/ncfed/reconnect_supervisor.dart`, firing only on the transition into the disconnected state (not on each subsequent retry attempt within the same disconnected period) (depends on T031)
+- [x] T034 [P] [US5] 🔌 DEVICE — Add the watch-native equivalent haptic calls (`WKInterfaceDevice.current().play(.notification/.success/.failure/.click/.retry)`) directly in `ios/WatchApp Watch App/ApprovalsView.swift` and `WatchDataStore.swift` for the same six events (research.md R6 — no Dart bridge, Swift-only change)
 
 **Checkpoint**: User Stories 1-5 and 7 all work independently.
 

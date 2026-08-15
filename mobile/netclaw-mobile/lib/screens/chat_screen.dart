@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import '../ncfed/capture_client.dart';
 import '../ncfed/conversation_store.dart';
 import '../ncfed/edge_ask_client.dart';
+import '../ncfed/haptics.dart';
 import '../ncfed/turn_reconciler.dart';
 import '../ncfed/voice_transcription.dart';
 import 'answer_body.dart';
@@ -35,6 +36,10 @@ class ChatScreen extends StatefulWidget {
   /// (109/research.md R4).
   final Future<ShareResult> Function(ShareParams params)? shareAction;
 
+  /// Injectable so tests never touch the real haptic platform channel
+  /// (109/research.md R4).
+  final Haptics haptics;
+
   ChatScreen({
     super.key,
     required this.askClient,
@@ -43,7 +48,9 @@ class ChatScreen extends StatefulWidget {
     this.onChanged,
     this.shareAction,
     VoiceTranscription? voiceTranscription,
-  }) : voiceTranscription = voiceTranscription ?? VoiceTranscription();
+    Haptics? haptics,
+  })  : voiceTranscription = voiceTranscription ?? VoiceTranscription(),
+        haptics = haptics ?? Haptics();
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -169,6 +176,7 @@ class _ChatScreenState extends State<ChatScreen>
     };
     final follow = _isNearBottom;
     await widget.store.updateState(update.taskId, stateName, answerText: update.outputText);
+    if (stateName == 'completed') widget.haptics.chatAnswerCompleted();
     if (mounted) setState(() {});
     if (follow) _jumpToNewest(animate: true);
   }
