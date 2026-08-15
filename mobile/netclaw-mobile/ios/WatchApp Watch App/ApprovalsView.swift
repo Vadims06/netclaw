@@ -33,8 +33,15 @@ struct ApprovalsView: View {
             } else if store.approvals.isEmpty {
                 ContentUnavailableView("No pending approvals", systemImage: "checkmark.circle")
             } else {
-                List(store.approvals) { approval in
-                    ApprovalRow(approval: approval, errorMessage: errorMessage) { action in
+                // 112/FR-002: `.handGestureShortcut(.primaryAction)` may be claimed by
+                // AT MOST ONE visible control at a time -- claiming it on more than one
+                // silently disables Double Tap entirely, with no runtime warning. The
+                // index here exists solely to identify "the topmost approval" so only
+                // ITS row's Approve button ever claims the gesture (research.md R2).
+                List(Array(store.approvals.enumerated()), id: \.element.id) { index, approval in
+                    ApprovalRow(
+                        approval: approval, errorMessage: errorMessage, isTopApproval: index == 0
+                    ) { action in
                         await resolve(approval, action: action)
                     }
                 }
@@ -86,6 +93,7 @@ struct ApprovalsView: View {
 private struct ApprovalRow: View {
     let approval: WatchApproval
     let errorMessage: String?
+    let isTopApproval: Bool
     let onResolve: (String) async -> Void
 
     var body: some View {
@@ -98,9 +106,25 @@ private struct ApprovalRow: View {
                 Text(errorMessage).font(.caption2).foregroundStyle(.red)
             }
             HStack {
-                Button("Approve") { Task { await onResolve("approve") } }
+                approveButton
                 Button("Deny", role: .destructive) { Task { await onResolve("deny") } }
             }
+        }
+    }
+
+    /// 112/FR-001: Double Tap invokes this SAME `Button`'s action closure --
+    /// there is no separate, less-gated resolution path for the gesture to
+    /// take. 112/FR-006/research.md R3: gated by an availability check, not a
+    /// deployment-target bump, so watches below watchOS 11 render this
+    /// identically to before this spec (`.handGestureShortcut` simply isn't
+    /// applied).
+    @ViewBuilder
+    private var approveButton: some View {
+        let button = Button("Approve") { Task { await onResolve("approve") } }
+        if isTopApproval, #available(watchOS 11.0, *) {
+            button.handGestureShortcut(.primaryAction)
+        } else {
+            button
         }
     }
 }

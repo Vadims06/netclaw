@@ -443,3 +443,38 @@ Border, not a dependency.
     requested 25s budget is a request, not a guarantee, and its real-world
     value is unverified), and the Border-unreachable/not-enrolled spoken
     failure paths for all three intents.
+- **Watch Double Tap + corner complication (B4+B5)** (spec
+  `112-watch-double-tap-complication`, 2026-08-15): Double Tap on a Series
+  9/Ultra 2-or-later watch now triggers the topmost pending approval's
+  existing, passcode-gated "Approve" action (never a separate, less-gated
+  path — it invokes the identical `Button.action` closure a manual tap
+  already uses) and, separately, the "Read aloud" button in the Ask view.
+  Both `HeartbeatComplication` and `PendingApprovalComplication` gained
+  `.accessoryCorner` support for Infograph watch faces, reusing their
+  existing views unchanged. No deployment-target change (Double Tap is
+  gated by `if #available(watchOS 11.0, *)`, keeping the 10.0 floor intact
+  for older watches, FR-006) and no new Xcode target or entitlement (FR-009).
+  - **Verified**: `flutter analyze` clean, full `flutter test` suite passing
+    (378/378, zero regressions — this spec touches no Dart code at all), and
+    `xcodebuild -workspace Runner.xcworkspace -scheme WatchApp -sdk
+    watchsimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO` →
+    `BUILD SUCCEEDED`, which embeds and builds `WatchComplication.appex` as
+    part of the same scheme (confirming both targets in one build). The four
+    modified Swift files parse cleanly via `swiftc -parse` with zero syntax
+    errors.
+  - **Note on verification method**: a standalone `xcodebuild -scheme
+    WatchComplication -sdk watchsimulator` invocation was deliberately not
+    used to verify B5 — confirmed via `git stash` that it fails on
+    completely unmodified code too, hitting the exact "cross-SDK build trap"
+    already documented above for spec 072 (`-sdk` as a blunt flag forces
+    every workspace target, including phone-only plugins like
+    `mobile_scanner`/`local_auth_darwin` with no watchOS platform support at
+    all, onto the watch SDK). The `WatchApp` scheme's build, which correctly
+    embeds `WatchComplication.appex`, is the accurate verification vehicle.
+  - **Not verified — needs a physical device**: everything in this spec is
+    🔌 DEVICE-only per its own spec.md — a real Double Tap gesture (a
+    hardware-gated system gesture with no Simulator equivalent), and real
+    corner-slot placement/legibility on an actual Infograph watch face.
+    Also unverified: backwards-compatibility behavior on a pre-Series-9
+    watch or a Series 9/Ultra 2 watch running below watchOS 11 (FR-004) —
+    no such device was available during this pass.

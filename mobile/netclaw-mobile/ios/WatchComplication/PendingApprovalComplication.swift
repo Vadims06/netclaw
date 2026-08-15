@@ -53,7 +53,10 @@ struct PendingApprovalComplication: Widget {
         }
         .configurationDisplayName("Pending Approvals")
         .description("Shows the count of approvals waiting for you.")
-        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline])
+        // 112/FR-007: .accessoryCorner reuses this SAME view unchanged (research.md
+        // R4) -- the existing Text/Image + .widgetLabel pairing above is already the
+        // icon-plus-curved-label shape a corner slot renders.
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner])
     }
 }
 
