@@ -14,20 +14,31 @@ logging.getLogger("chromadb").setLevel(logging.WARNING)
 
 class ChromaStore:
     def __init__(self, chroma_dir: str):
-        import chromadb
-        from chromadb.config import Settings
+        # Constructing chromadb.PersistentClient triggers `import chromadb`,
+        # which measured ~0.6-1.3s on this host (spec 116 research.md Finding
+        # 4) -- deferred to first actual use (_ensure_client) rather than
+        # server startup, so a Border turn that never touches rag-mcp's tools
+        # doesn't pay that cost on every cold MCP-catalog build.
+        self._chroma_dir = chroma_dir
+        self._client = None
 
-        self._client = chromadb.PersistentClient(
-            path=str(chroma_dir), settings=Settings(anonymized_telemetry=False)
-        )
+    def _ensure_client(self):
+        if self._client is None:
+            import chromadb
+            from chromadb.config import Settings
+
+            self._client = chromadb.PersistentClient(
+                path=str(self._chroma_dir), settings=Settings(anonymized_telemetry=False)
+            )
+        return self._client
 
     def _collection(self, name: str):
-        return self._client.get_or_create_collection(
+        return self._ensure_client().get_or_create_collection(
             name=name, metadata={"hnsw:space": "cosine"}
         )
 
     def collection_names(self) -> List[str]:
-        return [c.name for c in self._client.list_collections()]
+        return [c.name for c in self._ensure_client().list_collections()]
 
     def count(self, collection: str) -> int:
         try:
@@ -116,7 +127,7 @@ class ChromaStore:
 
     def delete_collection(self, collection: str) -> None:
         try:
-            self._client.delete_collection(collection)
+            self._ensure_client().delete_collection(collection)
         except Exception:
             pass
 
@@ -162,7 +173,7 @@ class ChromaStore:
         stable collection (if any), then rename the verified staging collection
         into the stable name every query/replicate call actually addresses."""
         try:
-            self._client.delete_collection(stable_name)
+            self._ensure_client().delete_collection(stable_name)
         except Exception:
             pass
         staging = self._collection(staging_name)

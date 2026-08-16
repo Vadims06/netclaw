@@ -10,6 +10,34 @@ Core modules:
 
 ---
 
+## Agent Turn Dispatch: WS RPC, not CLI-per-turn (Feature 116)
+
+> **READ THIS before changing `gateway.py::run_agent_turn()`'s default dispatch path.**
+
+`run_agent_turn()` (the sole function every channel — chat, Slack-via-OpenClaw, the phone's "Ask
+NetClaw", eN2N peer skill delegation — funnels through to get an agent to actually answer) dispatches
+via a **persistent WebSocket JSON-RPC connection** to the local OpenClaw gateway
+(`bgp/federation/gateway_ws.py`), not a per-turn `openclaw agent --json` CLI subprocess.
+
+**Do not revert this to a CLI subprocess.** It used to be one, and every single turn — regardless of
+channel or answer length — paid a fixed ~27 second cost before any real work started, because the
+CLI's own gateway-dispatch code (`openclaw`'s bundled `agent-via-gateway-*.js`) unconditionally sets
+`cleanupBundleMcpOnRunEnd: true`, which tears down the gateway's session-scoped MCP tool runtime
+cache after every turn. OpenClaw's own internal `sessions_send` tool proves the cache is meant to be
+reused across turns sharing a session key — it calls the identical gateway `agent` RPC method the
+same way and simply omits that flag. `gateway_ws.py`'s `GatewayWsClient` does the same: one
+persistent connection per Border process, no forced teardown, so a session's second and later turns
+are ~6x faster than its first (measured live: cold ~35s, warm ~6s).
+
+The embedded (`local=True`) dispatch path — used by iN2N members running their own model/provider
+in-process (feature 056) — is unchanged and still shells out to the CLI; it never goes through a
+gateway at all, so this fix doesn't apply to it.
+
+Full root-cause analysis, live measurements, and the wire protocol this client implements:
+`specs/116-border-turn-latency/research.md` and `specs/116-border-turn-latency/contracts/`.
+
+---
+
 ## Cloudflare Tunnel Transport (Feature 108)
 
 > **READ THIS BEFORE writing a `cloudflared` config for eN2N traffic.**

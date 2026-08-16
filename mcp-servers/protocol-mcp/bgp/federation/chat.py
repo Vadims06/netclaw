@@ -78,8 +78,9 @@ class ChatManager:
         return {"session_id": session_id, "text": reply, "tokens_used": tokens}
 
     async def _ask_gateway(self, text: str, session_key: str = "n2n-chat"):
-        # OpenClaw's gateway is WebSocket-only (no /v1/chat/completions REST
-        # route) — run a real agent turn via the CLI instead. See gateway.py.
+        # gateway.py talks to the gateway's own WS RPC protocol directly
+        # (feature 116) -- see its module docstring for why a per-turn CLI
+        # subprocess was replaced with a persistent connection.
         from .gateway import run_agent_turn
         idle = int(os.environ.get("N2N_CHAT_IDLE_TIMEOUT_S", "300"))
         prompt = f"[A federated NetClaw peer is asking you this]\n{text}"
