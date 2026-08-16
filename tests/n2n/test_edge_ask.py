@@ -352,6 +352,66 @@ async def _edge_ask_neither(tmp_path):
     border.manager.close()
 
 
+def test_edge_ask_origin_reaches_run_agent_turn(tmp_path, monkeypatch):
+    """Closes spec 117 FR-002/FR-003: an n2n/edge/ask request carrying
+    origin: "voice" reaches run_agent_turn() with origin="voice", unchanged
+    by the handler in between."""
+    asyncio.run(_edge_ask_origin_reaches_run_agent_turn(tmp_path, monkeypatch))
+
+
+async def _edge_ask_origin_reaches_run_agent_turn(tmp_path, monkeypatch):
+    seen_origins = []
+
+    async def _fake_run_agent_turn(prompt, session_key="n2n", **kwargs):
+        seen_origins.append(kwargs.get("origin"))
+        return "ok", 0
+    monkeypatch.setattr(gateway, "run_agent_turn", _fake_run_agent_turn)
+
+    border = _border(tmp_path / "border")
+    server, port = await _serve(border)
+    try:
+        phone = await _enroll(border, port)
+        resp = await phone.call("n2n/edge/ask", {"text": "what's 7 plus 5", "origin": "voice"})
+        await phone.wait_for_notification("n2n/edge/ask_result")
+        assert resp["task_id"]
+        await phone.close()
+    finally:
+        server.close()
+    border.manager.close()
+
+    assert seen_origins == ["voice"]
+
+
+def test_edge_ask_no_origin_is_unchanged(tmp_path, monkeypatch):
+    """Closes spec 117 FR-004: a request with no origin field (every caller
+    today, e.g. the app's own Chat screen) reaches run_agent_turn() with
+    origin=None -- byte-identical to before this feature."""
+    asyncio.run(_edge_ask_no_origin_is_unchanged(tmp_path, monkeypatch))
+
+
+async def _edge_ask_no_origin_is_unchanged(tmp_path, monkeypatch):
+    seen_origins = []
+
+    async def _fake_run_agent_turn(prompt, session_key="n2n", **kwargs):
+        seen_origins.append(kwargs.get("origin"))
+        return "ok", 0
+    monkeypatch.setattr(gateway, "run_agent_turn", _fake_run_agent_turn)
+
+    border = _border(tmp_path / "border")
+    server, port = await _serve(border)
+    try:
+        phone = await _enroll(border, port)
+        resp = await phone.call("n2n/edge/ask", {"text": "check BGP"})
+        await phone.wait_for_notification("n2n/edge/ask_result")
+        assert resp["task_id"]
+        await phone.close()
+    finally:
+        server.close()
+    border.manager.close()
+
+    assert seen_origins == [None]
+
+
 def test_edge_ask_session_key_never_contains_a_slash(tmp_path, monkeypatch):
     """Every edge member_id is risk-scoped ("risk/<label>") and openclaw
     agent's --session-id/--session-key rejects a value containing "/" with

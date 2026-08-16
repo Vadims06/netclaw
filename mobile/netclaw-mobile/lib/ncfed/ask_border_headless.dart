@@ -14,11 +14,19 @@ const _channel = MethodChannel('ca.automateyournetwork.netclaw/ask_border');
 
 /// How long [runAskBorder] waits, before ever acknowledging, for a real
 /// answer it can hand straight to Siri to speak aloud -- true two-way voice
-/// for anything the agent answers reasonably quickly. Chosen comfortably
-/// under Siri's own observed real-world patience for a spoken App Intent
-/// response (on-device testing showed it can abandon the request and fall
-/// back to a web search well before 30s if nothing has been said yet).
-const askBorderFastWindow = Duration(seconds: 18);
+/// for anything the agent answers reasonably quickly.
+///
+/// Re-tuned in spec 117 (Pass 3) against spec 116's (Pass 2) real measured
+/// Border latency after its fixed per-turn startup toll was eliminated: a
+/// cold first-in-session turn now lands around 9s, and every turn after
+/// that under 4s (specs/116-border-turn-latency/PASS3-HANDOFF.md). The
+/// previous value of 18s was tuned against a ~38s-always baseline that no
+/// longer applies (specs/117-siri-voice-tuning/research.md R1) -- 12s
+/// gives the cold case a real margin while staying well under Siri's own
+/// observed real-world patience for a spoken App Intent response (on-device
+/// testing showed it can abandon the request and fall back to a web search
+/// well before 30s if nothing has been said yet).
+const askBorderFastWindow = Duration(seconds: 12);
 
 /// How long [runAskBorder] keeps listening for a fast-arriving `ask_result`
 /// after the acknowledgment has already been reported (because [
@@ -134,7 +142,12 @@ Future<String> runAskBorder(
   final askClient = EdgeAskClient(rpc);
   final String taskId;
   try {
-    taskId = await askClient.ask(question);
+    // This is the sole Siri-specific caller of EdgeAskClient.ask() in the
+    // codebase (AskBorderIntent.swift's headless entry point) -- always
+    // marks its requests origin: 'voice' (spec 117 FR-002) so the Border
+    // composes a short, plain-spoken answer instead of the Chat screen's
+    // default structured style.
+    taskId = await askClient.ask(question, origin: 'voice');
   } catch (e) {
     onFinished();
     rethrow;

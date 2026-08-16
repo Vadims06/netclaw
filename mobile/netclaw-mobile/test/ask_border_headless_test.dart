@@ -9,6 +9,7 @@ class _FakeRpc implements EdgeRpcSource {
   final String taskId;
   EdgeMethodHandler? askResultHandler;
   final List<String> methodsCalled = [];
+  final List<Map<String, dynamic>> paramsCalled = [];
 
   _FakeRpc(this.taskId);
 
@@ -21,6 +22,7 @@ class _FakeRpc implements EdgeRpcSource {
   Future<Map<String, dynamic>> call(String method, Map<String, dynamic> params,
       {Duration timeout = const Duration(seconds: 30)}) async {
     methodsCalled.add(method);
+    paramsCalled.add(params);
     if (method == 'n2n/edge/ask') return {'task_id': taskId};
     return {};
   }
@@ -98,6 +100,12 @@ void main() {
     expect(turn.requestText, 'is BGP up on the core switch');
     expect(turn.state, 'pending');
     expect(turn.origin, 'siri');
+  });
+
+  test('sends origin: voice on the underlying n2n/edge/ask call (spec 117 FR-002)', () async {
+    await run('is BGP up on the core switch');
+
+    expect(rpc.paramsCalled.single['origin'], 'voice');
   });
 
   test('once ask_result arrives within the window, finalizes the turn and notifies (FR-004)',
@@ -203,6 +211,12 @@ void main() {
     expect(spoken, contains('eBGP session to core: established'));
     expect(store.turns.single.answerText, raw,
         reason: 'the Chat screen must still see the original, unstripped answer');
+  });
+
+  group('askBorderFastWindow', () {
+    test('is retuned to 12s against Pass 2\'s measured latency (spec 117 R1)', () {
+      expect(askBorderFastWindow, const Duration(seconds: 12));
+    });
   });
 
   group('stripMarkdownForSpeech', () {
