@@ -1,5 +1,7 @@
 import Flutter
 import Foundation
+import flutter_secure_storage_darwin
+import flutter_local_notifications
 
 /// Errors surfaced to Swift by a headless entrypoint's `submit` reply,
 /// classified via `FlutterError.code` so each intent can speak the right
@@ -11,26 +13,61 @@ enum HeadlessIntentError: Error {
     case failed(String)
 }
 
-/// Shared plumbing for every headless-engine App Intent (spec 111): a plain
-/// `FlutterEngine` per invocation (never `FlutterEngineGroup`, research.md
-/// R1), only `EdgeIdentityPlugin` manually registered beyond the
-/// auto-generated package plugins (`path_provider`/`flutter_secure_storage`,
-/// needed by the shared `headless_connect.dart`/`enrollment_store.dart`
-/// helpers) — mirroring `AppDelegate.swift`'s existing `handleBackgroundRefresh`
-/// pattern exactly. Deterministic teardown (FR-009/research.md R7) happens
-/// simply by the owning `AppIntent` releasing its last strong reference to
-/// this object once it's done with it — matching how `AppDelegate.swift`
-/// tears its own background-refresh engine down by setting
-/// `backgroundRefreshEngine = nil`, since `FlutterEngine` has no separate
-/// public "destroy" call.
+/// Shared plumbing for every headless-engine App Intent (spec 111). Uses a
+/// shared `FlutterEngineGroup` rather than a raw second `FlutterEngine`
+/// (spec 115/research.md R2) -- a plain `FlutterEngine` created independently
+/// of the app's main engine is unsupported when that main engine may still
+/// be alive in the same process, which is exactly App Intents'
+/// `openAppWhenRun = false` scenario (confirmed on-device: the app process
+/// gets thawed/resumed, not launched fresh). Only registers the specific
+/// plugins these three entrypoints actually touch
+/// (`flutter_secure_storage_darwin`, `flutter_local_notifications`, and the
+/// app's own `EdgeIdentityPlugin`) rather than the full
+/// `GeneratedPluginRegistrant.register(with:)` sweep, since that also
+/// re-registers Firebase Core/Messaging into this second engine while the
+/// main engine's own Firebase instance is alive in the same process --
+/// confirmed via a pulled on-device crash report as the cause of a real
+/// `SIGKILL` (`0x8BADF00D` scene-update watchdog transgression) before this
+/// fix. Deterministic teardown (FR-009/research.md R7) happens simply by the
+/// owning `AppIntent` releasing its last strong reference to this object
+/// once it's done with it — matching how `AppDelegate.swift` tears its own
+/// background-refresh engine down by setting `backgroundRefreshEngine =
+/// nil`, since `FlutterEngine` has no separate public "destroy" call.
+///
+/// `FlutterEngine` creation/run MUST happen on the main thread. AppIntents'
+/// `perform()` does not guarantee it runs on the main actor, so without this
+/// annotation, engine startup could race against (and deadlock with)
+/// whatever executor AppIntents chose. Marking the class `@MainActor` makes
+/// every call site hop onto the main actor via an implicit `await`,
+/// guaranteeing engine work always happens on the thread Flutter requires.
+@MainActor
 final class HeadlessEngineRunner {
+    /// Shared/lazy so repeated intent invocations reuse the same group
+    /// rather than re-paying Dart VM setup each time.
+    private static let engineGroup = FlutterEngineGroup(name: "netclaw-headless-intents", project: nil)
+
     private let engine: FlutterEngine
     private let channel: FlutterMethodChannel
 
-    init(entrypoint: String, channelName: String) {
-        let engine = FlutterEngine(name: entrypoint)
-        engine.run(withEntrypoint: entrypoint)
-        GeneratedPluginRegistrant.register(with: engine)
+    /// [libraryURI] MUST be the entrypoint's real Dart package URI (e.g.
+    /// `package:netclaw_mobile/ncfed/border_health_headless.dart`) -- passing
+    /// `nil` here silently fails to resolve any entrypoint defined outside
+    /// `lib/main.dart` (spec 115/research.md R3), unlike plain
+    /// `FlutterEngine.run(withEntrypoint:)`, which resolves by bare name
+    /// against the whole compiled program.
+    init(entrypoint: String, libraryURI: String, channelName: String) {
+        let engine = Self.engineGroup.makeEngine(withEntrypoint: entrypoint, libraryURI: libraryURI)
+        // path_provider needs no explicit registration here -- it isn't in
+        // GeneratedPluginRegistrant.m either (confirmed), and the main
+        // engine's own getApplicationDocumentsDirectory() calls work fine
+        // without it, so its Swift implementation self-registers or needs
+        // no native plugin class at all in this Flutter version.
+        if let registrar = engine.registrar(forPlugin: "FlutterSecureStorageDarwinPlugin") {
+            FlutterSecureStorageDarwinPlugin.register(with: registrar)
+        }
+        if let registrar = engine.registrar(forPlugin: "FlutterLocalNotificationsPlugin") {
+            FlutterLocalNotificationsPlugin.register(with: registrar)
+        }
         if let registrar = engine.registrar(forPlugin: "EdgeIdentityPlugin") {
             EdgeIdentityPlugin.register(with: registrar)
         }

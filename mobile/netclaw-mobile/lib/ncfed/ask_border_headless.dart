@@ -12,10 +12,19 @@ import 'local_notifications.dart';
 
 const _channel = MethodChannel('ca.automateyournetwork.netclaw/ask_border');
 
+/// How long [runAskBorder] waits, before ever acknowledging, for a real
+/// answer it can hand straight to Siri to speak aloud -- true two-way voice
+/// for anything the agent answers reasonably quickly. Chosen comfortably
+/// under Siri's own observed real-world patience for a spoken App Intent
+/// response (on-device testing showed it can abandon the request and fall
+/// back to a web search well before 30s if nothing has been said yet).
+const askBorderFastWindow = Duration(seconds: 18);
+
 /// How long [runAskBorder] keeps listening for a fast-arriving `ask_result`
-/// after the acknowledgment has already been reported, hoping to post the
-/// real-answer notification before this headless process is reclaimed
-/// (spec 111 FR-004, research.md R8). A slower answer is left `pending` —
+/// after the acknowledgment has already been reported (because [
+/// askBorderFastWindow] elapsed first), hoping to post the real-answer
+/// notification before this headless process is reclaimed (spec 111 FR-004,
+/// research.md R8). A slower answer is left `pending` --
 /// `lib/ncfed/turn_reconciler.dart`'s `reconcileStaleTurns` finishes it on a
 /// later reconnect, exactly as it already does for any other stranded ask.
 const askBorderPostAckWindow = Duration(seconds: 20);
@@ -66,14 +75,48 @@ Future<void> askBorderMain() async {
   });
 }
 
+/// Strips the Border's lightweight markdown (bold/italic emphasis, `#`
+/// headers, `-`/`*` list markers) from [text] so it reads as natural speech
+/// when handed to Siri as spoken `IntentDialog` content (spec 115 FR-005,
+/// research.md R5). Only ever applied to the string [runAskBorder] returns
+/// on its fast-voice path -- never to the value persisted via
+/// `store.updateState`, which stays exactly as the Border composed it for
+/// display in the app's own Chat screen.
+String stripMarkdownForSpeech(String text) {
+  var result = text
+      // Headers: leading '#'s followed by a space, at line start.
+      .replaceAll(RegExp(r'^#{1,6}\s+', multiLine: true), '')
+      // Bold/italic emphasis markers -- content is kept, markers dropped.
+      .replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m.group(1)!)
+      .replaceAllMapped(RegExp(r'\*(.+?)\*'), (m) => m.group(1)!)
+      // List-item markers at line start ('- ' or '* '), content kept.
+      .replaceAll(RegExp(r'^[-*]\s+', multiLine: true), '');
+  // Collapse any blank lines the marker removal left behind.
+  result = result.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+  return result;
+}
+
+/// `null` if [state] isn't one of the three terminal states.
+String? _terminalStateString(TaskState state) => switch (state) {
+      TaskState.completed => 'completed',
+      TaskState.failed => 'failed',
+      TaskState.cancelled => 'cancelled',
+      _ => null,
+    };
+
 /// The testable core of [askBorderMain]: given an already-connected [rpc],
-/// submits [question], persists it into [store] as a pending turn with
-/// `origin: 'siri'` (FR-005/FR-011), and returns the acknowledgment string
-/// as soon as a `task_id` comes back (FR-003) — WITHOUT waiting for the real
-/// answer. The bounded post-acknowledgment wait for `ask_result` (FR-004,
-/// research.md R8) runs afterward, unawaited by the returned future, and
-/// calls [onFinished] exactly once when it concludes (landed or timed out)
-/// so the caller knows it is safe to tear down the headless engine.
+/// submits [question] and persists it into [store] as a pending turn with
+/// `origin: 'siri'` (FR-005/FR-011). Two-phase result:
+///
+/// 1. Waits up to [fastWindow] for a terminal `ask_result` it can hand
+///    straight back as the return value -- Siri speaks this verbatim, so an
+///    answer that arrives in time gets a real two-way voice exchange, not
+///    just an acknowledgment.
+/// 2. If nothing terminal arrives in [fastWindow], falls back to today's
+///    behavior: returns a plain acknowledgment (FR-003) and keeps listening
+///    in the background for up to [postAckWindow] more, notifying if the
+///    answer lands late (FR-004, research.md R8) or leaving it `pending` for
+///    `reconcileStaleTurns` otherwise.
 Future<String> runAskBorder(
   String question, {
   required EdgeRpcSource rpc,
@@ -85,6 +128,7 @@ Future<String> runAskBorder(
     required int badgeCount,
   }) notify,
   required void Function() onFinished,
+  Duration fastWindow = askBorderFastWindow,
   Duration postAckWindow = askBorderPostAckWindow,
 }) async {
   final askClient = EdgeAskClient(rpc);
@@ -96,6 +140,25 @@ Future<String> runAskBorder(
     rethrow;
   }
   await store.addPending(taskId, question, origin: 'siri');
+
+  try {
+    final update = await askClient.updates
+        .firstWhere((u) => u.taskId == taskId)
+        .timeout(fastWindow);
+    final stateString = _terminalStateString(update.state);
+    if (stateString != null) {
+      final answer = update.outputText ?? '';
+      await store.updateState(taskId, stateString, answerText: answer);
+      await close();
+      onFinished();
+      if (answer.isEmpty) return "NetClaw answered, but didn't say anything.";
+      final spoken = stripMarkdownForSpeech(answer);
+      return spoken.isEmpty ? "NetClaw answered, but didn't say anything." : spoken;
+    }
+    // Still working when fastWindow elapsed -- fall through to phase 2.
+  } on TimeoutException {
+    // Nothing yet after fastWindow -- fall through to phase 2.
+  }
 
   unawaited(_awaitResultAndNotify(
     askClient: askClient,

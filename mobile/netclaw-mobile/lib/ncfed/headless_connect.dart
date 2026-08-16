@@ -42,7 +42,7 @@ typedef ReconnectFn = Future<EdgeClient> Function(
 /// I/O (matching this codebase's existing injectable-function-with-
 /// production-default convention, e.g. `reconnect_supervisor.dart`).
 Future<EdgeClient> connectHeadless({
-  Duration timeout = const Duration(seconds: 10),
+  Duration timeout = const Duration(seconds: 15),
   Directory? directory,
   ReconnectFn reconnect = EdgeClient.reconnect,
 }) async {

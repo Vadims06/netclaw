@@ -15,11 +15,12 @@ struct BorderHealthIntent: AppIntent {
     static var openAppWhenRun: Bool = false
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let runner = HeadlessEngineRunner(
+        let runner = await HeadlessEngineRunner(
             entrypoint: "borderHealthMain",
+            libraryURI: "package:netclaw_mobile/ncfed/border_health_headless.dart",
             channelName: "ca.automateyournetwork.netclaw/border_health")
         do {
-            let spoken = try await runner.submit(nil, timeout: 15)
+            let spoken = try await runner.submit(nil, timeout: 30)
             return .result(dialog: IntentDialog(stringLiteral: spoken))
         } catch HeadlessIntentError.notEnrolled {
             return .result(dialog: IntentDialog(stringLiteral: "NetClaw isn't set up on this device yet."))

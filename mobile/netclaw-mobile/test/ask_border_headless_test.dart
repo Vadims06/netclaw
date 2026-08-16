@@ -58,7 +58,15 @@ void main() {
     if (await dir.exists()) await dir.delete(recursive: true);
   });
 
-  Future<String> run(String question, {Duration postAckWindow = const Duration(seconds: 20)}) {
+  Future<String> run(
+    String question, {
+    Duration postAckWindow = const Duration(seconds: 20),
+    // Existing tests below exercise the "acknowledge, then background wait"
+    // path -- they deliver the fake ask_result only after awaiting the ack,
+    // which can't happen until phase 1 (fastWindow) has already elapsed. A
+    // zero fastWindow skips straight to that path, preserving their timing.
+    Duration fastWindow = Duration.zero,
+  }) {
     return runAskBorder(
       question,
       rpc: rpc,
@@ -68,6 +76,7 @@ void main() {
         notifications.add(_RecordedNotification(identifier, preview, badgeCount));
       },
       onFinished: () => finishedCalls++,
+      fastWindow: fastWindow,
       postAckWindow: postAckWindow,
     );
   }
@@ -135,5 +144,92 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
 
     expect(finishedCalls, 1);
+  });
+
+  test(
+      'a real answer arriving within fastWindow is returned directly for Siri to speak '
+      '(two-way voice)', () async {
+    final resultFuture = runAskBorder(
+      'is BGP up on the core switch',
+      rpc: rpc,
+      store: store,
+      close: () async => closeCalls++,
+      notify: ({required identifier, required preview, required badgeCount}) async {
+        notifications.add(_RecordedNotification(identifier, preview, badgeCount));
+      },
+      onFinished: () => finishedCalls++,
+      fastWindow: const Duration(seconds: 5),
+    );
+    // Delivered while phase 1 is still listening -- simulates a fast agent
+    // reply, distinct from the other tests' zero-fastWindow "slow path".
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await rpc.deliverAskResult(
+        {'task_id': 'task-1', 'state': 'completed', 'output_text': 'Yes, BGP is up.'});
+
+    final spoken = await resultFuture;
+
+    expect(spoken, 'Yes, BGP is up.', reason: 'Siri speaks this return value verbatim');
+    expect(store.turns.single.state, 'completed');
+    expect(notifications, isEmpty, reason: 'no notification needed -- Siri already said it');
+    expect(finishedCalls, 1);
+    expect(closeCalls, 1);
+  });
+
+  test(
+      'a markdown-laden answer arriving within fastWindow is stripped for Siri, but stored '
+      'unstripped for the Chat screen', () async {
+    const raw =
+        '**BGP is up.**\n\n# Summary\n- eBGP session to core: established\n- iBGP mesh: full';
+    final resultFuture = runAskBorder(
+      'is BGP up on the core switch',
+      rpc: rpc,
+      store: store,
+      close: () async => closeCalls++,
+      notify: ({required identifier, required preview, required badgeCount}) async {
+        notifications.add(_RecordedNotification(identifier, preview, badgeCount));
+      },
+      onFinished: () => finishedCalls++,
+      fastWindow: const Duration(seconds: 5),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await rpc.deliverAskResult({'task_id': 'task-1', 'state': 'completed', 'output_text': raw});
+
+    final spoken = await resultFuture;
+
+    expect(spoken, isNot(contains('**')));
+    expect(spoken, isNot(contains('#')));
+    expect(spoken, isNot(contains('- eBGP')));
+    expect(spoken, contains('BGP is up.'));
+    expect(spoken, contains('eBGP session to core: established'));
+    expect(store.turns.single.answerText, raw,
+        reason: 'the Chat screen must still see the original, unstripped answer');
+  });
+
+  group('stripMarkdownForSpeech', () {
+    test('removes bold/italic emphasis markers, keeping content', () {
+      expect(stripMarkdownForSpeech('**bold** and *italic* text'), 'bold and italic text');
+    });
+
+    test('removes headers, keeping content', () {
+      expect(stripMarkdownForSpeech('# Title\n## Subtitle\nBody'), 'Title\nSubtitle\nBody');
+    });
+
+    test('removes bullet list markers, keeping content', () {
+      expect(stripMarkdownForSpeech('- one\n- two\n* three'), 'one\ntwo\nthree');
+    });
+
+    test('leaves plain text with no markup unchanged', () {
+      expect(stripMarkdownForSpeech('All systems normal.'), 'All systems normal.');
+    });
+
+    test('handles a realistic mix of all three without leaving excess blank lines', () {
+      const raw = '**Status: OK**\n\n# Summary\n- cml: active\n- pyats: active';
+      final result = stripMarkdownForSpeech(raw);
+      expect(result, isNot(contains('**')));
+      expect(result, isNot(contains('#')));
+      expect(result, isNot(matches(RegExp(r'\n{3,}'))));
+      expect(result, contains('Status: OK'));
+      expect(result, contains('cml: active'));
+    });
   });
 }

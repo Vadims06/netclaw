@@ -18,6 +18,7 @@
 		386D1251CF96BBCAE1461D3D /* HeartbeatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50536064379DEE1951C55E48 /* HeartbeatView.swift */; };
 		3AD0DA835FD1019E91797E58 /* NetClawWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 86EB39563030D81600206946 /* NetClawWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		3E15D4296A60942354889A8B /* BorderHealthIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5BA25C202699C8E74D3AFEE /* BorderHealthIntent.swift */; };
 		3EEE4A4394544DA06EA0A518 /* HeartbeatComplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1A88681C289C2A4993574F /* HeartbeatComplication.swift */; };
 		49BEAAEF69DD4D8F46C31214 /* LiveActivityBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13C1D53033EE4A7F78E8AA0E /* LiveActivityBridge.swift */; };
 		4B6F293DE00320D61764400E /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79320610823C4CAFA21FDA7F /* WidgetDataStore.swift */; };
@@ -31,11 +32,13 @@
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		86EB39583030D81600206946 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86EB39573030D81600206946 /* WidgetKit.framework */; };
 		86EB395A3030D81600206946 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 86EB39593030D81600206946 /* SwiftUI.framework */; };
+		882EB2E4B8EB9C9ED1020343 /* NetClawShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F04B93F17205A9083B13AF89 /* NetClawShortcuts.swift */; };
 		8831D9AF2CB51ABC313C7499 /* PendingApprovalCountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E137B241FFB29D7E76F2E771 /* PendingApprovalCountStore.swift */; };
 		8FE94B2B99CAFE6CED9F69D9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9A4437B88234FA5ED367E5BF /* PrivacyInfo.xcprivacy */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		A07AA7B97E72AB6A8A72E95F /* AskBorderIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E67DA4401E9F62317457618 /* AskBorderIntent.swift */; };
 		A0F91D422CAE5A9A1262B105 /* ApprovalActionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D5BF838B9249487BC350187 /* ApprovalActionIntent.swift */; };
 		A8E85D3836C0AFE112E6A607 /* WatchApp.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = ECD3F5FECD3D095F16E19C7F /* WatchApp.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AA353EE7FFEBD393376659DD /* AskActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E68984CC7D1A34114C776473 /* AskActivityAttributes.swift */; };
@@ -54,8 +57,10 @@
 		ECEC4338AA23792FA3A304DC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0512EDA37E8AF7839C85B83 /* Assets.xcassets */; };
 		EEF68E6DA028D2426E4797B0 /* AskLiveActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758E90F2E89A0746E9995339 /* AskLiveActivityView.swift */; };
 		EF517D42E9F2166F8F0EFD89 /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79320610823C4CAFA21FDA7F /* WidgetDataStore.swift */; };
+		F00E53044E7B1499C8F3FE7A /* HeadlessEngineRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348F051AC604E351E68C9BFC /* HeadlessEngineRunner.swift */; };
 		F174AAF58CA25C73F02BE34B /* AskActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E68984CC7D1A34114C776473 /* AskActivityAttributes.swift */; };
 		F5AC82BC8D19636F1E3FE002 /* ApprovalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2AF35EC3369EB1FF9FD76AE /* ApprovalsView.swift */; };
+		FA87941C9FD41AEA0C968758 /* PendingApprovalsIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7365BE3652E378162068471D /* PendingApprovalsIntent.swift */; };
 		FB1A625F9305635EC2988042 /* AskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E8F7BB479463A6EDEC2DC9 /* AskView.swift */; };
 		FC7EF0B77D370C70F5BB2DBF /* WatchDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC63342F72A58D27A4A1CB24 /* WatchDataStore.swift */; };
 		FE00B62419231A91576612EC /* PendingApprovalComplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6C04595DA581CCE3A32C39 /* PendingApprovalComplication.swift */; };
@@ -154,11 +159,13 @@
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		1B661504AF33825800F538DE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1E67DA4401E9F62317457618 /* AskBorderIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AskBorderIntent.swift; sourceTree = "<group>"; };
 		20E8F7BB479463A6EDEC2DC9 /* AskView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AskView.swift; sourceTree = "<group>"; };
 		273652801983689749C43897 /* WatchComplication.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WatchComplication.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		293A1D304532ECFF692D458B /* PendingApprovalActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PendingApprovalActivityAttributes.swift; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		348F051AC604E351E68C9BFC /* HeadlessEngineRunner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeadlessEngineRunner.swift; sourceTree = "<group>"; };
 		35E1A3AD03CE55C2B0BE0A42 /* SpeechPlayback.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SpeechPlayback.swift; sourceTree = "<group>"; };
 		3AC49A097EA8223766C69C1B /* PendingApprovalLiveActivityView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PendingApprovalLiveActivityView.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
@@ -169,6 +176,7 @@
 		5F670FCA531F3F4E9726ABFE /* WatchRelayPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchRelayPlugin.swift; sourceTree = "<group>"; };
 		5FFCB201673536578933EC0E /* EdgeIdentityPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EdgeIdentityPlugin.swift; sourceTree = "<group>"; };
 		6129DE6CAD59B231BA5725E5 /* HeartbeatStatusStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeartbeatStatusStore.swift; sourceTree = "<group>"; };
+		7365BE3652E378162068471D /* PendingApprovalsIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PendingApprovalsIntent.swift; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		758E90F2E89A0746E9995339 /* AskLiveActivityView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AskLiveActivityView.swift; sourceTree = "<group>"; };
@@ -200,8 +208,10 @@
 		E1BC7434D4DA5543407FE3CD /* LiveActivityWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveActivityWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E68984CC7D1A34114C776473 /* AskActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AskActivityAttributes.swift; sourceTree = "<group>"; };
 		ECD3F5FECD3D095F16E19C7F /* WatchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WatchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F04B93F17205A9083B13AF89 /* NetClawShortcuts.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetClawShortcuts.swift; sourceTree = "<group>"; };
 		F0D05F988A1C8236B7562997 /* WatchRelayPluginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRelayPluginTests.swift; sourceTree = "<group>"; };
 		F28CB5A04B49A7B79D9E6AC5 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		F5BA25C202699C8E74D3AFEE /* BorderHealthIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BorderHealthIntent.swift; sourceTree = "<group>"; };
 		FC63342F72A58D27A4A1CB24 /* WatchDataStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchDataStore.swift; sourceTree = "<group>"; };
 		FDF3354E3FFD03DF087537CA /* WatchConnectivitySession.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchConnectivitySession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -386,6 +396,11 @@
 				0D5BF838B9249487BC350187 /* ApprovalActionIntent.swift */,
 				79320610823C4CAFA21FDA7F /* WidgetDataStore.swift */,
 				4AECB19E8928BAD573BEF2FD /* WidgetBridgePlugin.swift */,
+				1E67DA4401E9F62317457618 /* AskBorderIntent.swift */,
+				7365BE3652E378162068471D /* PendingApprovalsIntent.swift */,
+				F5BA25C202699C8E74D3AFEE /* BorderHealthIntent.swift */,
+				348F051AC604E351E68C9BFC /* HeadlessEngineRunner.swift */,
+				F04B93F17205A9083B13AF89 /* NetClawShortcuts.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -724,6 +739,11 @@
 				A0F91D422CAE5A9A1262B105 /* ApprovalActionIntent.swift in Sources */,
 				4B6F293DE00320D61764400E /* WidgetDataStore.swift in Sources */,
 				1DC7413FB2432E124D270D50 /* WidgetBridgePlugin.swift in Sources */,
+				A07AA7B97E72AB6A8A72E95F /* AskBorderIntent.swift in Sources */,
+				FA87941C9FD41AEA0C968758 /* PendingApprovalsIntent.swift in Sources */,
+				3E15D4296A60942354889A8B /* BorderHealthIntent.swift in Sources */,
+				F00E53044E7B1499C8F3FE7A /* HeadlessEngineRunner.swift in Sources */,
+				882EB2E4B8EB9C9ED1020343 /* NetClawShortcuts.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1067,7 +1087,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.automateyournetwork.netclaw.mobile.netclawwidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited) IS_EXTENSION_TARGET";
@@ -1077,7 +1096,6 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				WATCHOS_DEPLOYMENT_TARGET = 26.5;
 			};
 			name = Debug;
 		};
@@ -1114,7 +1132,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.automateyournetwork.netclaw.mobile.netclawwidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) IS_EXTENSION_TARGET";
@@ -1123,7 +1140,6 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				WATCHOS_DEPLOYMENT_TARGET = 26.5;
 			};
 			name = Release;
 		};
@@ -1160,7 +1176,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.automateyournetwork.netclaw.mobile.netclawwidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) IS_EXTENSION_TARGET";
@@ -1169,7 +1184,6 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				WATCHOS_DEPLOYMENT_TARGET = 26.5;
 			};
 			name = Profile;
 		};

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 
+import '../main.dart';
 import '../ncfed/app_lock.dart';
 import '../ncfed/capability_registration.dart';
 import '../ncfed/push_registration.dart';
+import '../ncfed/theme_preference.dart';
 
 /// 109/research.md R5: human-readable labels for the fixed grace-period
 /// choice set.
@@ -78,6 +80,11 @@ class SettingsScreen extends StatefulWidget {
   /// channel (109/FR-008, research.md R4).
   final AppLockPreference? appLockPreference;
 
+  /// Injectable so tests never touch the real secure-storage platform
+  /// channel (115/FR-008, research.md R6) — same pattern as
+  /// [appLockPreference] above.
+  final ThemePreference? themePreference;
+
   const SettingsScreen({
     super.key,
     required this.capabilities,
@@ -86,6 +93,7 @@ class SettingsScreen extends StatefulWidget {
     this.localNotificationsPermissionDenied = false,
     this.authenticate,
     this.appLockPreference,
+    this.themePreference,
   });
 
   @override
@@ -105,6 +113,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _appLockEnabled = false;
   Duration _gracePeriod = defaultGracePeriod;
   bool _appLockLoaded = false;
+
+  late final ThemePreference _themePreference = widget.themePreference ?? ThemePreference();
 
   @override
   void initState() {
@@ -203,6 +213,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           const Divider(),
         ],
+        ValueListenableBuilder<ThemeMode>(
+          valueListenable: NetClawMobileApp.themeMode,
+          builder: (context, mode, _) => ListTile(
+            title: const Text('Appearance'),
+            subtitle: const Text('Light, Dark, or follow this device\'s system setting'),
+            trailing: DropdownButton<ThemeMode>(
+              value: mode,
+              items: const [
+                DropdownMenuItem(value: ThemeMode.system, child: Text('System')),
+                DropdownMenuItem(value: ThemeMode.light, child: Text('Light')),
+                DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark')),
+              ],
+              onChanged: (value) async {
+                if (value == null) return;
+                await _themePreference.save(value);
+                NetClawMobileApp.themeMode.value = value;
+              },
+            ),
+          ),
+        ),
+        const Divider(),
         ListTile(
           leading: Icon(Icons.logout, color: Colors.red.shade700),
           title: Text('Remove this device', style: TextStyle(color: Colors.red.shade700)),
