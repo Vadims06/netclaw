@@ -1704,6 +1704,12 @@ class FederationService:
         # accompanying text (FR-005) -- text is required only in the
         # ABSENCE of an attachment.
         attachment = params.get("attachment")
+        # spec 117 (Pass 3, FR-003): an optional marker, currently only ever
+        # sent as "voice" by the phone's Siri headless path. Forwarded
+        # as-is to run_agent_turn() below -- no validation needed here,
+        # since run_agent_turn's own _normalize_origin() (spec 116) already
+        # treats anything it doesn't recognize as None.
+        origin = params.get("origin")
         if not text and not attachment:
             raise RpcError(-32602, "text or attachment required")
         member_id = channel.member_id
@@ -1770,7 +1776,8 @@ class FederationService:
                 output, tokens = await run_agent_turn(
                     prompt, session_key=session_key, untrusted=False,
                     message_file=message_file,
-                    timeout_s=timeout_s, on_stall=on_stall)
+                    timeout_s=timeout_s, on_stall=on_stall,
+                    origin=origin)
             finally:
                 if message_file:
                     try:
