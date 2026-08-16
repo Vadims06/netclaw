@@ -35,11 +35,12 @@ struct AskBorderIntent: AppIntent {
     private let postAckExtensionBudget: TimeInterval = 25
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let runner = HeadlessEngineRunner(
+        let runner = await HeadlessEngineRunner(
             entrypoint: "askBorderMain",
+            libraryURI: "package:netclaw_mobile/ncfed/ask_border_headless.dart",
             channelName: "ca.automateyournetwork.netclaw/ask_border")
         do {
-            let ack = try await runner.submit(["question": question], timeout: 15)
+            let ack = try await runner.submit(["question": question], timeout: 50)
             beginBestEffortCompletion(runner: runner)
             return .result(dialog: IntentDialog(stringLiteral: ack))
         } catch HeadlessIntentError.notEnrolled {

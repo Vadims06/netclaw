@@ -9,8 +9,10 @@ struct NetClawShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: AskBorderIntent(),
             phrases: [
-                "Ask \(.applicationName) \(\.$question)",
-                "Ask \(.applicationName) if \(\.$question)",
+                "Ask \(.applicationName) a question",
+                "Ask \(.applicationName) something",
+                "Ask \(.applicationName) how BGP is doing",
+                "How is \(.applicationName) doing",
             ],
             shortTitle: "Ask NetClaw",
             systemImageName: "antenna.radiowaves.left.and.right"
@@ -20,6 +22,8 @@ struct NetClawShortcuts: AppShortcutsProvider {
             phrases: [
                 "Ask \(.applicationName) how many approvals are pending",
                 "Check pending approvals with \(.applicationName)",
+                "How many approvals are pending in \(.applicationName)",
+                "Check my pending approvals in \(.applicationName)",
             ],
             shortTitle: "Pending Approvals",
             systemImageName: "checkmark.shield"
@@ -29,6 +33,10 @@ struct NetClawShortcuts: AppShortcutsProvider {
             phrases: [
                 "Ask \(.applicationName) for Border health",
                 "Check \(.applicationName) Border health",
+                "How is the Border health in \(.applicationName)",
+                "How is \(.applicationName) Border health",
+                "Check Border health in \(.applicationName)",
+                "How is the network health in \(.applicationName)",
             ],
             shortTitle: "Border Health",
             systemImageName: "heart.text.square"

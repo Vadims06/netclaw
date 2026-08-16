@@ -16,11 +16,12 @@ struct PendingApprovalsIntent: AppIntent {
     static var openAppWhenRun: Bool = false
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let runner = HeadlessEngineRunner(
+        let runner = await HeadlessEngineRunner(
             entrypoint: "pendingApprovalsMain",
+            libraryURI: "package:netclaw_mobile/ncfed/pending_approvals_headless.dart",
             channelName: "ca.automateyournetwork.netclaw/pending_approvals")
         do {
-            let spoken = try await runner.submit(nil, timeout: 15)
+            let spoken = try await runner.submit(nil, timeout: 30)
             return .result(dialog: IntentDialog(stringLiteral: spoken))
         } catch HeadlessIntentError.notEnrolled {
             return .result(dialog: IntentDialog(stringLiteral: "NetClaw isn't set up on this device yet."))

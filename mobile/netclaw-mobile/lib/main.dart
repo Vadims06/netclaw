@@ -8,7 +8,11 @@ import 'package:path_provider/path_provider.dart';
 
 import 'ncfed/app_lock.dart';
 import 'ncfed/approval_client.dart';
+// ignore: unused_import
+import 'ncfed/ask_border_headless.dart';
 import 'ncfed/background_refresh.dart';
+// ignore: unused_import
+import 'ncfed/border_health_headless.dart';
 import 'ncfed/badge_lifecycle.dart';
 import 'ncfed/capability_registration.dart';
 import 'ncfed/capture_client.dart';
@@ -30,6 +34,8 @@ import 'ncfed/local_notifications.dart';
 import 'ncfed/message_feed.dart';
 import 'ncfed/notification_deep_link.dart';
 import 'ncfed/pending_approval_store.dart';
+// ignore: unused_import
+import 'ncfed/pending_approvals_headless.dart';
 import 'ncfed/push_message_ingest.dart';
 import 'ncfed/push_registration.dart';
 import 'ncfed/reconnect_supervisor.dart';
