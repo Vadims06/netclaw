@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
@@ -9,22 +7,6 @@ import 'edge_client.dart';
 import 'headless_connect.dart';
 
 const _channel = MethodChannel('ca.automateyournetwork.netclaw/border_health');
-
-/// TEMPORARY DIAGNOSTIC: appends a timestamped line to a file on disk so it
-/// can be pulled and read even when live log streaming (idevicesyslog) is
-/// unreliable/unavailable. Best-effort -- swallows its own errors so a
-/// diagnostic write can never itself break the real flow.
-Future<void> _diag(String msg) async {
-  try {
-    final dir = await getApplicationDocumentsDirectory();
-    final f = File('${dir.path}/bh_diag.log');
-    await f.writeAsString(
-      '${DateTime.now().toIso8601String()} $msg\n',
-      mode: FileMode.append,
-      flush: true,
-    );
-  } catch (_) {}
-}
 
 /// Entry point for the headless `FlutterEngine` `BorderHealthIntent.swift`
 /// spins up (spec 111, User Story 3). Unlike the other two intents,
@@ -37,39 +19,27 @@ Future<void> _diag(String msg) async {
 /// [EdgeClient] is otherwise unused once `connectHeadless()` succeeds.
 @pragma('vm:entry-point')
 Future<void> borderHealthMain() async {
-  await _diag('borderHealthMain entered');
   WidgetsFlutterBinding.ensureInitialized();
-  await _diag('WidgetsFlutterBinding ready');
   _channel.setMethodCallHandler((call) async {
-    await _diag('submit received: ${call.method}');
     if (call.method != 'submit') return null;
     final dir = await getApplicationDocumentsDirectory();
-    await _diag('got documents dir: ${dir.path}');
     final EdgeClient client;
     try {
       client = await connectHeadless(directory: dir);
-      await _diag('connectHeadless succeeded');
     } on NotEnrolledError {
-      await _diag('connectHeadless: not enrolled');
       throw PlatformException(code: 'not_enrolled');
     } on ConnectTimeoutError {
-      await _diag('connectHeadless: timed out');
       throw PlatformException(code: 'timeout');
     }
     await client.close();
     try {
-      final result = await runBorderHealth(DeviceHeartbeatStore(dir));
-      await _diag('runBorderHealth succeeded: $result');
-      return result;
+      return await runBorderHealth(DeviceHeartbeatStore(dir));
     } on NoHealthDataError {
-      await _diag('runBorderHealth: no data');
       throw PlatformException(code: 'no_data');
     } catch (e) {
-      await _diag('runBorderHealth failed: $e');
       throw PlatformException(code: 'failed', message: '$e');
     }
   });
-  await _diag('method call handler registered');
 }
 
 /// No heartbeat has ever been received on this device (spec 111, User Story

@@ -18,7 +18,7 @@ const _channel = MethodChannel('ca.automateyournetwork.netclaw/ask_border');
 /// under Siri's own observed real-world patience for a spoken App Intent
 /// response (on-device testing showed it can abandon the request and fall
 /// back to a web search well before 30s if nothing has been said yet).
-const askBorderFastWindow = Duration(seconds: 12);
+const askBorderFastWindow = Duration(seconds: 18);
 
 /// How long [runAskBorder] keeps listening for a fast-arriving `ask_result`
 /// after the acknowledgment has already been reported (because [
@@ -73,6 +73,27 @@ Future<void> askBorderMain() async {
       throw PlatformException(code: 'failed', message: '$e');
     }
   });
+}
+
+/// Strips the Border's lightweight markdown (bold/italic emphasis, `#`
+/// headers, `-`/`*` list markers) from [text] so it reads as natural speech
+/// when handed to Siri as spoken `IntentDialog` content (spec 115 FR-005,
+/// research.md R5). Only ever applied to the string [runAskBorder] returns
+/// on its fast-voice path -- never to the value persisted via
+/// `store.updateState`, which stays exactly as the Border composed it for
+/// display in the app's own Chat screen.
+String stripMarkdownForSpeech(String text) {
+  var result = text
+      // Headers: leading '#'s followed by a space, at line start.
+      .replaceAll(RegExp(r'^#{1,6}\s+', multiLine: true), '')
+      // Bold/italic emphasis markers -- content is kept, markers dropped.
+      .replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m.group(1)!)
+      .replaceAllMapped(RegExp(r'\*(.+?)\*'), (m) => m.group(1)!)
+      // List-item markers at line start ('- ' or '* '), content kept.
+      .replaceAll(RegExp(r'^[-*]\s+', multiLine: true), '');
+  // Collapse any blank lines the marker removal left behind.
+  result = result.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+  return result;
 }
 
 /// `null` if [state] isn't one of the three terminal states.
@@ -130,7 +151,9 @@ Future<String> runAskBorder(
       await store.updateState(taskId, stateString, answerText: answer);
       await close();
       onFinished();
-      return answer.isEmpty ? "NetClaw answered, but didn't say anything." : answer;
+      if (answer.isEmpty) return "NetClaw answered, but didn't say anything.";
+      final spoken = stripMarkdownForSpeech(answer);
+      return spoken.isEmpty ? "NetClaw answered, but didn't say anything." : spoken;
     }
     // Still working when fastWindow elapsed -- fall through to phase 2.
   } on TimeoutException {

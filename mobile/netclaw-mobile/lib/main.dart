@@ -39,6 +39,7 @@ import 'ncfed/pending_approvals_headless.dart';
 import 'ncfed/push_message_ingest.dart';
 import 'ncfed/push_registration.dart';
 import 'ncfed/reconnect_supervisor.dart';
+import 'ncfed/theme_preference.dart';
 import 'ncfed/turn_reconciler.dart';
 import 'ncfed/watch_relay.dart';
 import 'screens/approvals_screen.dart';
@@ -59,21 +60,36 @@ import 'theme.dart';
 /// ncfed/background_refresh.dart.
 final backgroundRefreshEntryPointKeepAlive = backgroundRefreshMain;
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  NetClawMobileApp.themeMode.value = await ThemePreference().load();
   runApp(const NetClawMobileApp());
 }
 
+/// 115/FR-008-FR-010: [themeMode] is the single app-wide source of truth for
+/// the operator's Light/Dark/System choice. A static `ValueNotifier` (rather
+/// than threading a constructor parameter through every intermediate widget
+/// down to the Settings screen) since this app has no existing
+/// Provider/Riverpod/Bloc dependency to build on (research.md R6) -- loaded
+/// once from [ThemePreference] before the first frame (so there's no flash
+/// of the wrong appearance), and updated directly by the Settings screen so
+/// the whole app re-themes immediately, with no restart needed.
 class NetClawMobileApp extends StatelessWidget {
+  static final themeMode = ValueNotifier<ThemeMode>(ThemeMode.system);
+
   const NetClawMobileApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'NetClaw Mobile',
-      theme: netclawTheme,
-      darkTheme: netclawDarkTheme,
-      themeMode: ThemeMode.system,
-      home: AppLockGate(child: EnrollmentGate()),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeMode,
+      builder: (context, mode, _) => MaterialApp(
+        title: 'NetClaw Mobile',
+        theme: netclawTheme,
+        darkTheme: netclawDarkTheme,
+        themeMode: mode,
+        home: AppLockGate(child: EnrollmentGate()),
+      ),
     );
   }
 }
