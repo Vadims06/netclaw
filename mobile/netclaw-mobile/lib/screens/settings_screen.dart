@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart';
 import '../ncfed/app_lock.dart';
@@ -231,6 +232,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 NetClawMobileApp.themeMode.value = value;
               },
             ),
+          ),
+        ),
+        const Divider(),
+        ListTile(
+          leading: const Icon(Icons.privacy_tip_outlined),
+          title: const Text('Privacy Policy'),
+          onTap: () => launchUrl(
+            Uri.parse('https://automateyournetwork.github.io/netclaw/privacy-policy.html'),
+            mode: LaunchMode.externalApplication,
           ),
         ),
         const Divider(),

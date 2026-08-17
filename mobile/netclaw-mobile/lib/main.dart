@@ -85,6 +85,7 @@ class NetClawMobileApp extends StatelessWidget {
       valueListenable: themeMode,
       builder: (context, mode, _) => MaterialApp(
         title: 'NetClaw Mobile',
+        debugShowCheckedModeBanner: false,
         theme: netclawTheme,
         darkTheme: netclawDarkTheme,
         themeMode: mode,

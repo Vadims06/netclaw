@@ -52,3 +52,8 @@ app.*.map.json
 /android/app/google-services.json
 /ios/Runner/GoogleService-Info.plist
 firebase_options.dart
+
+# App Store Connect screenshot staging (docs/MOBILE-RELEASE.md step 6) --
+# captured locally per release, uploaded directly to App Store Connect, not
+# repo content.
+/screenshots/
