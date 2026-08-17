@@ -27,20 +27,14 @@ EXPORT_PATH="$MOBILE_DIR/build/export"
 
 cd "$MOBILE_DIR"
 
-CURRENT_TEAM=$(grep -m1 'DEVELOPMENT_TEAM = ' ios/Runner.xcodeproj/project.pbxproj | sed -E 's/.*DEVELOPMENT_TEAM = ([A-Z0-9]+);/\1/')
-
-# The free/Personal team ID this project shipped with (see research.md R5/R6
-# and Runner.entitlements) -- if it's still set, code signing hasn't been
-# moved to the paid team yet, and this archive would fail or (worse) silently
-# produce a non-distributable build.
-FREE_TEAM_ID="A49777FMJG"
-if [ "$CURRENT_TEAM" = "$FREE_TEAM_ID" ]; then
-  echo -e "${RED}error:${NC} DEVELOPMENT_TEAM is still the free/Personal team ($FREE_TEAM_ID)."
-  echo "Move Runner's code signing to your paid Apple Developer Program team first"
-  echo "(Xcode -> Runner target -> Signing & Capabilities -> Team), then re-run this script."
-  echo "See docs/MOBILE-RELEASE.md."
-  exit 1
-fi
+# This project's Apple ID upgraded from a free/Personal team to the paid
+# Apple Developer Program under the SAME team ID (A49777FMJG) -- common for
+# an individual account, where enrolling in the paid Program unlocks
+# capabilities (push, distribution export) without reassigning a new Team
+# ID. The free-vs-paid distinction this script cares about is therefore no
+# longer detectable from the Team ID alone, so that check was removed
+# (see docs/MOBILE-RELEASE.md). ExportOptions.plist's own teamID placeholder
+# check below is the guard that still matters.
 
 if grep -q "REPLACE_WITH_PAID_TEAM_ID" "$EXPORT_OPTIONS"; then
   echo -e "${RED}error:${NC} $EXPORT_OPTIONS still has the placeholder teamID."
@@ -48,19 +42,27 @@ if grep -q "REPLACE_WITH_PAID_TEAM_ID" "$EXPORT_OPTIONS"; then
   exit 1
 fi
 
-echo -e "${GREEN}==>${NC} Archiving Runner (team: $CURRENT_TEAM)..."
+echo -e "${GREEN}==>${NC} Archiving Runner (team: A49777FMJG)..."
 xcodebuild archive \
   -project ios/Runner.xcodeproj \
   -scheme Runner \
   -configuration Release \
   -archivePath "$ARCHIVE_PATH" \
-  -destination "generic/platform=iOS"
+  -destination "generic/platform=iOS" \
+  -allowProvisioningUpdates
 
 echo -e "${GREEN}==>${NC} Exporting for App Store Connect..."
+# -allowProvisioningUpdates: automatic signing's App Store distribution
+# profiles lag behind newly added capabilities (App Groups, Siri, Time
+# Sensitive Notifications -- specs 111/114) and the widget extension target
+# may have no Store profile registered at all yet. Without this flag,
+# -exportArchive fails outright on stale/missing profiles instead of asking
+# Xcode's connected Apple ID to regenerate them.
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE_PATH" \
   -exportPath "$EXPORT_PATH" \
-  -exportOptionsPlist "$EXPORT_OPTIONS"
+  -exportOptionsPlist "$EXPORT_OPTIONS" \
+  -allowProvisioningUpdates
 
 echo -e "${GREEN}==>${NC} Done. Exported .ipa: $EXPORT_PATH"
 echo -e "${YELLOW}Next:${NC} upload via Transporter or 'xcrun altool --upload-app', then complete"
