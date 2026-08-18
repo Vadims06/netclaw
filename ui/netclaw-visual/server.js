@@ -440,6 +440,17 @@ const ENV_MAP = {
     files: ['config/openclaw.json (remote endpoint — no vendored server)'],
     notes: 'Official jsDelivr remote MCP at https://mcp.globalping.dev/mcp, bearer token, streamable HTTP + SSE. No local server by design (spec 079 R1). 5 measurement tools (ping/traceroute/dns/mtr/http) plus limits/locations; 6 of the 12 advertised tools take only the analytics `context` argument. Budget is 500 probe-measurements/hour authenticated (250 anonymous per IP) and is charged PER PROBE — limit:20 spends 20 — so right-size limit rather than maximising it. Public targets only: RFC1918/loopback/link-local are refused locally BEFORE calling out, so internal addressing is never transmitted. Location syntax: + is AND (London+UK), arrays for multiple places, world for a global spread, AS3320 for an ASN; a comma inside one string fails, and AS13335 (the vendor\'s own schema example) never returns probes because Cloudflare hosts none. Every tool requires a natural-language `context` field the vendor uses for intent analytics — NetClaw sends a generic task-shaped value only.',
   },
+  'zoom-rtms': {
+    env: ['ZOOM_CLIENT_ID', 'ZOOM_CLIENT_SECRET', 'ZOOM_ACCOUNT_ID', 'ZOOM_RTMS_WEBHOOK_SECRET',
+          'N2N_ZOOM_CHANNEL_PORT', 'N2N_ZOOM_CHANNEL_SECRET'],
+    files: ['mcp-servers/zoom-rtms-mcp/server.py'],
+    notes: 'NetClaw for Zoom — Meeting Intelligence (spec 118). Realtime Media Streams (not a '
+      + 'Meeting SDK bot) feed a deterministic extractor that recognizes network-investigation '
+      + 'questions and routes them into the existing Border/NCFED path via a new loopback-only '
+      + 'bgp/federation/zoom_channel.py channel. Feeds the Zoom App side panel (avatar + live '
+      + 'status) with an optional Layers API camera overlay. No new device-write approval '
+      + 'mechanism — reuses NetClaw\'s existing gate unchanged.',
+  },
   'cisco-psirt': {
     env: ['CISCO_CLIENT_ID', 'CISCO_CLIENT_SECRET', 'CISCO_PSIRT_CACHE_DIR', 'CISCO_PSIRT_CACHE_TTL_S'],
     files: ['mcp-servers/cisco-psirt-mcp/server.py'],

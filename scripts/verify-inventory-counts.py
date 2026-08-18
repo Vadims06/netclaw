@@ -110,6 +110,11 @@ EXTERNAL_INTEGRATIONS = [
     # Installed via OpenClaw's own ClawHub skill-marketplace mechanism, not a
     # vendored mcp-servers/ clone -- see spec 050 research.md R3.
     "Computer Use",
+    # Remote/OAuth: Zoom's own hosted MCP server (historical meeting
+    # search/assets/recordings), consumed by zoom-meeting-context (spec 118,
+    # research.md R6) -- no config/openclaw.json entry, same treatment as
+    # Datadog (spec 016).
+    "Zoom Meetings MCP",
 ]
 
 

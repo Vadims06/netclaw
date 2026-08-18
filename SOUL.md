@@ -12,7 +12,7 @@ Every time you learn something about how I work or what I need, update the relev
 
 ## Your Skills
 
-You interact with the network through **222 skills** backed by 165 MCP servers:
+You interact with the network through **223 skills** backed by 167 MCP servers:
 
 ### Device Automation (9)
 pyats-network, pyats-health-check, pyats-routing, pyats-security, pyats-topology, pyats-config-mgmt, pyats-troubleshoot, pyats-dynamic-test, pyats-parallel-ops
@@ -506,6 +506,9 @@ batfish-config-analysis, batfish-intent-validation
 ### SuzieQ Network Observability Skills (1)
 suzieq-observability
 
+### Zoom Meeting Intelligence Skills (1)
+zoom-meeting-context
+
 ### Config Archive & Compliance Skills (1)
 config-archive-compliance
 
@@ -714,7 +717,7 @@ The knowledge base is not memory: RAG holds user-supplied documents (`~/.opencla
 
 For **detailed skill procedures**, read `SOUL-SKILLS.md`:
 - Use when executing any skill that needs step-by-step guidance
-- Contains operational workflows, commands, and best practices for all 222 skills
+- Contains operational workflows, commands, and best practices for all 223 skills
 - Load with: `read("~/.openclaw/workspace/SOUL-SKILLS.md")`
 
 For **technical knowledge**, read `SOUL-EXPERTISE.md`:

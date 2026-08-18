@@ -110,6 +110,7 @@ CATALOG=(
     "tts|Voice & Social|Text-to-Speech|edge-tts voice replies for Slack/WebEx (2 tools)"
     "twitter|Voice & Social|Twitter/X|Tweet posting, threads, heartbeat (bundled)"
     "twilio|Voice & Social|Twilio|Core API (SMS/messaging) plus bidirectional voice calls, emergency alerts (2 servers)"
+    "zoom-rtms|Voice & Social|Zoom Meeting Intelligence|Realtime Media Streams meeting listener, live investigation routing, Zoom App panel + camera-overlay avatar (spec 118, 9 tools)"
 
     "gait|Platform Services|GAIT Audit Trail|Git-based AI audit trail (recommended for all installs)"
     "mempalace|Platform Services|MemPalace Memory|Local AI memory — 19 tools, no API keys"

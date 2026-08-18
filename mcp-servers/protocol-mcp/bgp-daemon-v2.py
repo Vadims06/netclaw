@@ -1095,6 +1095,22 @@ async def _start_edge(fed):
         _status("failed", port=port, error=str(e))
 
 
+async def _start_zoom(fed):
+    """Spec 118: starts the loopback-only Zoom channel that zoom-rtms-mcp
+    connects to, if N2N_ZOOM_CHANNEL_PORT is set. Disabled by default, same
+    opt-in shape as _start_edge — a claw that never runs zoom-rtms-mcp is
+    unaffected."""
+    port = int(os.environ.get("N2N_ZOOM_CHANNEL_PORT", "0") or 0)
+    if not port:
+        logger.info("Zoom channel: set N2N_ZOOM_CHANNEL_PORT to accept zoom-rtms-mcp connections")
+        return
+    try:
+        from bgp.federation import zoom_channel
+        await zoom_channel.start_server(fed, port)
+    except Exception as e:
+        logger.error("Zoom channel start error: %s", e)
+
+
 async def _start_cert_lifecycle(fed):
     """Feature 060: at startup obtain the domain-verified credential if the claw
     is configured for one, register long-lived local credentials for rotation,
@@ -1580,6 +1596,10 @@ async def main():
         # NCFED Edge Node (feature 066): a Border listens for phone dial-ins
         # over a WebSocket transport if N2N_EDGE_WS_PORT is set.
         asyncio.create_task(_start_edge(_federation))
+        # Zoom Meeting Intelligence (spec 118): a Border listens for the local
+        # zoom-rtms-mcp process to connect over a loopback channel, if
+        # N2N_ZOOM_CHANNEL_PORT is set.
+        asyncio.create_task(_start_zoom(_federation))
         # Claw certification (feature 060): obtain/refresh the domain-verified
         # credential (if configured) and run the automatic renewal scheduler.
         asyncio.create_task(_start_cert_lifecycle(_federation))
