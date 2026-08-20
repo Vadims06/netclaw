@@ -169,6 +169,7 @@ class MeetingRtmsListener:
         participant_name = getattr(metadata, "userName", "") or ""
         s.buffer.append(TranscriptEntry(time.time(), participant_id, participant_name,
                                          data, kind="transcript"))
+        s.last_activity = time.time()
         recognition.on_new_entry(self.meeting_uuid, "speech", data)
 
     def _on_event_ex(self, raw_json: str):
@@ -197,6 +198,7 @@ class MeetingRtmsListener:
         participant_name = str(content.get("user_name") or evt.get("user_name") or "")
         s.buffer.append(TranscriptEntry(time.time(), participant_id, participant_name,
                                          text, kind="chat"))
+        s.last_activity = time.time()
         recognition.on_new_entry(self.meeting_uuid, "chat", text)
 
     def _on_join_confirm(self, *args):
@@ -215,6 +217,7 @@ class MeetingRtmsListener:
         s = self._session()
         if s:
             s.buffer.append(SpeakerChangeEntry(time.time(), str(user_id or "")))
+        s.last_activity = time.time()
 
     def _on_disconnect(self, reason: str = ""):
         s = self._session()

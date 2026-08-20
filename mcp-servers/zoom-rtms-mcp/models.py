@@ -95,6 +95,17 @@ class MeetingSession:
     meeting_uuid: str
     listening_enabled: bool = True
     started_at: float = field(default_factory=_now)
+    # Bumped on every real transcript/chat/event arrival — confirmed live
+    # 2026-08-19: Zoom can fire TWO separate meeting.rtms_started webhooks
+    # with two different meeting_uuids for what is, from the operator's
+    # side, one physical meeting (likely an RTMS-level reconnect). Picking
+    # "most recently started" for the panel's identify_by_active_meeting
+    # fallback landed on the newer-but-silent session while all the real
+    # transcript kept flowing through the older one — the panel connected
+    # to an empty room and every subsequent push vanished with no error.
+    # "Most recently active" is the far more reliable signal of which
+    # session is actually the live one right now.
+    last_activity: float = field(default_factory=_now)
     ended_at: Optional[float] = None
     connection_state: str = "connecting"
     avatar_state: str = "listening"

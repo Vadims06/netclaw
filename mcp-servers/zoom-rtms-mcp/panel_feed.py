@@ -209,7 +209,14 @@ async def _handler(ws):
                 # most-recently-started active session; fine for this
                 # feature's single-operator, single-live-meeting usage today,
                 # not a multi-tenant routing solution.
-                active = sorted(registry.list_active(), key=lambda s: s.started_at, reverse=True)
+                # last_activity, not started_at: confirmed live 2026-08-19 —
+                # Zoom fired two separate meeting.rtms_started webhooks with
+                # two different meeting_uuids for what was one physical
+                # meeting (an RTMS-level reconnect). Picking "most recently
+                # started" landed on the newer-but-silent session while all
+                # the real transcript kept flowing through the older one —
+                # the panel connected to an empty room, no error anywhere.
+                active = sorted(registry.list_active(), key=lambda s: s.last_activity, reverse=True)
                 if active:
                     meeting_uuid = active[0].meeting_uuid
                     _connections.setdefault(meeting_uuid, set()).add(ws)
