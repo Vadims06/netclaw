@@ -109,6 +109,8 @@ mcp-servers/zabbix-mcp/.venv/
 # pulls cryptography 50.0.0 while the system holds 46.0.5 with four unbounded
 # dependents -- including the federation TLS stack.
 mcp-servers/anta-mcp/.venv/
+!mcp-servers/zoom-rtms-mcp/
+# Spec 118: NetClaw for Zoom -- Meeting Intelligence.
 
 # Traces
 trace.json

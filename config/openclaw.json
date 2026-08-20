@@ -60,6 +60,24 @@
         "SUZIEQ_TIMEOUT": "${SUZIEQ_TIMEOUT:-30}"
       }
     },
+    "zoom-rtms-mcp": {
+      "command": "mcp-servers/zoom-rtms-mcp/.venv/bin/python",
+      "args": [
+        "-u",
+        "mcp-servers/zoom-rtms-mcp/server.py"
+      ],
+      "env": {
+        "ZOOM_CLIENT_ID": "${ZOOM_CLIENT_ID}",
+        "ZOOM_CLIENT_SECRET": "${ZOOM_CLIENT_SECRET}",
+        "ZOOM_ACCOUNT_ID": "${ZOOM_ACCOUNT_ID}",
+        "ZOOM_RTMS_WEBHOOK_SECRET": "${ZOOM_RTMS_WEBHOOK_SECRET}",
+        "ZOOM_RTMS_WEBHOOK_PORT": "${ZOOM_RTMS_WEBHOOK_PORT:-8899}",
+        "ZOOM_PANEL_FEED_PORT": "${ZOOM_PANEL_FEED_PORT:-8900}",
+        "N2N_ZOOM_CHANNEL_HOST": "${N2N_ZOOM_CHANNEL_HOST:-127.0.0.1}",
+        "N2N_ZOOM_CHANNEL_PORT": "${N2N_ZOOM_CHANNEL_PORT}",
+        "N2N_ZOOM_CHANNEL_SECRET": "${N2N_ZOOM_CHANNEL_SECRET}"
+      }
+    },
     "batfish-mcp": {
       "command": "python3",
       "args": [

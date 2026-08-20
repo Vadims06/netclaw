@@ -4,7 +4,7 @@
 
 # NetClaw
 
-A CCIE-level AI network engineering coworker. Built on [OpenClaw](https://github.com/openclaw/openclaw) with Anthropic Claude, 222 skills, and 165 MCP integrations for complete network automation with ITSM gating, source-of-truth reconciliation, immutable audit trails, gNMI streaming telemetry, NetFlow/IPFIX flow telemetry, Canvas/A2UI inline network visualizations, packet capture analysis, GitHub config-as-code, GitLab DevOps (issues, merge requests, pipelines, repositories, wikis), Jenkins CI/CD (job monitoring, build triggering, log analysis, SCM tracking), Chrome DevTools browser automation (visualization render QA, controller GUI gap-filling, undocumented API discovery, headless or watchable-headed), Computer Use full-desktop automation (legacy desktop-only tools with no browser or API path, virtual XFCE desktop with VNC/noVNC Watch Mode), Cisco CML lab simulation, ContainerLab containerized network labs, Cisco NSO orchestration, Cisco SD-WAN vManage monitoring, Grafana observability (dashboards, Prometheus, Loki, alerting, incidents), Prometheus direct PromQL monitoring, Kubeshark Kubernetes traffic analysis, Cisco Meraki Dashboard management, Cisco ThousandEyes network intelligence, AWS and Azure cloud networking, Cisco Secure Firewall policy auditing, Check Point Security (15 MCPs: policy, threat intel, gateway, SASE, malware), Itential network orchestration, Juniper JunOS device automation, Arista CloudVision Portal monitoring, F5 BIG-IP pyATS iControl REST coverage, Infoblox DDI, Palo Alto Panorama, FortiManager, Batfish offline configuration analysis, UML diagram generation, EVPN/VXLAN fabric workflows, live BGP/OSPF control-plane participation, nmap network scanning, gtrace path analysis and IP enrichment, Slack-native operations, Cisco WebEx-native operations, Microsoft 365 integration, Twilio voice/SMS, Twitter/X integration, Claroty OT/IoT asset management, Forward Networks digital twin, Ollama local LLM routing, an offline agentic RAG document knowledge base (cited answers from user-uploaded vendor guides and standards), layered Memory MCP, MemPalace persistent AI memory, and Lantronix Percepxion/SLC out-of-band console-server management (fleet-wide and direct single-device).
+A CCIE-level AI network engineering coworker. Built on [OpenClaw](https://github.com/openclaw/openclaw) with Anthropic Claude, 223 skills, and 167 MCP integrations for complete network automation with ITSM gating, source-of-truth reconciliation, immutable audit trails, gNMI streaming telemetry, NetFlow/IPFIX flow telemetry, Canvas/A2UI inline network visualizations, packet capture analysis, GitHub config-as-code, GitLab DevOps (issues, merge requests, pipelines, repositories, wikis), Jenkins CI/CD (job monitoring, build triggering, log analysis, SCM tracking), Chrome DevTools browser automation (visualization render QA, controller GUI gap-filling, undocumented API discovery, headless or watchable-headed), Computer Use full-desktop automation (legacy desktop-only tools with no browser or API path, virtual XFCE desktop with VNC/noVNC Watch Mode), Cisco CML lab simulation, ContainerLab containerized network labs, Cisco NSO orchestration, Cisco SD-WAN vManage monitoring, Grafana observability (dashboards, Prometheus, Loki, alerting, incidents), Prometheus direct PromQL monitoring, Kubeshark Kubernetes traffic analysis, Cisco Meraki Dashboard management, Cisco ThousandEyes network intelligence, AWS and Azure cloud networking, Cisco Secure Firewall policy auditing, Check Point Security (15 MCPs: policy, threat intel, gateway, SASE, malware), Itential network orchestration, Juniper JunOS device automation, Arista CloudVision Portal monitoring, F5 BIG-IP pyATS iControl REST coverage, Infoblox DDI, Palo Alto Panorama, FortiManager, Batfish offline configuration analysis, UML diagram generation, EVPN/VXLAN fabric workflows, live BGP/OSPF control-plane participation, nmap network scanning, gtrace path analysis and IP enrichment, Slack-native operations, Cisco WebEx-native operations, Microsoft 365 integration, Twilio voice/SMS, Twitter/X integration, Claroty OT/IoT asset management, Forward Networks digital twin, Ollama local LLM routing, an offline agentic RAG document knowledge base (cited answers from user-uploaded vendor guides and standards), layered Memory MCP, MemPalace persistent AI memory, and Lantronix Percepxion/SLC out-of-band console-server management (fleet-wide and direct single-device).
 
 ## Resources
 
@@ -239,7 +239,7 @@ claw
   <img src="ui/netclaw-visual/logos/netclawvisualhud.png" alt="NetClaw Visual HUD — 3D Network Operations Dashboard" width="800">
 </p>
 
-NetClaw includes a Three.js 3D operations dashboard that computes its integration and skill inventory live from the codebase (currently 165 MCP integrations and 222 skills) each time it's opened, alongside your device fleet and live BGP peering topology — so the dashboard never drifts out of sync with what's actually installed. Chat with NetClaw directly from the browser, watch integrations light up as tools execute, and inspect every node in the graph. The Canvas/A2UI visualization skill renders inline topology maps, health dashboards, alert cards, change timelines, config diffs, path traces, and health scorecards directly in the chat interface.
+NetClaw includes a Three.js 3D operations dashboard that computes its integration and skill inventory live from the codebase (currently 167 MCP integrations and 223 skills) each time it's opened, alongside your device fleet and live BGP peering topology — so the dashboard never drifts out of sync with what's actually installed. Chat with NetClaw directly from the browser, watch integrations light up as tools execute, and inspect every node in the graph. The Canvas/A2UI visualization skill renders inline topology maps, health dashboards, alert cards, change timelines, config diffs, path traces, and health scorecards directly in the chat interface.
 
 ```bash
 cd ui/netclaw-visual
@@ -518,7 +518,7 @@ NetClaw ships with the full set of OpenClaw workspace markdown files. These are 
 
 ---
 
-## MCP Servers (165)
+## MCP Servers (167)
 
 > Adding one? Follow **[docs/ADDING-AN-MCP.md](docs/ADDING-AN-MCP.md)** and run
 > `python3 scripts/reconcile-mcp.py` before pushing — CI enforces it.
@@ -671,10 +671,11 @@ All MCP servers communicate via stdio (JSON-RPC 2.0) through `scripts/mcp-call.p
 - **SuzieQ** — stdio (5 read-only tools for network state queries, assertions, summaries, unique value discovery, and path tracing across 20+ network tables via the SuzieQ REST API)
 - **GNS3** — FastMCP stdio (26 tools for GNS3 network lab management — projects, nodes, links, packet capture, and snapshots via REST API v3). No persistent connections, no port management
 - **RAG Knowledge Base** — FastMCP stdio (10 tools for the offline document knowledge base: multi-format ingestion via Slack/HUD/URL, hybrid dense+BM25 retrieval with local reranking and mandatory citations, HIIL-gated corpus management, opt-in secret-scrubbed snapshots). Data at `~/.openclaw/rag/`, fully offline after install, strictly separate from Memory MCP
+- **Zoom RTMS** (`zoom-rtms-mcp`) — FastMCP stdio, 9 tools (see [spec 118](specs/118-zoom-meeting-intelligence/spec.md)). Ingests live meeting transcript/chat/active-speaker/screen-share signals via Zoom's Realtime Media Streams (no Meeting SDK bot — Zoom reserves that for human participants), recognizes network-investigation questions with a deterministic extractor, and routes them into the existing Border/NCFED routing path via a new loopback-only `bgp/federation/zoom_channel.py` channel. Feeds a Zoom App side panel (avatar + live status + evidence) with an optional Layers API camera overlay. Pairs with the official Zoom Meetings MCP (remote/OAuth, historical meeting search) via the `zoom-meeting-context` skill. No new device-write approval mechanism — reuses NetClaw's existing gate unchanged for anything a meeting participant asks that would change configuration.
 
 ---
 
-## Skills (222)
+## Skills (223)
 
 ### pyATS Device Skills (9)
 
@@ -936,6 +937,7 @@ All MCP servers communicate via stdio (JSON-RPC 2.0) through `scripts/mcp-call.p
 | Skill | What It Does |
 |-------|-------------|
 | **suzieq-observability** | SuzieQ network observability (5 read-only tools): query current and historical network state from 20+ tables (`suzieq_show`), get aggregated statistics and summary views (`suzieq_summarize`), run validation assertions for BGP/OSPF/interface/EVPN health (`suzieq_assert`), discover distinct values and distributions for any column (`suzieq_unique`), trace hop-by-hop forwarding paths between endpoints (`suzieq_path`). Supports time-travel queries via start_time/end_time for historical analysis. Wraps SuzieQ REST API via async httpx client with stdio transport. GAIT audit trail. |
+| **zoom-meeting-context** | Zoom meeting historical correlation (spec 118): searches the official Zoom Meetings MCP for a prior, real meeting referenced during a live call ("didn't we see this before?"), states plainly when nothing relevant is found, and compares what was discussed then against the network's current actual state via NetClaw's existing routing. Read-only — any configuration-change request, however it arrives, still goes through NetClaw's existing device-write approval gate unchanged. |
 
 ### Lantronix OOB Skills (1)
 

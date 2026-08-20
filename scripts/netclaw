@@ -82,6 +82,27 @@ env_get() {
     return 0
 }
 
+# Persists a setting back into the runtime env so it survives a daemon
+# restart. Writes to mesh.systemd.env if present (systemd-managed durable
+# mesh, features 056/057), else .env — mirroring env_get()'s read order.
+# Needed because _sync_risk_from_env() in bgp-daemon-v2.py re-applies N2N_ROLE
+# from the env file on every startup, unconditionally — confirmed live
+# 2026-08-19: `netclaw risk role border` succeeds (POST 200, `risk status`
+# shows role=border), but the very next daemon restart — exactly the step
+# this command's own output tells the operator to run — silently reverted it
+# back to whatever N2N_ROLE the env file still said, with no error at all.
+env_set() {
+    local key="$1" val="$2" f
+    f="$RUNTIME_HOME/mesh.systemd.env"
+    [ -f "$f" ] || f="$RUNTIME_HOME/.env"
+    touch "$f"
+    if grep -q "^${key}=" "$f" 2>/dev/null; then
+        sed -i.bak "s|^${key}=.*|${key}=${val}|" "$f" && rm -f "$f.bak"
+    else
+        echo "${key}=${val}" >> "$f"
+    fi
+}
+
 ngrok_up() { pgrep -f 'ngrok (tcp|start)' >/dev/null 2>&1; }
 
 ngrok_start() {
@@ -650,6 +671,9 @@ print("    risk  : %s" % (d.get("risk_name") or "-"))
 print("    %s" % d.get("note", ""))'
     local rc=$?
     [ "$rc" -eq 0 ] || return "$rc"
+    env_set N2N_ROLE "$role"
+    [ -n "$name" ] && env_set N2N_RISK_NAME "$name"
+    [ -n "$stacks" ] && env_set N2N_ENABLED_STACKS "$stacks"
     echo ""
     echo "  Restart the mesh for the change to take effect, then verify:"
     echo "      systemctl --user restart netclaw-mesh.service"
@@ -747,7 +771,19 @@ print("%s|%s|%s" % (e.get("state",""), e.get("error") or "", e.get("hint") or ""
                    fail=1 ;;
     esac
     if [ -n "$port" ]; then
-        if ss -tlnH "sport = :$port" 2>/dev/null | grep -q .; then
+        # `ss` (iproute2) is Linux-only — doesn't exist on macOS at all, where
+        # this whole edge-check path had apparently never been run before
+        # (confirmed live 2026-08-19: the listener really was bound — lsof/nc
+        # both confirmed it — but this check always reported "nothing
+        # listening" because `ss` silently failed as "command not found").
+        # `lsof` ships on both macOS and Linux, so it's the portable fallback.
+        local _socket_up=1
+        if command -v ss >/dev/null 2>&1; then
+            ss -tlnH "sport = :$port" 2>/dev/null | grep -q . && _socket_up=0
+        else
+            lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null | grep -q ":${port} " && _socket_up=0
+        fi
+        if [ "$_socket_up" -eq 0 ]; then
             echo "  ✓ socket    : something is listening on :$port"
         else
             echo "  ✗ socket    : nothing listening on :$port"
@@ -760,7 +796,18 @@ print("%s|%s|%s" % (e.get("state",""), e.get("error") or "", e.get("hint") or ""
     #    or TLS cannot match no matter how the firewall is built.
     if [ -n "$domain" ]; then
         local resolved wan
-        resolved="$(getent ahostsv4 "$domain" 2>/dev/null | awk '{print $1; exit}')"
+        # `getent` (glibc) doesn't exist on macOS at all — under this script's
+        # `set -e`, that command-not-found killed the ENTIRE edge-check
+        # function silently mid-run (confirmed live 2026-08-19: no error
+        # shown, just everything after "socket" missing and exit code 127).
+        # python3's socket module resolves portably on every platform this
+        # repo already requires python3 on.
+        resolved="$(python3 -c '
+import socket, sys
+try:
+    print(socket.gethostbyname(sys.argv[1]))
+except Exception:
+    pass' "$domain" 2>/dev/null)"
         wan="$(curl -s --max-time 5 https://api.ipify.org 2>/dev/null || true)"
         if [ -z "$resolved" ]; then
             echo "  ✗ dns       : $domain does not resolve"; fail=1

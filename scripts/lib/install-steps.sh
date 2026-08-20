@@ -4252,3 +4252,31 @@ log_info "  to register (stdio, runs from the venv above) and for required env v
 
 echo ""
 }
+
+# ── Zoom RTMS MCP Server (Meeting Intelligence, spec 118) ───────
+component_install_zoom_rtms() {
+log_step "Installing Zoom RTMS MCP Server..."
+echo "  Built-in MCP server: mcp-servers/zoom-rtms-mcp/"
+echo "  NetClaw for Zoom — Meeting Intelligence (spec 118): RTMS live listener,"
+echo "  investigation routing, Zoom App panel feed (9 tools)"
+
+ZOOM_RTMS_MCP_DIR="$MCP_DIR/zoom-rtms-mcp"
+if [ -d "$NETCLAW_DIR/mcp-servers/zoom-rtms-mcp" ]; then
+    ZOOM_RTMS_MCP_DIR="$NETCLAW_DIR/mcp-servers/zoom-rtms-mcp"
+fi
+
+if [ -f "$ZOOM_RTMS_MCP_DIR/requirements.txt" ]; then
+    log_info "Installing Zoom RTMS MCP dependencies..."
+    netclaw_pip_install -r "$ZOOM_RTMS_MCP_DIR/requirements.txt" || {
+            log_warn "Zoom RTMS MCP pip install failed — dependencies may need manual installation"
+        }
+    log_info "Zoom RTMS MCP ready: $ZOOM_RTMS_MCP_DIR"
+    log_info "Zoom's official RTMS SDK is not bundled — install it separately per Zoom's"
+    log_info "  distribution instructions before live meeting signals will flow (see README.md)."
+    log_info "See docs/ZOOM-MEETING-INTELLIGENCE.md for Zoom Marketplace app setup."
+else
+    log_warn "Zoom RTMS MCP requirements.txt not found at $ZOOM_RTMS_MCP_DIR"
+fi
+
+echo ""
+}
