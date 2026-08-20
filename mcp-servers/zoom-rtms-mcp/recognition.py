@@ -15,6 +15,22 @@ from models import registry
 
 logger = logging.getLogger("zoom_rtms.recognition")
 
+# Mirrors server.py's own _bg_loop pattern. Needed because on_new_entry() is
+# called synchronously from rtms_listener.py's SDK callbacks, which — confirmed
+# live 2026-08-19 — can run on the SDK's own bare OS thread (its "implicit"
+# single-client EventLoop), not necessarily on any asyncio loop at all.
+# asyncio.create_task() requires a *running loop in the calling thread*; it
+# doesn't have one there, which crashed the process outright (RuntimeError:
+# no running event loop). run_coroutine_threadsafe() is the actual
+# thread-safe way to schedule work onto a specific loop from any thread,
+# which is what this needs regardless of which thread called in.
+_bg_loop: asyncio.AbstractEventLoop | None = None
+
+
+def set_bg_loop(loop: asyncio.AbstractEventLoop):
+    global _bg_loop
+    _bg_loop = loop
+
 # T024: collapse a speech+chat duplicate of the same utterance, within this
 # window, into one request rather than two.
 _DEDUP_WINDOW_S = 5.0
@@ -28,13 +44,32 @@ def _normalize(text: str) -> str:
 
 
 def on_new_entry(meeting_uuid: str, source: str, text: str):
-    """Called synchronously from an RTMS SDK callback; schedules the actual
-    (async) recognition work as a task so the SDK callback itself never blocks."""
-    asyncio.create_task(_process(meeting_uuid, source, text))
+    """Called synchronously from an RTMS SDK callback — possibly from a bare
+    OS thread with no asyncio loop of its own — so scheduling the actual
+    (async) recognition work has to be thread-safe, not just non-blocking."""
+    if _bg_loop is None:
+        logger.error("on_new_entry called before set_bg_loop() — dropping: %r", text)
+        return
+    future = asyncio.run_coroutine_threadsafe(_process(meeting_uuid, source, text), _bg_loop)
+
+    def _log_if_failed(f):
+        exc = f.exception()
+        if exc is not None:
+            # Without this, an exception here (confirmed live 2026-08-19: a
+            # str/bytes TypeError from extractor.classify()) is otherwise
+            # silent — a real transcript arrives, nothing happens, and the
+            # only trace is asyncio's own lazy "exception was never
+            # retrieved" warning at GC time, if that even fires before the
+            # process exits.
+            logger.error("on_new_entry: _process failed for %r: %r", text, exc)
+
+    future.add_done_callback(_log_if_failed)
 
 
 async def _process(meeting_uuid: str, source: str, text: str):
+    logger.warning("TRACE Meeting %s: _process ENTER text=%r", meeting_uuid, text)
     result = extractor.classify(text)
+    logger.warning("TRACE Meeting %s: classify -> %s", meeting_uuid, result)
 
     if result.kind == "suppressed":
         # FR-009: never even constructs a request. Logged for auditability of
@@ -71,12 +106,16 @@ async def _process(meeting_uuid: str, source: str, text: str):
         logger.info("Meeting %s: ambiguous request, not routed: %r", meeting_uuid, text)
         return
 
+    logger.warning("TRACE Meeting %s: about to push_avatar_state(thinking)", meeting_uuid)
     await panel_feed.push_avatar_state(meeting_uuid, "thinking")
+    logger.warning("TRACE Meeting %s: about to push_topic_detected", meeting_uuid)
     await panel_feed.push_topic_detected(meeting_uuid, fields.location, fields.technology,
                                           fields.time_window)
+    logger.warning("TRACE Meeting %s: about to submit_investigation", meeting_uuid)
 
     response = await zoom_channel_client.submit_investigation(
         meeting_uuid, source, text, fields.location, fields.technology, fields.time_window)
+    logger.warning("TRACE Meeting %s: submit_investigation -> %s", meeting_uuid, response)
 
     if not response.get("accepted"):
         # T023: no registered tooling / Border unreachable — surfaced plainly.
@@ -118,7 +157,11 @@ def handle_investigate_result(params: dict):
     if not meeting_uuid:
         logger.warning("investigate_result for unknown request_id %s", params.get("request_id"))
         return
-    asyncio.create_task(panel_feed.push_avatar_state(meeting_uuid, "answered"))
+    # The interim "looking into it" ack (routing_outcome="in_progress") reuses
+    # this exact push path — must not flip the avatar to "answered" early, or
+    # the whole point of showing progress is defeated.
+    if params.get("routing_outcome") != "in_progress":
+        asyncio.create_task(panel_feed.push_avatar_state(meeting_uuid, "answered"))
     asyncio.create_task(panel_feed.push_investigation_result(
         meeting_uuid, params.get("request_id"), params.get("answer_summary"),
         params.get("evidence_refs")))

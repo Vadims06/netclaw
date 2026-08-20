@@ -30,7 +30,29 @@ function connect() {
 
   ws.onopen = () => {
     statusEl.textContent = "Listening";
-    if (meetingUuid && participantId) sendViewerJoined();
+    // Only meeting_uuid is actually required to register this connection
+    // server-side (panel_feed.py's _handler keys _connections purely on it —
+    // participant_id is only used later for the camera-overlay own-feed
+    // restriction). Requiring both here meant a getUserContext() failure
+    // alone (confirmed live 2026-08-19: getMeetingContext() succeeded,
+    // getUserContext() didn't, both live in the same try block so
+    // participantId was silently left null) permanently prevented viewer
+    // registration — the panel looked connected ("Listening") but never
+    // received a single subsequent broadcast (thinking/investigating/
+    // answered all vanished into an empty recipient set), with no error
+    // visible anywhere.
+    if (meetingUuid) {
+      sendViewerJoined();
+    } else {
+      // Zoom's own getMeetingContext()/getUserContext() are rejected outright
+      // on this app (confirmed live 2026-08-19: "No Permission for this API
+      // [code:80004, reason:app_not_support]" on both — a Marketplace-side
+      // app configuration gap, not something fixable here). This server
+      // already knows the true meeting_uuid authoritatively from the RTMS
+      // webhook, independent of the Zoom SDK, so ask it directly instead of
+      // being permanently stuck with no way to ever identify this meeting.
+      send({ type: "identify_by_active_meeting" });
+    }
   };
   ws.onclose = () => {
     statusEl.textContent = "Disconnected — retrying…";
@@ -53,6 +75,13 @@ function send(msg) {
 }
 
 function handleServerMessage(msg) {
+  if (msg.type === "identified") {
+    // Response to identify_by_active_meeting — meetingUuid was null until
+    // now, so the mismatch filter below would otherwise drop this.
+    meetingUuid = msg.meeting_uuid;
+    sendViewerJoined();
+    return;
+  }
   if (msg.meeting_uuid && msg.meeting_uuid !== meetingUuid) return;
 
   switch (msg.type) {
@@ -113,29 +142,74 @@ async function initZoomSdk() {
     return;
   }
 
-  await zoomSdk.config({
-    capabilities: [
-      "getRunningContext", "getMeetingContext", "getUserContext",
-      "onMeeting", "startCollaborate", "joinCollaborate", "leaveCollaborate",
-      "onCollaborateChange",
-    ],
-  });
+  // Collaborate Mode capabilities (startCollaborate/joinCollaborate/
+  // leaveCollaborate/onCollaborateChange) only actually work once this app
+  // has passed Zoom's app review — until then, requesting them can make
+  // zoomSdk.config() reject outright. Request core + Collaborate together
+  // first, but fall back to core-only rather than letting one rejected
+  // capability set kill the whole panel before it ever connects.
+  const CORE_CAPS = ["getRunningContext", "getMeetingContext", "getUserContext", "onMeeting"];
+  const COLLABORATE_CAPS = ["startCollaborate", "joinCollaborate", "leaveCollaborate", "onCollaborateChange"];
+  let collaborateAvailable = true;
+  try {
+    await zoomSdk.config({ capabilities: [...CORE_CAPS, ...COLLABORATE_CAPS] });
+  } catch (err) {
+    console.warn("NetClaw: Collaborate Mode capabilities unavailable (app review pending?) — falling back to core capabilities.", err);
+    collaborateAvailable = false;
+    try {
+      await zoomSdk.config({ capabilities: CORE_CAPS });
+    } catch (err2) {
+      console.error("NetClaw: zoomSdk.config failed even with core capabilities — falling back to standalone mode.", err2);
+      const params = new URLSearchParams(location.search);
+      meetingUuid = params.get("meeting_uuid") || "dev-meeting";
+      participantId = params.get("participant_id") || "dev-participant";
+      connect();
+      return;
+    }
+  }
 
-  const meetingContext = await zoomSdk.getMeetingContext();
-  meetingUuid = meetingContext.meetingUUID;
+  // Split into two try/catch blocks (confirmed live 2026-08-19: a combined
+  // block made it impossible to tell from the console which of the two calls
+  // was actually the one throwing "No Permission for this API [code:80004,
+  // reason:app_not_support]" — that ambiguity cost a full debugging round).
+  try {
+    const meetingContext = await zoomSdk.getMeetingContext();
+    meetingUuid = meetingContext.meetingUUID;
+  } catch (err) {
+    console.error("NetClaw: getMeetingContext() failed — this is the critical one, no meeting_uuid means nothing can ever route:", err);
+    // Last-resort fallback: Zoom sometimes appends meeting_uuid as a query
+    // param on the Home URL launch even when the SDK call itself is denied.
+    // Never falls back to a made-up value like "dev-meeting" here (unlike
+    // the zoomSdk-undefined branch above) — a wrong meeting_uuid would
+    // register this connection under a key nothing will ever push to,
+    // identical in effect to never registering at all, just harder to debug.
+    const params = new URLSearchParams(location.search);
+    meetingUuid = params.get("meeting_uuid") || null;
+  }
 
-  const userContext = await zoomSdk.getUserContext();
-  // Guest Mode (FR-012): an unauthenticated participant still has a
-  // per-session participantId even without a Zoom login — treated
-  // identically to an authenticated one by this panel and by panel_feed.py.
-  participantId = userContext.participantId || userContext.screenName || "guest";
+  try {
+    const userContext = await zoomSdk.getUserContext();
+    // Guest Mode (FR-012): an unauthenticated participant still has a
+    // per-session participantId even without a Zoom login — treated
+    // identically to an authenticated one by this panel and by panel_feed.py.
+    participantId = userContext.participantId || userContext.screenName || "guest";
+  } catch (err) {
+    console.error("NetClaw: getUserContext() failed — camera-overlay own-feed restriction degrades to \"unknown\", viewer registration still proceeds on meeting_uuid alone:", err);
+    participantId = "unknown-participant";
+  }
 
-  zoomSdk.onCollaborateChange((event) => {
-    // Collaborate Mode (US3): every collaborator renders the same
-    // meeting_uuid-scoped state via the shared panel_feed connection —
-    // nothing extra needed here beyond making sure this connection is live.
-    if (event.collaborateUUID && !ws) connect();
-  });
+  if (collaborateAvailable) {
+    try {
+      zoomSdk.onCollaborateChange((event) => {
+        // Collaborate Mode (US3): every collaborator renders the same
+        // meeting_uuid-scoped state via the shared panel_feed connection —
+        // nothing extra needed here beyond making sure this connection is live.
+        if (event.collaborateUUID && !ws) connect();
+      });
+    } catch (err) {
+      console.warn("NetClaw: onCollaborateChange registration failed.", err);
+    }
+  }
 
   connect();
 }

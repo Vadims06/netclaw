@@ -97,7 +97,18 @@ ENVF="$(systemctl --user cat netclaw-mesh.service 2>/dev/null \
 [ -z "$ENVF" ] && ENVF="$HOME/.openclaw/mesh.systemd.env"
 [ -f "$ENVF" ] || ENVF="$HOME/.openclaw/.env"
 touch "$ENVF"
-set_env() { grep -q "^$1=" "$ENVF" && sed -i "s|^$1=.*|$1=$2|" "$ENVF" || echo "$1=$2" >> "$ENVF"; }
+set_env() {
+    # BSD sed (macOS) requires an explicit -i backup suffix; GNU sed (Linux)
+    # accepts one too — "" works on both, unlike bare `-i` which only GNU
+    # treats as no-backup. Confirmed live 2026-08-19: bare `-i` here silently
+    # failed on macOS ("invalid command code"), falling through to the `||`
+    # append branch and duplicating the line instead of replacing it.
+    if grep -q "^$1=" "$ENVF"; then
+        sed -i.bak "s|^$1=.*|$1=$2|" "$ENVF" && rm -f "$ENVF.bak"
+    else
+        echo "$1=$2" >> "$ENVF"
+    fi
+}
 set_env N2N_CERT_MODE "$ENFORCE"
 [ -n "$DOMAIN" ] && set_env N2N_CLAW_DOMAIN "$DOMAIN"
 [ -n "$PROVIDER" ] && set_env N2N_ACME_DNS_PROVIDER "$PROVIDER"

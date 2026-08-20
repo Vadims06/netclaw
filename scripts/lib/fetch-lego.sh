@@ -18,7 +18,17 @@ case "$(uname -m)" in
   aarch64|arm64) ARCH=arm64 ;;
   *) echo "unsupported arch $(uname -m) — install lego manually into $DEST" >&2; exit 1 ;;
 esac
-OS=linux
+# OS was hardcoded to "linux" here regardless of host — confirmed live
+# 2026-08-19 on macOS (Darwin arm64): it silently downloaded a Linux ELF
+# binary, which then failed at daemon startup with "Exec format error"
+# rather than at install time, since fetch-lego.sh never executes what it
+# downloads. This component had apparently never been exercised on macOS
+# before.
+case "$(uname -s)" in
+  Linux) OS=linux ;;
+  Darwin) OS=darwin ;;
+  *) echo "unsupported OS $(uname -s) — install lego manually into $DEST" >&2; exit 1 ;;
+esac
 TARBALL="lego_v${LEGO_VERSION}_${OS}_${ARCH}.tar.gz"
 URL="https://github.com/go-acme/lego/releases/download/v${LEGO_VERSION}/${TARBALL}"
 

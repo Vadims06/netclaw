@@ -63,3 +63,20 @@ devices:
         ip: 192.168.2.212
         port: 22
         ssh_options: "-F /dev/null -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+  SANDBOX-R1:
+    alias: DevNetR1
+    type: router
+    os: iosxe
+    credentials:
+      default:
+        username: "%ENV{DEVNET_SANDBOX_USERNAME}"
+        password: "%ENV{DEVNET_SANDBOX_PASSWORD}"
+    connections:
+      defaults:
+        class: unicon.Unicon
+      ssh:
+        protocol: ssh
+        ip: devnetsandboxiosxec9k.cisco.com
+        port: 22
+        ssh_options: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"

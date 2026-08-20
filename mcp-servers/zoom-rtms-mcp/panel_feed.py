@@ -38,6 +38,7 @@ _STATIC_FILES = {
     "/panel/": "panel.html",
     "/panel": "panel.html",
     "/panel/panel.js": "panel.js",
+    "/panel/panel.css": "panel.css",
     "/panel/overlay.js": "overlay.js",
 }
 
@@ -62,6 +63,8 @@ async def _serve_static(connection, request):
             ("Content-Type", "text/html"),
             ("Content-Length", str(len(_OAUTH_CALLBACK_BODY))),
             ("Strict-Transport-Security", "max-age=63072000; includeSubDomains"),
+            ("X-Content-Type-Options", "nosniff"),
+            ("Referrer-Policy", "strict-origin-when-cross-origin"),
         ])
         return Response(200, "OK", headers, _OAUTH_CALLBACK_BODY)
     filename = _STATIC_FILES.get(path)
@@ -79,8 +82,30 @@ async def _serve_static(connection, request):
     headers = Headers([
         ("Content-Type", content_type),
         ("Content-Length", str(len(body))),
+        # Every edit to panel.js during live debugging needs the very next
+        # load to actually be the new file, not whatever Zoom's client
+        # webview (or an intermediate proxy) decided to cache with no
+        # explicit cache headers to go on.
+        ("Cache-Control", "no-store"),
         ("Strict-Transport-Security", "max-age=63072000; includeSubDomains"),
-        ("Content-Security-Policy", "default-src 'self' https://appssdk.zoom.us; script-src 'self' https://appssdk.zoom.us; frame-ancestors https://*.zoom.us"),
+        # No frame-ancestors directive: Zoom's desktop client embeds this
+        # page from an origin that does not reliably match a zoom.us-style
+        # HTTPS pattern (confirmed live 2026-08-19 — panel.html fetched fine,
+        # 200 OK, but panel.js was never once requested by the real Zoom
+        # client, only by manual curl checks; Zoom's own devforum reports the
+        # same "ancestor violates frame-ancestors" failure mode and recommends
+        # dropping the restriction rather than guessing at the client's
+        # embedding origin). Zoom's own app-review process is the actual
+        # control on who can embed this Home URL, not this header.
+        ("Content-Security-Policy", "default-src 'self' https://appssdk.zoom.us; script-src 'self' https://appssdk.zoom.us"),
+        # Zoom's own client-side app-launch validator checks the Home URL
+        # response for a specific OWASP header set and silently aborts the
+        # app load (generic client error, no page-visible signal) if any are
+        # missing — confirmed live 2026-08-19 via Zoom's own webview console:
+        # "Missing OWASP Secure Headers: [X-Content-Type-Options,
+        # Referrer-Policy]". HSTS/CSP alone were not sufficient.
+        ("X-Content-Type-Options", "nosniff"),
+        ("Referrer-Policy", "strict-origin-when-cross-origin"),
     ])
     return Response(200, "OK", headers, body)
 
@@ -160,21 +185,51 @@ async def _handle_client_message(ws, meeting_uuid: str, msg: dict):
 
 
 async def _handler(ws):
+    logger.warning("TRACE: new panel WS connection opened")
     # First message on a connection must carry meeting_uuid to route it.
     meeting_uuid = None
     try:
         async for raw in ws:
+            logger.warning("TRACE: panel WS raw message received: %r", raw[:500])
             try:
                 msg = json.loads(raw)
-            except Exception:
+            except Exception as e:
+                logger.warning("TRACE: panel WS message JSON parse failed: %s", e)
                 continue
+
+            if msg.get("type") == "identify_by_active_meeting":
+                # Fallback for when Zoom's own getMeetingContext()/
+                # getUserContext() reject the panel with "No Permission for
+                # this API [code:80004, reason:app_not_support]" (confirmed
+                # live 2026-08-19 — a Marketplace-side app configuration gap,
+                # not something client code can route around directly). This
+                # server already knows the true meeting_uuid authoritatively
+                # from the RTMS webhook, independent of the Zoom SDK — so a
+                # panel that can't self-identify asks us instead. Picks the
+                # most-recently-started active session; fine for this
+                # feature's single-operator, single-live-meeting usage today,
+                # not a multi-tenant routing solution.
+                active = sorted(registry.list_active(), key=lambda s: s.started_at, reverse=True)
+                if active:
+                    meeting_uuid = active[0].meeting_uuid
+                    _connections.setdefault(meeting_uuid, set()).add(ws)
+                    await ws.send(json.dumps({"type": "identified", "meeting_uuid": meeting_uuid}))
+                    logger.warning("TRACE: identified connection to active meeting_uuid=%r",
+                                   meeting_uuid)
+                else:
+                    logger.warning("TRACE: identify_by_active_meeting — no active meetings")
+                continue
+
             meeting_uuid = msg.get("meeting_uuid", meeting_uuid)
             if not meeting_uuid:
+                logger.warning("TRACE: panel WS message has no meeting_uuid, dropping: %r", msg)
                 continue
             _connections.setdefault(meeting_uuid, set()).add(ws)
+            logger.warning("TRACE: registered connection for meeting_uuid=%r (now %d conns)",
+                           meeting_uuid, len(_connections[meeting_uuid]))
             await _handle_client_message(ws, meeting_uuid, msg)
     except Exception as e:
-        logger.info("Panel feed connection closed: %s", e)
+        logger.warning("TRACE: panel WS connection closed: %s", e)
     finally:
         if meeting_uuid:
             _connections.get(meeting_uuid, set()).discard(ws)

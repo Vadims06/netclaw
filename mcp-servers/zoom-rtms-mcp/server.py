@@ -56,6 +56,7 @@ def _run_background_loop():
     global _bg_loop
     loop = asyncio.new_event_loop()
     _bg_loop = loop
+    recognition.set_bg_loop(loop)
     asyncio.set_event_loop(loop)
 
     async def _startup():

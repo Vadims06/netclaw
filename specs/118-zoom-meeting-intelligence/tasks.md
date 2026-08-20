@@ -274,11 +274,46 @@ considered complete, not optional cleanup:
       session stashed out. `scripts/trace-skill.py` run against 2 pre-existing skills
       (`suzieq-observability`, `bgp-registry-intel`) plus the new `zoom-meeting-context` — all three
       resolve cleanly. `scripts/reconcile-mcp.py` PASS on all 7 surfaces including `startup`.
-- [ ] T054 **Partial** — code-level verification only (see T053 and the unit/integration tests above);
-      a true live run needs a real Zoom meeting, account, and credentials this environment doesn't
-      have. RTMS Developer Pack billing and Layers API review status (T038/T042) specifically gate
-      full US1/US5 live verification per the task's own wording — left unchecked accordingly, not run
-      declared successful over an undetected regression
+- [X] T054 **Fully live end-to-end, real meeting, real device (2026-08-20)** — a spoken question in
+      a real Zoom meeting ("Can you check R1, is the interface status okay?") was recognized,
+      routed through the Border to a real Claude Sonnet 5 agent turn, which called pyATS against the
+      real DevNet sandbox device, and the real answer rendered back in the live panel — watched
+      directly by the operator. US1/US3/US4 (core investigation, panel visibility, safety boundary)
+      all confirmed live. RTMS Developer Pack billing confirmed active and metering correctly.
+      Roughly a dozen real, previously-undiscovered bugs were found and fixed only by actually doing
+      this, across every layer:
+      - `rtms_listener.py` called a nonexistent `rtms.connect()` — rewritten against the real
+        installed SDK's actual API (`Client()`/`join()`/`on_transcript_data()`/`on_join_confirm()`)
+      - SDK transcript callbacks fire from a bare OS thread with no asyncio loop — crashed the whole
+        process (`recognition.on_new_entry` now uses `run_coroutine_threadsafe` against the
+        server's own background loop, matching `server.py`'s existing pattern)
+      - `webhook.py`/`panel_feed.py` were missing `X-Content-Type-Options`/`Referrer-Policy` —
+        Zoom's client-side app-launch validator silently aborts without the full OWASP header set
+      - `panel.js`'s unconditional Collaborate Mode capability request could kill the whole panel
+        before `connect()` ever ran — degrades gracefully to core capabilities now
+      - transcript `data` arrives as raw `bytes`, not `str` — undecoded, silently broke
+        `extractor.classify()`'s `str`-vs-`bytes` comparison
+      - the RTMS SDK needs `ZM_RTMS_CLIENT`/`ZM_RTMS_SECRET` env vars (mirrored from
+        `ZOOM_CLIENT_ID`/`SECRET`) and an explicit `TranscriptParams.src_language` — silent no-op
+        without either
+      - **critical, Marketplace-side**: `zoomSdk.getMeetingContext()`/`getUserContext()` both reject
+        with `No Permission for this API [code:80004, reason:app_not_support]` on this app —
+        confirmed via live devtools console, independently corroborated by a second AI's review of
+        the same evidence. Root cause not resolved (needs Zoom-side investigation — app build type,
+        review status, or a separate manifest capability declaration, per the recap in
+        `docs/` or the session's own scratch notes) — **worked around**, not fixed: the panel now
+        asks this server directly which meeting is active (`identify_by_active_meeting` /
+        `identified`, over the same WebSocket) since the server already knows the true meeting_uuid
+        authoritatively from the RTMS webhook, independent of the Zoom SDK entirely
+      - Zoom's own client-injected CSP blocks inline `<style>` regardless of this server's own CSP
+        header — moved to an external `panel.css`
+      - added an immediate "Looking into it…" interim push the moment a question is accepted, since
+        the real agent turn can take ~1-3 minutes — previously looked like nothing was happening
+      - the gateway had 93 registered MCP servers (mostly unrelated leftovers), and the demo device
+        collided in name with an old unreachable CML-lab "R1" — both trimmed, cutting total
+        turnaround from ~5 minutes to ~1 minute
+      Still not live-verified: US2 (historical meeting correlation, needs the official Zoom Meetings
+      MCP connector — T030) and US5 (camera-overlay avatar, needs Layers API review — T038/T042).
 - [ ] T055 Draft the WordPress milestone blog post per Constitution Principle XVII and present to John
       for review before publishing
 

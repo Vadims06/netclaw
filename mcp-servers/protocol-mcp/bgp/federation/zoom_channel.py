@@ -244,6 +244,26 @@ class ZoomInvestigationManager:
                                   prompt, channel: ZoomChannel):
         from .gateway import run_agent_turn
 
+        # Immediate acknowledgment, before the real agent turn even starts.
+        # run_agent_turn can take 1-3 minutes (multiple tool-call round trips
+        # through the full MCP server set) — confirmed live 2026-08-19, this
+        # was the actual reason every prior test looked like nothing happened:
+        # the meeting/panel connection was gone before the real answer was
+        # ever ready to push. Reuses the exact same push mechanism as the
+        # final result (same channel, same method) — panel.js already just
+        # overwrites the result text on the next push, no client change needed.
+        try:
+            await channel.call("n2n/zoom/investigate_result", {
+                "request_id": request_id,
+                "routing_outcome": "in_progress",
+                "answer_summary": "Looking into it — this can take a minute or two…",
+                "evidence_refs": [],
+                "write_action_detected": False,
+                "approval_ref": None,
+            }, timeout=10.0)
+        except Exception as e:
+            logger.info("Could not push interim ack for %s (best-effort): %s", request_id, e)
+
         # KNOWN GAP (honest limitation, not a placeholder pretending to work):
         # device-write approval (Constitution Principles I-III: ServiceNow
         # CR-gated changes) happens INSIDE the agent turn itself, at whichever
