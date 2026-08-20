@@ -314,8 +314,10 @@ considered complete, not optional cleanup:
         turnaround from ~5 minutes to ~1 minute
       Still not live-verified: US2 (historical meeting correlation, needs the official Zoom Meetings
       MCP connector — T030) and US5 (camera-overlay avatar, needs Layers API review — T038/T042).
-- [ ] T055 Draft the WordPress milestone blog post per Constitution Principle XVII and present to John
-      for review before publishing
+- [ ] T055 **Drafted (2026-08-20), awaiting John's review before publishing** — not yet published
+      anywhere per Constitution Principle XVII's own requirement. Draft lives outside the repo at
+      `/private/tmp/claude-503/.../scratchpad/zoom-meeting-intelligence-blog-draft.md` (this
+      session's scratchpad, not committed) pending explicit go-ahead to publish.
 
 ---
 
