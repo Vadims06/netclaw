@@ -5,11 +5,11 @@
   },
   "oauth_information": {
     "usage": "USER_OPERATION",
-    "development_redirect_uri": "https://461b-70-53-207-52.ngrok-free.app/oauth/callback",
-    "production_redirect_uri": "",
+    "development_redirect_uri": "https://zoom.automateyournetwork.ca/oauth/callback",
+    "production_redirect_uri": "https://zoom.automateyournetwork.ca/oauth/callback",
     "oauth_allow_list": [
-      "https://461b-70-53-207-52.ngrok-free.app/oauth/callback",
-      "https://461b-70-53-207-52.ngrok-free.app"
+      "https://zoom.automateyournetwork.ca/oauth/callback",
+      "https://zoom.automateyournetwork.ca"
     ],
     "strict_mode": false,
     "subdomain_strict_mode": false,
@@ -60,16 +60,12 @@
     "products": [
       "ZOOM_MEETING"
     ],
-    "development_home_uri": "https://461b-70-53-207-52.ngrok-free.app/panel/?accountId={accountId}&runningContext={runningContext}&action={action}",
-    "production_home_uri": "",
+    "development_home_uri": "https://zoom.automateyournetwork.ca/panel/?accountId={accountId}&runningContext={runningContext}&action={action}",
+    "production_home_uri": "https://zoom.automateyournetwork.ca",
     "domain_allow_list": [
       {
-        "domain": "461b-70-53-207-52.ngrok-free.app",
-        "explanation": "Dev tunnel for NetClaw Zoom App panel + OAuth callback"
-      },
-      {
-        "domain": "4e99-70-53-207-52.ngrok-free.app",
-        "explanation": "Dev tunnel for RTMS webhook only"
+        "domain": "zoom.automateyournetwork.ca",
+        "explanation": "Permanent production host for the NetClaw Zoom App panel, OAuth callback, and RTMS webhook"
       }
     ],
     "in_client_feature": {
@@ -126,7 +122,7 @@
             "meeting.rtms_started",
             "meeting.rtms_stopped"
           ],
-          "development_webhook_url": "https://4e99-70-53-207-52.ngrok-free.app/webhooks/zoom/rtms",
+          "development_webhook_url": "https://zoom.automateyournetwork.ca/webhooks/zoom/rtms",
           "event_usage": "EVENT_FOR_USER"
         }
       ]

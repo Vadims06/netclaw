@@ -225,23 +225,29 @@ state as the panel, with no independent audio and no effect on anyone else's fee
 **Independent Test**: Per spec.md — enable the overlay on your own feed, confirm it appears/disappears
 correctly and never carries audio.
 
-- [ ] T038 [US5] **Not verifiable from this environment** — no live Zoom account/app-review access.
-      Implementation proceeded per spec's graceful-degradation note (T039/T040 built regardless);
-      operator must confirm Layers API access is actually granted before relying on US5 live.
+- [ ] T038 [US5] **Confirmed live 2026-08-21: Layers API is not available for this app at all.**
+      Checked the Surface features list on a real Marketplace app with correct scopes/config
+      otherwise complete — "Layers"/"Camera mode" doesn't appear anywhere, not even grayed-out or
+      marked pending-review. This is an entitlement Zoom doesn't expose through this app-builder flow,
+      not a temporary review-queue delay. T039/T040 were built regardless per the spec's own
+      graceful-degradation note; **US5 is deferred, not blocked-on-review** — see
+      `docs/ZOOM-MEETING-INTELLIGENCE.md`'s "Known gaps" section.
 - [X] T039 [US5] Implement `ui/netclaw-zoom-app/overlay.js`: Layers API Camera-mode integration
       rendering the current `avatar_state` as a self-camera overlay
 - [X] T040 [US5] Implement `camera_overlay_enable`/`camera_overlay_disable` handling in
       `panel_feed.py`, restricted to the sending participant's own `participant_id`
       (`contracts/zoom-app-panel-feed.md`), tracking `CameraOverlayEnrollment` (data-model.md)
-- [ ] T041 [US5] **Not implemented as NetClaw-side code** — reasoned to be Zoom's own inherent Layers
-      Camera-mode behavior (no camera feed = nothing for the overlay to render onto, resumes
-      automatically once a feed exists again), but this reasoning is unverified against the real SDK.
-      Left unchecked rather than marked done on an assumption.
-- [ ] T042 [US5] **Not verifiable from this environment** — requires a live meeting/camera to confirm
-      no audio path exists; the design (research.md R8, overlay.js) never attaches one, but this is a
-      manual, live check per the task's own wording.
+- [ ] T041 [US5] **Deferred alongside T038** — the camera-off edge case can't be exercised without
+      Layers API access at all (per T038), so the reasoning below remains unverified against the real
+      SDK, not because of a missing live meeting: reasoned to be Zoom's own inherent Layers Camera-
+      mode behavior (no camera feed = nothing for the overlay to render onto, resumes automatically
+      once a feed exists again). Left unchecked rather than marked done on an assumption.
+- [ ] T042 [US5] **Deferred alongside T038** — same reason: no-audio confirmation needs a live
+      overlay session, which needs Layers API access this app doesn't have. The design (research.md
+      R8, `overlay.js`) never attaches an audio path by construction, but that's unverified live.
 
-**Checkpoint**: All five user stories independently functional (or US5 explicitly deferred per T038).
+**Checkpoint**: User Stories 1–4 are independently functional and live-verified. US5 is explicitly
+deferred — confirmed (not just unverified) that Layers API access is unavailable for this app.
 
 ---
 

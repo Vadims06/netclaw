@@ -116,10 +116,26 @@ account has no installer to show a form to.
 ## Reachability: getting a real HTTPS endpoint
 
 Zoom's "Add app" test and its webhook delivery both require your Redirect/Home/Webhook URLs to
-actually resolve over HTTPS with valid TLS and the OWASP security headers
-(`Strict-Transport-Security`, `Content-Security-Policy`) present on every response. A bare ngrok
-placeholder or an unrelated domain (e.g. your existing marketing site) will fail this — Zoom's "Add
-app" flow does a live reachability check and fails with a generic `400` if nothing answers.
+actually resolve over HTTPS with valid TLS and **all four** OWASP security headers present on every
+response — not just two. Zoom's own client-side app-launch validator checks for
+`Strict-Transport-Security`, `Content-Security-Policy`, `X-Content-Type-Options`, and
+`Referrer-Policy`, and silently aborts the app load (a blank/white panel, no visible error anywhere
+except the browser console: `Missing OWASP Secure Headers: [...]`) if any one of the four is missing
+— HSTS+CSP alone were confirmed live to *not* be sufficient. A bare ngrok placeholder or an unrelated
+domain (e.g. your existing marketing site) will fail this entirely — Zoom's "Add app" flow does a
+live reachability check and fails with a generic `400` if nothing answers.
+
+**If the Marketplace UI still shows a header warning after you've confirmed your server sends all
+four**: re-check with `curl -s -D - -o /dev/null <url>` (a full GET, not `-I`/HEAD — some servers
+handle HEAD differently) before assuming the warning is real. It can be stale, left over from an
+earlier failed/dead tunnel, and clears once the field is re-saved against a URL that's actually
+answering correctly.
+
+**Manifest upload structure**: if using "Upload New Manifest" instead of the UI form field-by-field,
+`display_information`/`oauth_information`/`features` must be **top-level keys**, not nested under a
+`"manifest"` wrapper object — a wrapped upload fails with `lack of display_information item` even
+though some published example manifests online use the wrapped shape (that shape is for a different
+upload mechanism, not this endpoint).
 
 Two paths, not mutually exclusive:
 
@@ -151,9 +167,12 @@ daemon's (`bgp-daemon-v2.py`) environment — they're the two ends of the same l
   without it; only the actual live-meeting media connection needs it.
 - **Official Zoom Meetings MCP** (historical correlation, User Story 2): exact tool name/credential
   shape is still being confirmed against Zoom's connector setup flow.
-- **Layers API "Camera mode"** (the optional camera-overlay avatar, User Story 5) requires Zoom's own
-  Controller-mode entitlement and app review — implemented, but gate your rollout on that approval
-  landing; the rest of the feature (Stories 1–4) works without it.
+- **Layers API "Camera mode"** (the optional camera-overlay avatar, User Story 5): confirmed live —
+  it doesn't appear anywhere in the Surface features list for a standard General App, not even
+  grayed-out/pending-review. It's an entitlement Zoom doesn't expose through this app-builder flow at
+  all, at least not without a separate partner program. Treat User Story 5 as deferred rather than
+  blocked-on-review; the rest of the feature (Stories 1–4, including the side-panel avatar) works
+  fully without it, exactly per the spec's own graceful-degradation design.
 
 ## Step 9 — Making it actually run live (everything Marketplace setup alone doesn't tell you)
 
@@ -275,6 +294,145 @@ registered tools. Two things follow from this:
 - **Push an immediate acknowledgment.** The Border now pushes "Looking into it — this can take a
   minute or two…" the instant a question is accepted, before the real agent turn even starts, so the
   panel never looks idle/broken while the real work happens.
+
+## Step 10 — Going permanent: a real domain instead of ngrok
+
+Free ngrok tunnels die on their own schedule (not just on restart — they were observed going offline
+mid-session with no local trigger), and every death means re-pasting five fields into the Marketplace
+form. The permanent fix, all confirmed live end-to-end 2026-08-21:
+
+### 10.1 — DNS + a real trusted certificate (no root needed for this part)
+
+1. A DNS `A` record for your chosen subdomain (e.g. `zoom.yourdomain.com`), kept fresh by a small
+   systemd `--user` timer if your IP isn't static — mirrors whatever DDNS mechanism you already have
+   for other NetClaw services (`scripts/godaddy-ddns.sh` if GoDaddy; reuse it with a new
+   `DDNS_NAME`/its own env-overlay file rather than inventing a second mechanism).
+2. A real Let's Encrypt certificate via the same `lego` binary and DNS-01 GoDaddy hook feature 060
+   already vendors (`~/.openclaw/n2n/bin/lego`, `scripts/lib/godaddy-acme-hook.sh`) — entirely
+   user-space, no root required:
+
+   ```bash
+   set -a; source ~/.openclaw/.env; set +a   # picks up N2N_ACME_EMAIL, EXEC_PATH, GODADDY_PAT
+   ~/.openclaw/n2n/bin/lego --accept-tos --server https://acme-v02.api.letsencrypt.org/directory \
+     --email "$N2N_ACME_EMAIL" --dns exec --domains zoom.yourdomain.com \
+     --path ~/.openclaw/n2n/keys/acme \
+     --dns.resolvers ns51.domaincontrol.com:53 --dns.resolvers ns52.domaincontrol.com:53 run
+   ```
+
+   Produces `<path>/certificates/zoom.yourdomain.com.{crt,key}` — the `.crt` is already the fullchain
+   (cert + issuer), no need to concatenate. Renew the same way with `renew --days 30` instead of `run`.
+
+### 10.2 — nginx as the TLS-terminating reverse proxy (needs root)
+
+`zoom-rtms-mcp` itself only ever binds unprivileged ports (`ZOOM_RTMS_WEBHOOK_PORT`/
+`ZOOM_PANEL_FEED_PORT`, default 8899/8900, plain HTTP) — something else has to own port 443 and the
+real certificate. One nginx server block, proxying by path since both a webhook (POST-only) and a
+panel+WebSocket feed exist behind the one domain:
+
+```nginx
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name zoom.yourdomain.com;
+    ssl_certificate     /etc/nginx/ssl/zoom.yourdomain.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/zoom.yourdomain.com.key;
+
+    location /webhooks/ { proxy_pass http://127.0.0.1:8899; proxy_set_header Host $host; }
+
+    location / {
+        proxy_pass http://127.0.0.1:8900;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+}
+```
+
+Remove/disable nginx's *default* site (`sites-enabled/default`) if you don't need it — it typically
+listens on port 80 too, and if anything else on the host already holds 80 (see 10.3), nginx's whole
+process fails to start over a port it doesn't even need for this feature. Copy the cert/key into a
+location nginx's own user can read (`/etc/nginx/ssl/`, not your home directory) rather than pointing
+`ssl_certificate`/`ssl_certificate_key` at the lego output path directly.
+
+### 10.3 — The gotcha that costs the most time: local Kubernetes silently owns 80/443
+
+**If this host runs k3s, microk8s, RKE2, or any kubeadm-style cluster, skip straight to fixing this
+before debugging anything else about nginx or certificates.** The symptom is maximally misleading:
+
+- `nginx -t` passes, the service reports `active (running)`, `ss -ltnp` shows it genuinely listening
+  on `0.0.0.0:443` — every normal signal says nginx is healthy.
+- Every TLS connection attempt (even `curl https://127.0.0.1/`, which never leaves the machine) fails
+  identically: `Connection reset by peer`, immediately after the Client Hello, zero bytes read back.
+  `openssl s_client` shows the same (`errno=104`). No new line ever appears in nginx's own error log.
+
+This is Kubernetes' CNI (kube-router/kube-proxy in this case) claiming ports 80/443 **host-wide** via
+an iptables `PREROUTING`/`DNAT` rule tied to a pod's hostPort mapping — traffic hits the kernel's
+netfilter tables before it ever reaches nginx's actual socket, gets redirected into the pod network,
+and resets there instead. Confirm with:
+
+```bash
+sudo iptables -t nat -L -n | grep 443   # look for a DNAT ... to:10.42.x.x:443 line
+```
+
+**Merely stopping the service is not enough** — `systemctl stop k3s` leaves the `KUBE-ROUTER-INPUT`/
+`KUBE-NODEPORTS`/etc. chains fully installed and actively processing (non-zero packet counters),
+because kube-router/kube-proxy don't clean up their own iptables state on a plain stop. The actual
+fix, if you're not using the cluster, is the framework's own uninstaller — not raw `iptables -F`,
+which risks leaving other unrelated rules in an inconsistent state:
+
+```bash
+sudo /usr/local/bin/k3s-uninstall.sh   # or the microk8s/rke2 equivalent
+```
+
+Confirmed fully resolves it — `iptables -L INPUT | grep kube` empty, `curl https://127.0.0.1/panel/`
+returns real content immediately, no nginx changes needed at all.
+
+### 10.4 — Update the Marketplace fields one last time
+
+Once 10.1–10.3 are done, the Marketplace fields collapse to **one domain** instead of two ngrok
+subdomains (webhook and panel now share the same host, since nginx path-routes both):
+
+| Field | Value |
+|---|---|
+| Home URL | `https://zoom.yourdomain.com/panel/` |
+| OAuth Redirect URL | `https://zoom.yourdomain.com/oauth/callback` |
+| OAuth Allow List | those two |
+| Domain Allow List | `zoom.yourdomain.com` (one entry) |
+| RTMS Webhook URL | `https://zoom.yourdomain.com/webhooks/zoom/rtms` |
+
+### 10.5 — Running `zoom-rtms-mcp` as its own always-on service, not gateway-spawned
+
+The OpenClaw gateway spawns MCP servers **on-demand per session** — fine for ordinary tool calls, but
+wrong for this feature, which needs its webhook/panel reachable 24/7 regardless of whether any chat
+session is active. Give it its own systemd `--user` service instead (mirrors the existing
+`netclaw-mesh`/`netclaw-hud` pattern):
+
+```ini
+[Unit]
+Description=NetClaw Zoom RTMS MCP server (webhook + panel feed) — feature 118
+After=network-online.target netclaw-mesh.service
+Wants=netclaw-mesh.service
+
+[Service]
+Type=simple
+WorkingDirectory=/path/to/netclaw/mcp-servers/zoom-rtms-mcp
+EnvironmentFile=%h/.openclaw/.env
+# stdin held open — FastMCP's stdio loop exits on EOF otherwise, tearing down
+# the webhook/panel background services with it the instant systemd's own
+# stdin (normally /dev/null, i.e. already-closed) reaches the process.
+ExecStart=/bin/sh -c 'tail -f /dev/null | /path/to/.venv/bin/python /path/to/server.py'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+Also make sure `bgp-daemon-v2.py` (the Border) has `N2N_ZOOM_CHANNEL_PORT`/`N2N_ZOOM_CHANNEL_SECRET`
+set in its own env file (e.g. `mesh.systemd.env`) — identical values on both sides — and restart it
+too; without this, `zoom_channel.py`'s loopback listener never starts and the investigate path has
+nothing to connect to (the panel and webhook still work, but questions never get answered).
 
 ## Demo script
 
