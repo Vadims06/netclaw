@@ -51,6 +51,11 @@ _OAUTH_CALLBACK_BODY = (
 
 async def _serve_static(connection, request):
     path = request.path.split("?", 1)[0]
+    upgrade_hdr = request.headers.get("Upgrade", "")
+    origin_hdr = request.headers.get("Origin", "")
+    ua_hdr = request.headers.get("User-Agent", "")
+    logger.info("panel_feed request: path=%r upgrade=%r origin=%r user-agent=%r",
+                request.path, upgrade_hdr, origin_hdr, ua_hdr)
     if path == "/oauth/callback":
         # Zoom's install/consent flow redirects the browser here after the
         # user authorizes. This app's data access is scoped per-meeting via
