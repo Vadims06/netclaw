@@ -49,6 +49,7 @@ All credentials are in `~/.openclaw/.env`. Never put credentials in skill files 
 - Twitter MCP         → TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET, TWITTER_HEARTBEAT_ENABLED (default: false)
 - Cisco PSIRT MCP     → CISCO_CLIENT_ID, CISCO_CLIENT_SECRET (OAuth2 client-credentials via id.cisco.com), CISCO_PSIRT_CACHE_DIR, CISCO_PSIRT_CACHE_TTL_S (default 21600)
 - Globalping MCP      → GLOBALPING_TOKEN (bearer, remote endpoint mcp.globalping.dev; 401 without it)
+- Topolograph MCP     → TOPOLOGRAPH_API_TOKEN (bearer), TOPOLOGRAPH_MCP_URL (optional, overrides the default hosted endpoint); remote HTTP, read-only, 401 without the token
 - Zoom RTMS MCP       → ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, ZOOM_ACCOUNT_ID, ZOOM_RTMS_WEBHOOK_SECRET, N2N_ZOOM_CHANNEL_PORT, N2N_ZOOM_CHANNEL_SECRET (see docs/ZOOM-MEETING-INTELLIGENCE.md, spec 118)
 ```
 
@@ -273,6 +274,30 @@ hosts none. Only ~1,390 of the internet's ASNs host a probe.
 **Privacy note**: every tool requires a natural-language `context` field the vendor uses for intent
 analytics. NetClaw sends a generic, task-shaped value with no customer name, internal hostname, ticket or
 topology detail. `limits` output echoes a short token fragment — don't paste it into a public channel.
+
+## Topolograph IGP Topology Analysis (`topolograph-mcp`, remote)
+
+Link-state reasoning over the **whole area's LSDB** from a stored Topolograph snapshot — the layer
+that sees the topology as a graph, not one device's routing table. Remote HTTP against the operator's
+own Topolograph instance; no local server.
+
+| Tool | Purpose |
+|---|---|
+| `get_all_graphs` | List stored snapshots (protocol/area/date filters) — get a `graph_time` |
+| `get_graph_by_time` / `get_graph_status` | Full graph for a snapshot; completeness/health of it |
+| `get_nodes` / `get_edges` | Routers (ABR/ASBR, IS-IS overload/attached flags) and adjacencies (MPLS-TE fields via `include=`) |
+| `get_network_by_graph_time` / `get_lsps` | Prefixes in the graph; MPLS-TE LSP tunnels |
+| `get_shortest_path` / `get_cspf_path` | SPF path (optionally accounting for autoroute tunnels); constrained-SPF feasibility |
+| `get_edge_failure_reaction` | Whole-network impact of one or more link failures — simulation only |
+| `get_network_events` / `get_adjacency_events` / `get_events_timeline` | Topology-change events, raw or grouped into waves |
+
+**Read-only, enforced upstream**: the server runs `TOPOLOGRAPH_MCP_READ_ONLY=true`, so `upload_graph`
+and the `*_lsp` mutation tools are not in `tools/list`. NetClaw scopes the surface further with
+`defenseclaw tool allow topolograph-mcp <tool>` (the `get_*` tools) and blocks the rest.
+
+**Snapshot, not the wire**: results describe a stored graph and, for `get_edge_failure_reaction` /
+`get_cspf_path`, a prediction. Confirm on the device when the question is "is this true right now",
+and always report how old the `graph_time` is.
 
 ## Cisco PSIRT Advisories (`cisco-psirt-mcp`)
 
