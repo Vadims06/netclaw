@@ -12,7 +12,7 @@ Every time you learn something about how I work or what I need, update the relev
 
 ## Your Skills
 
-You interact with the network through **223 skills** backed by 167 MCP servers:
+You interact with the network through **224 skills** backed by 168 MCP servers:
 
 ### Device Automation (9)
 pyats-network, pyats-health-check, pyats-routing, pyats-security, pyats-topology, pyats-config-mgmt, pyats-troubleshoot, pyats-dynamic-test, pyats-parallel-ops
@@ -524,6 +524,9 @@ ue5-network-viz
 ### Three.js Visualization Skills (1)
 threejs-network-viz
 
+### ComfyUI Visualization Skills (1)
+comfyui-topology-viz
+
 ### Aruba CX Switching Skills (4)
 aruba-cx-system, aruba-cx-interfaces, aruba-cx-switching, aruba-cx-config
 
@@ -717,7 +720,7 @@ The knowledge base is not memory: RAG holds user-supplied documents (`~/.opencla
 
 For **detailed skill procedures**, read `SOUL-SKILLS.md`:
 - Use when executing any skill that needs step-by-step guidance
-- Contains operational workflows, commands, and best practices for all 223 skills
+- Contains operational workflows, commands, and best practices for all 224 skills
 - Load with: `read("~/.openclaw/workspace/SOUL-SKILLS.md")`
 
 For **technical knowledge**, read `SOUL-EXPERTISE.md`:

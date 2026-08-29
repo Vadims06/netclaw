@@ -25,6 +25,7 @@ This table covers every server vendored under this directory (54 as of this writ
 | `checkpoint-mcp-servers` | Check Point Security (15 MCPs: policy, threat intel, gateway, SASE) | Local |
 | `cisco-sdwan-mcp` | Cisco SD-WAN vManage read-only fabric monitoring | Community |
 | `clab-mcp-server` | ContainerLab containerized network lab lifecycle | Community |
+| `comfyui-mcp` | AI image generation backend for stylized topology stills | Community |
 | `claroty-mcp` | Claroty xDome OT/IoT/IoMT asset visibility and threat detection | Local |
 | `eve-ng-mcp-server` | EVE-NG lab management, topology, node/console operations | Community |
 | `f5-mcp-server` | F5 BIG-IP iControl REST — virtuals, pools, iRules, profiles, stats | Community |

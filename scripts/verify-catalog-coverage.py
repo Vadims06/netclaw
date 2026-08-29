@@ -66,6 +66,7 @@ GROUPED_CONFIG_PREFIXES = {
 # conventions that predate this feature, plus this feature's own additions).
 GROUPED_CONFIG_EXACT = {
     "sketchfab-mcp": "threejs-viz",
+    "comfyui-mcp": "comfyui-viz",
     "azure-network-mcp": "azure",
     "unreal-mcp": "ue5",
     "rag-mcp": "rag-mcp",
