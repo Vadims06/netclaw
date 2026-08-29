@@ -59,7 +59,20 @@ the token* below.
 
 ## Fast path
 
-If you just want the commands, in order. Every one of these is a step a real
+**Recommended (spec 119): one command.** `netclaw risk enroll-mobile [device-label]` runs the
+exact sequence below for you — it checks every precondition first, and if the only problem is
+role/stack (not yet a Border, or the `in2n` stack not enabled), it offers to promote and restart
+the daemon right there before minting the QR. If something else is wrong (domain, port, deps,
+listener, DNS), it explains what, same as running `edge-check` directly. This is also what a
+fresh Border's own install offers to run for you automatically, right after the mesh daemon comes
+up, if you say yes to "enroll a mobile device now?".
+
+```bash
+netclaw risk enroll-mobile alice-pixel8
+```
+
+**The manual five-step version**, if you want to see or control each step individually, or the
+wrapper reports a problem you'd rather work through by hand. Every one of these is a step a real
 first install got stuck on — the long-form sections below explain why.
 
 ```bash

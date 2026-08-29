@@ -12,6 +12,8 @@
 #   netclaw link            (re)create the ~/.local/bin/netclaw symlink
 #
 #   NetClaw Mobile (enrolling a phone against this claw):
+#   netclaw risk enroll-mobile [device-label]     one command: checks, promotes to
+#                                                  Border if needed, mints the QR
 #   netclaw risk role border <risk-name> [in2n]   promote standalone → Border
 #   netclaw risk edge-check                       preflight every precondition
 #   netclaw risk token --edge <device-label>       mint the single-use QR
@@ -886,6 +888,68 @@ print('    (fallback) raw payload:', json.dumps(payload))
 "
 }
 
+risk_enroll_mobile() {  # risk_enroll_mobile [device-label] — spec 119
+    # One-command wrapper around MOBILE-ONBOARDING.md's documented fast path
+    # (edge-check -> role border -> restart -> edge-check -> token --edge),
+    # for an operator who doesn't want to run those five commands by hand.
+    # The one genuinely new piece of logic vs. that existing doc: promoting
+    # role/stack *inline* when edge-check reports either missing, instead of
+    # just printing the hint and stopping there.
+    local label="${1:-}"
+    if ! risk_edge_check; then
+        local risk_json role
+        risk_json="$(api_get /n2n/risk)"
+        # try/except, not a bare json.load: an unreachable daemon means
+        # $risk_json is empty, and under this script's `set -e`, a python3
+        # process that raises (rather than printing "" and exiting 0) would
+        # abort the WHOLE netclaw invocation right here, silently swallowed
+        # by the 2>/dev/null below it — exactly the failure mode this
+        # function exists to diagnose, not reproduce.
+        role="$(printf '%s' "$risk_json" | python3 -c '
+import json, sys
+try: print(json.load(sys.stdin).get("role", ""))
+except Exception: print("")' 2>/dev/null)"
+        if [ "$role" = "border" ]; then
+            echo "  Role and stack are already correct — the failure above is something else"
+            echo "  (domain, port, deps, listener, or DNS). Fix the ✗ lines and re-run:"
+            echo "      $(basename "$0") risk enroll-mobile${label:+ $label}"
+            return 1
+        fi
+        echo ""
+        tui_yesno "This claw is not yet a Border (required to enroll a phone) — promote it now?" y || {
+            echo "  Not enrolling. Promote later: netclaw risk role border <risk-name> in2n"
+            return 1
+        }
+        local risk_name; risk_name="$(env_get N2N_RISK_NAME)"
+        if [ -z "$risk_name" ]; then
+            echo -ne "  Risk name for this Border: "
+            read -r risk_name
+            [ -n "$risk_name" ] || { echo "  A Risk name is required."; return 1; }
+        fi
+        risk_role border "$risk_name" in2n || return 1
+        echo ""
+        echo "  Restarting the mesh daemon to apply..."
+        if systemctl --user restart netclaw-mesh.service 2>/dev/null; then
+            sleep 2
+        else
+            echo "  Could not restart automatically — restart manually and re-run:"
+            echo "      systemctl --user restart netclaw-mesh.service"
+            echo "      $(basename "$0") risk enroll-mobile${label:+ $label}"
+            return 1
+        fi
+        if ! risk_edge_check; then
+            echo "  Role is now correct, but other preconditions above still need fixing."
+            echo "  Fix the ✗ lines, then re-run: $(basename "$0") risk enroll-mobile${label:+ $label}"
+            return 1
+        fi
+    fi
+    if [ -z "$label" ]; then
+        echo -ne "  Device label (e.g. alice-iphone): "
+        read -r label
+    fi
+    risk_edge_token "$label"
+}
+
 risk_route() {  # risk_route "<request>" [capability]
     local req="$1" cap="$2"
     [ -n "$req" ] || { echo 'usage: netclaw risk route "<request>" [capability]'; return 1; }
@@ -1011,8 +1075,9 @@ case "${1:-}" in
                 else
                     risk_token "${3:-}"
                 fi ;;
+            enroll-mobile|enroll_mobile) risk_enroll_mobile "${3:-}" ;;
             route)    risk_route "${3:-}" "${4:-}" ;;
-            *)        echo "Usage: netclaw risk [status|members|health|role|edge-check|add|remove|token [--edge]|route]"; exit 1 ;;
+            *)        echo "Usage: netclaw risk [status|members|health|role|edge-check|add|remove|token [--edge]|enroll-mobile [label]|route]"; exit 1 ;;
         esac ;;
     chats)
         if [ "${2:-}" = "--watch" ] || [ "${2:-}" = "watch" ]; then
