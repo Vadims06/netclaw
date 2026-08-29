@@ -49,19 +49,27 @@ installer session or consulting separate documentation.
 
 1. **Given** a fresh Border install with no prior enrollment, **When** core setup finishes,
    **Then** the installer asks whether to enroll a mobile device now.
-2. **Given** the operator answers yes, **When** the installer proceeds, **Then** it produces a
-   working enrollment QR code or manual enrollment code using the Border's existing enrollment
-   mechanism — no new, separate enrollment pathway is invented.
+2. **Given** the operator answers yes, **When** the Border/Risk services have finished starting and
+   are confirmed up, **Then** the installer triggers enrollment at that point — not earlier, since
+   the daemon must actually be running to issue a valid token — and produces a working enrollment
+   QR code or manual enrollment code using the Border's existing enrollment mechanism (the same
+   one the existing enrollment CLI already uses). No new, separate enrollment pathway is invented.
 3. **Given** the operator answers no (or the installer is running non-interactively, e.g. in CI
    with no terminal attached), **When** installation proceeds, **Then** it completes exactly as it
    does today, with no enrollment step and no hang waiting for input.
 4. **Given** the operator's Border configuration doesn't yet support mobile enrollment (e.g. the
    edge listener isn't enabled), **When** they answer yes anyway, **Then** the installer explains
    what's missing rather than failing silently or crashing the install.
-5. **Given** an operator who already has one phone enrolled, **When** they want to enroll a second
-   device later, **Then** the existing, already-working manual enrollment path (outside the
-   installer) still works unchanged — this prompt is a first-run convenience, not the only way to
-   enroll.
+5. **Given** an operator who already has a Border running from before this feature existed, **When**
+   they want to enroll a device without re-running the installer, **Then** the existing manual
+   enrollment path still works — reviewed and improved as part of this feature if it has any gaps,
+   so existing operators get an equally good experience to a fresh install.
+6. **Given** a device successfully enrolls (whether via the new installer prompt or the existing
+   manual path), **When** enrollment completes, **Then** the Border's own awareness of its current
+   state — its self-model context, memory, heartbeat reporting, and risk/federation posture data —
+   reflects the newly enrolled device. If this requires the gateway or daemon to reload/cycle to
+   pick up the change, that is acceptable; it must not require a full reinstall or leave the
+   Border reporting stale device counts indefinitely.
 
 ---
 
@@ -102,6 +110,9 @@ file resolves it, with no gaps.
 - What happens if the installer is re-run against a Border that already has enrolled devices? It
   must not treat "already has devices enrolled" as "must enroll another one" — asking again is
   harmless, but a "no" answer must not be treated as an error state.
+- What happens if a gateway/daemon reload triggered by a fresh enrollment races an in-progress
+  conversation on another already-enrolled device? That existing session must not be dropped or
+  corrupted by the reload.
 
 ## Requirements *(mandatory)*
 
@@ -117,9 +128,18 @@ file resolves it, with no gaps.
 - **FR-004**: If the operator accepts but the Border's current configuration doesn't support mobile
   enrollment yet, the installer MUST explain what's missing rather than failing without
   explanation.
-- **FR-005**: The existing manual enrollment path (used today, outside the installer) MUST continue
-  to work unchanged for enrolling any device after the first, or for an operator who declined the
-  installer's prompt.
+- **FR-005**: The existing manual enrollment path (used today, outside the installer, by operators
+  with a Border from before this feature existed) MUST continue to work for enrolling any device
+  after the first, or for an operator who declined the installer's prompt — and MUST be reviewed
+  and improved as part of this feature if gaps are found, so existing operators aren't left with a
+  worse experience than a fresh install.
+- **FR-005a**: The installer's enrollment trigger MUST fire only after Border/Risk services are
+  confirmed running, not earlier in the install sequence — an enrollment token cannot be validly
+  issued before the daemon that issues it is up.
+- **FR-005b**: Once a device enrolls (via either path), the Border's own contextual awareness of
+  its current state — self-model/SOUL context, memory, heartbeat reporting, and risk/federation
+  posture — MUST come to reflect the newly enrolled device, even if this requires a gateway/daemon
+  reload cycle to take effect.
 - **FR-006**: This feature's documentation MUST record, for each App Store review rejection this
   project actually received, the guideline number, the root cause, and which existing artifact
   resolves it.
@@ -142,6 +162,9 @@ file resolves it, with no gaps.
   phone-enrolled state without leaving the installer session or reading separate documentation.
 - **SC-002**: An operator who declines the prompt experiences installation completing identically
   to today's behavior — zero regression for the "don't want mobile yet" path.
+- **SC-002a**: After any successful enrollment, the Border's own reporting of its current state
+  (heartbeat, memory, self-model context) reflects the newly enrolled device within one
+  gateway/daemon reload cycle — not "never," and not only after a full reinstall.
 - **SC-003**: Every App Store review rejection this project received across its actual submission
   history is documented with guideline number, root cause, and fix, discoverable in one place.
 - **SC-004**: Every release-engineering file produced during the App Store submission effort is
