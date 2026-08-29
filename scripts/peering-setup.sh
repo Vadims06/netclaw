@@ -16,6 +16,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NETCLAW_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
+# TTY-aware yes/no (spec 119) -- this file's own ask()/ask_yn() below always
+# read()/block regardless of TTY, an existing property this change doesn't
+# touch; the new mobile-enrollment prompt uses tui_yesno instead so it alone
+# defaults safely (to "no") under a non-interactive invocation.
+source "$SCRIPT_DIR/lib/tui.sh"
 
 OPENCLAW_ENV="${OPENCLAW_ENV:-$HOME/.openclaw/.env}"
 PROTOCOL_MCP_DIR="$NETCLAW_DIR/mcp-servers/protocol-mcp"
@@ -239,6 +244,24 @@ else
         daemon_start
     else
         log_info "Start it later: ./scripts/peering-setup.sh start"
+    fi
+fi
+
+
+# ── NetClaw Mobile enrollment (spec 119) ──────────────────────────
+# Only worth asking once the mesh daemon is actually up -- an enrollment
+# token cannot be validly issued before the daemon that issues it is
+# running. Delegates entirely to `netclaw risk enroll-mobile` rather than
+# duplicating its edge-check/promote/token logic here (research.md R5).
+if daemon_running; then
+    echo ""
+    if tui_yesno "Would you like to enroll a mobile device now?" n; then
+        # `|| true`: an incomplete/declined enrollment here is not a fatal
+        # error for the mesh peering setup this script's main job already
+        # finished -- only this bonus step should stop, not the whole wizard.
+        "$NETCLAW_DIR/scripts/netclaw" risk enroll-mobile || true
+    else
+        log_info "Enroll a phone later: netclaw risk enroll-mobile [device-label]"
     fi
 fi
 
