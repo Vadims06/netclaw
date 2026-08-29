@@ -82,7 +82,7 @@ void main() {
   });
 
   testWidgets(
-      'acceptance scenario 2: tapping continue on the explainer leads to the existing QR scan screen',
+      'the AI-data-sharing consent checkbox must be checked before Continue is enabled',
       (tester) async {
     late Directory dir;
     await tester.runAsync(() async {
@@ -94,7 +94,15 @@ void main() {
     });
     addTearDown(() => dir.delete(recursive: true));
 
-    await tester.tap(find.text('Continue'));
+    final button =
+        tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Agree and Continue'));
+    expect(button.onPressed, isNull, reason: 'disabled until the checkbox is checked');
+
+    await tester.ensureVisible(find.byType(CheckboxListTile));
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Agree and Continue'));
+    await tester.tap(find.text('Agree and Continue'));
     await tester.pump();
 
     expect(find.text('Scan Border QR Code'), findsOneWidget);
