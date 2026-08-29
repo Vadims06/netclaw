@@ -1,4 +1,4 @@
-# ComfyUI Model Disk Inventory (spec 119)
+# ComfyUI Model Disk Inventory (spec 120)
 
 Tracks everything NetClaw has downloaded onto the ComfyUI host
 (`/mnt/c/Users/ptcap/Documents/ComfyUI/models/`), so cleanup is a clean one-shot, not guesswork.

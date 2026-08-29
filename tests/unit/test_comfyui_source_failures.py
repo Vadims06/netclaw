@@ -1,6 +1,6 @@
 """
 Unit test: a SourceUnreachableError from sources.py produces the distinct source_unreachable
-message (spec 119 FR-012) — never a ComfyUI-side message, since the failure happens before any
+message (spec 120 FR-012) — never a ComfyUI-side message, since the failure happens before any
 comfyui-mcp call could even be attempted.
 """
 

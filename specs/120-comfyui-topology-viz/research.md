@@ -301,7 +301,7 @@ called fw1"`) produced a genuinely correct diagram in 41.9s — exactly 3 device
 clutter, thin/dashed rather than "glowing" connection lines per the prompt) — real prompt-tuning
 opportunities, not correctness bugs.
 
-**Model inventory**: see `specs/119-comfyui-topology-viz/model-inventory.md` for the full
+**Model inventory**: see `specs/120-comfyui-topology-viz/model-inventory.md` for the full
 Flux+ControlNet model set installed (~25GB) and cleanup guidance.
 
 ## 11. Negative prompting and aesthetic direction

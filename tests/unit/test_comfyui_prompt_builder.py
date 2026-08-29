@@ -1,5 +1,5 @@
 """
-Unit tests for prompt_builder.py's composition/summarization (spec 119 FR-002, Edge Cases,
+Unit tests for prompt_builder.py's composition/summarization (spec 120 FR-002, Edge Cases,
 research.md §6) — bounded length, role/count summarization, no per-interface exhaustive
 enumeration.
 """

@@ -5,7 +5,7 @@ Ported from workspace/skills/threejs-network-viz/sources.py (spec 046) — same 
 generic `{"devices": [...], "links": [...]}` input shape the conversational orchestration layer
 already normalizes each source MCP's native response into before calling here, so this skill's
 generation pipeline stays identical regardless of origin (FR-010, FR-011). See
-specs/119-comfyui-topology-viz/research.md §5 and data-model.md.
+specs/120-comfyui-topology-viz/research.md §5 and data-model.md.
 """
 
 import re

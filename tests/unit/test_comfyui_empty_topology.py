@@ -1,5 +1,5 @@
 """
-Unit test: a zero-device TopologySnapshot produces FailureKind.EMPTY_TOPOLOGY (spec 119 FR-013)
+Unit test: a zero-device TopologySnapshot produces FailureKind.EMPTY_TOPOLOGY (spec 120 FR-013)
 and comfyui_client is never invoked — checked before any comfyui-mcp call is made.
 """
 

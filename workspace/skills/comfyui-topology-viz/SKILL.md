@@ -13,7 +13,7 @@ metadata:
 # ComfyUI Network Topology Visualization Skill
 
 **Version**: 1.0.0
-**Feature**: 119-comfyui-topology-viz
+**Feature**: 120-comfyui-topology-viz
 **Status**: Active
 
 ## Overview
@@ -189,8 +189,8 @@ See `contracts/comfyui-generation-contract.md` for the exact call sequence.
   role-specific ones, decorative hallucinated background clutter, thin/dashed rather than
   "glowing" connection lines) — prompt-tuning opportunities, not correctness bugs.
 - **~25GB of Flux/ControlNet models installed on the ComfyUI host** for the structural path — see
-  `specs/119-comfyui-topology-viz/model-inventory.md` for the full list and cleanup guidance if
+  `specs/120-comfyui-topology-viz/model-inventory.md` for the full list and cleanup guidance if
   disk space is needed back.
 
-See `specs/119-comfyui-topology-viz/tasks.md` for the full implementation history and
+See `specs/120-comfyui-topology-viz/tasks.md` for the full implementation history and
 `research.md` for the technical decisions and live findings behind this skill's design.

@@ -6,7 +6,7 @@ Ported from workspace/skills/threejs-network-viz/topology_model.py (spec 046), t
 DeviceAsset, FallbackNote) and spatial-layout concepts (Vector3, Device.position) that this
 feature has no use for — a generated still image has no per-device asset-selection or 3D-placement
 step; the whole snapshot is summarized into one text prompt instead. See
-specs/119-comfyui-topology-viz/data-model.md and research.md §5.
+specs/120-comfyui-topology-viz/data-model.md and research.md §5.
 
 Every topology-source adapter in sources.py (live source or freeform) MUST produce these types,
 and prompt_builder.py consumes only these types — never a source-specific shape.

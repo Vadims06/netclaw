@@ -1,7 +1,7 @@
 """
 NEW entities for the ComfyUI network topology visualization skill — not ported from spec 046,
 since 046 has no equivalent of a generation job, a model-availability check, or a generated image.
-See specs/119-comfyui-topology-viz/data-model.md.
+See specs/120-comfyui-topology-viz/data-model.md.
 """
 
 from dataclasses import dataclass, field

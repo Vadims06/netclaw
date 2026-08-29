@@ -1,5 +1,5 @@
 """
-Unit tests for comfyui_client.check_model_availability()'s deterministic selection (spec 119
+Unit tests for comfyui_client.check_model_availability()'s deterministic selection (spec 120
 FR-006a) over zero/one/multiple mocked checkpoint lists. comfyui_client._call_tool is mocked so
 these are independent of any real ComfyUI instance's actual installed models.
 """

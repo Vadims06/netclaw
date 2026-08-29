@@ -1,5 +1,5 @@
 """
-Unit test: the single-in-flight-job guard (spec 119 FR-009a) — a second call to
+Unit test: the single-in-flight-job guard (spec 120 FR-009a) — a second call to
 run_generation() while the first is still `submitted` is rejected without ever calling
 comfyui_client again.
 """

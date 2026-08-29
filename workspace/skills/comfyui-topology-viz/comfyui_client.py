@@ -6,7 +6,7 @@ SDK's ClientSession/stdio_client/StdioServerParameters), each call a short-lived
 correctness and testability over connection pooling, matching the established, working precedent.
 
 Implements the call sequence in contracts/comfyui-generation-contract.md. See
-specs/119-comfyui-topology-viz/research.md §4 and §8.
+specs/120-comfyui-topology-viz/research.md §4 and §8.
 """
 
 import asyncio

@@ -1,6 +1,6 @@
 # Feature Specification: ComfyUI Network Topology Visualization
 
-**Feature Branch**: `119-comfyui-topology-viz`
+**Feature Branch**: `120-comfyui-topology-viz`
 **Created**: 2026-08-26
 **Status**: Draft
 **Input**: User description: "ComfyUI network topology visualization: a new NetClaw skill that takes topology data from NetClaw existing topology-source integrations (reusing the same canonical topology model that spec 046 threejs-network-viz skill assembles from CML, GNS3, containerlab, EVE-NG, Nautobot, NetBox, Infrahub, IP Fabric, Forward Networks, or a freeform description) and renders it as a stylized, flashy AI still image via ComfyUI, instead of or alongside the existing procedural/real-stencil 3D renders. Output is written to the same persistent workspace/output convention as specs 046 and 082 (timestamped, never overwritten). Vendor the community shawnrushefsky/comfyui-mcp server (Node/TypeScript, MIT license) under mcp-servers/comfyui-mcp/, following the exact vendoring pattern spec 046 established for sketchfab-mcp-server. Connectivity: the ComfyUI instance runs on a separate Windows host, currently observed listening on 127.0.0.1:8000, with models/checkpoints unknown. Scope for this v1 spec is topology stills only; video (traffic flybys, packet tracing animations) and flashy test-result cards are explicitly out of scope and noted as follow-on specs."

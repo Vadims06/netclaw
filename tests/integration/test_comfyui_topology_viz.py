@@ -4,7 +4,7 @@ Integration tests for the comfyui-topology-viz skill.
 Unlike the mocked unit tests, test_live_backend_reports_no_usable_model below makes a real,
 unmocked call against whatever ComfyUI instance is actually configured via COMFYUI_URL — this
 is this feature's one legitimately live dependency (matching the "never mock the dependency
-whose failure would matter most" rule from specs 044/045/046). As of spec 119's planning session
+whose failure would matter most" rule from specs 044/045/046). As of spec 120's planning session
 (research.md §3), the real configured instance is reachable but has zero installed checkpoints —
 so the CORRECT assertion here is that outcome, not a fabricated success. If you have since
 installed a checkpoint, this test will need updating (see quickstart.md).

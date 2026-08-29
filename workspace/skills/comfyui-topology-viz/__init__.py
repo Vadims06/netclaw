@@ -1,5 +1,5 @@
 """
-ComfyUI network topology visualization skill (spec 119).
+ComfyUI network topology visualization skill (spec 120).
 
 Top-level entry point: visualize_topology_via_comfyui(). Accepts the same normalized
 {"devices": [...], "links": [...]} shape spec 046's threejs-network-viz skill already consumes

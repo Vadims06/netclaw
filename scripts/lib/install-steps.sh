@@ -3674,7 +3674,7 @@ fi
 echo ""
 }
 
-# ── ComfyUI Topology Visualization: AI-generated stylized stills (spec 119) ──
+# ── ComfyUI Topology Visualization: AI-generated stylized stills (spec 120) ──
 component_install_comfyui_viz() {
 log_step "Configuring ComfyUI Topology Visualization..."
 echo "  Source: https://github.com/shawnrushefsky/comfyui-mcp"
@@ -3698,7 +3698,7 @@ if [[ "$enable_comfyui_viz" =~ ^[Yy]$ ]]; then
     echo "    COMFYUI_URL=http://127.0.0.1:8000   # your own ComfyUI instance's endpoint"
     echo ""
     echo "  If NetClaw cannot reach that URL (common when ComfyUI runs on a separate Windows"
-    echo "  host from a WSL2 NetClaw install), see specs/119-comfyui-topology-viz/quickstart.md"
+    echo "  host from a WSL2 NetClaw install), see specs/120-comfyui-topology-viz/quickstart.md"
     echo "  for the WSL2 mirrored-networking check and the --listen fallback."
 else
     log_info "Skipping ComfyUI Topology Visualization — install it later with this same prompt."

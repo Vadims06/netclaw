@@ -1,6 +1,6 @@
 # Implementation Plan: ComfyUI Network Topology Visualization
 
-**Branch**: `119-comfyui-topology-viz` | **Date**: 2026-08-26 | **Spec**: [spec.md](./spec.md)
+**Branch**: `120-comfyui-topology-viz` | **Date**: 2026-08-26 | **Spec**: [spec.md](./spec.md)
 
 ## Summary
 
@@ -103,7 +103,7 @@ Polish phase, matching how 046 handled the same conditional-pass pattern.
 ### Documentation (this feature)
 
 ```text
-specs/119-comfyui-topology-viz/
+specs/120-comfyui-topology-viz/
 ├── plan.md               # This file (/speckit.plan command output)
 ├── research.md           # Phase 0 output (/speckit.plan command)
 ├── data-model.md         # Phase 1 output (/speckit.plan command)

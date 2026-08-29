@@ -1,7 +1,7 @@
 """
 Unit tests: each of the four ComfyUI-side failure classifications (backend_unreachable,
 no_usable_model, generation_job_failed, generation_already_in_progress) produces a distinct,
-correctly-worded message under mocked comfyui-mcp conditions (spec 119 FR-007/008/009/009a,
+correctly-worded message under mocked comfyui-mcp conditions (spec 120 FR-007/008/009/009a,
 SC-003).
 """
 

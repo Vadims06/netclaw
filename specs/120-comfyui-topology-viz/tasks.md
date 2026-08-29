@@ -1,6 +1,6 @@
 # Tasks: ComfyUI Network Topology Visualization
 
-**Input**: Design documents from `/specs/119-comfyui-topology-viz/`
+**Input**: Design documents from `/specs/120-comfyui-topology-viz/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
 **Tests**: Included — plan.md's Testing Strategy explicitly calls for unit tests on prompt

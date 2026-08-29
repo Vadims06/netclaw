@@ -4,7 +4,7 @@ Device-role inference for the ComfyUI network topology visualization skill.
 Ported from workspace/skills/threejs-network-viz/materials.py (spec 046), trimmed to just
 `infer_device_role` — the role/state COLOR tables (`DEVICE_TYPE_COLORS`, etc.) are a 3D-rendering
 concept this feature has no use for (prompt_builder.py describes roles in words, not colors). See
-specs/119-comfyui-topology-viz/research.md §5.
+specs/120-comfyui-topology-viz/research.md §5.
 """
 
 import re
