@@ -55,6 +55,47 @@ phone to your Border exactly once, and from then on the two of them recognize ea
 cryptographically, the same way SSH host keys work, not the same way an OAuth token you have to
 trust a third party to protect works.
 
+## The part most people won't see: this started as a protocol, not an app
+
+*(Fair warning: this section gets genuinely technical. If you just want to know what the app does,
+skip ahead to the next section — nothing below is required to understand or use NetClaw Mobile.)*
+
+Here's something I want to be completely clear about, because it's easy to assume the causality
+runs the other way: **the mobile app did not come first and get a security model bolted on
+afterward. The protocol came first, and the mobile app is one of its consumers.**
+
+That protocol is **NCFED — the NetClaw-to-NetClaw Federation Protocol** — and it's not just an
+internal design doc. It's a real IETF Internet-Draft:
+**[draft-capobianco-ncfed-00](https://www.ietf.org/archive/id/draft-capobianco-ncfed-00.html)**.
+
+NCFED exists to let independent AI network-engineering agents — potentially run by entirely
+different organizations, on entirely different reasoning stacks — discover each other's
+capabilities, invoke each other's tools, and delegate tasks, securely, over the wire, without
+sharing code or trusting a shared intermediary. It shares a single TCP port with BGP-4 and a data
+plane tunnel by inspecting the first octet of an incoming connection. Peers identify themselves
+with BGP-style identities — a 4-octet AS number and a 4-octet router ID — in a 13-octet binary
+handshake, before any encryption or semantics enter the picture. The channel then upgrades to TLS
+1.3 in place, and each side proves possession of its identity key with an ECDSA signature over a
+server-issued nonce, under one of two trust models: domain-verified (a real, publicly trusted
+certificate) or pinned (trust-on-first-use, then locked to that exact key forever after). Every
+message beyond that point is a length-prefixed frame carrying JSON-RPC 2.0, mapping cleanly onto
+MCP tool-invocation and A2A task-delegation semantics.
+
+NCFED defines two federation modes. **eN2N** is external — two different operators' Borders,
+federating by mutual, explicit, out-of-band consent. **iN2N** is internal — one operator's own
+hub-and-spoke mesh, where only the Border (the hub) accepts inbound connections, and spokes join
+via a single-use enrollment token plus key pinning.
+
+If that description of iN2N sounds exactly like how your phone enrolls against your Border —
+that's not a coincidence, that's the point. **The phone is just another iN2N peer.** The QR-code
+enrollment, the single-use token, the trust-on-first-use key pinning I described above, the "your
+phone and your Border talk directly, nobody in the middle" claim — none of that is mobile-app-
+specific security theater. It's the exact same wire protocol and trust model NCFED already defined
+for a Border coordinating any of its other members, applied to a phone because a phone is,
+architecturally, just another member. The app didn't invent a security model and hope it was
+sound. It inherited one that already had to work for machine-to-machine federation first, where
+there's no forgiving human tapping "Cancel" on a suspicious cert warning.
+
 ## The stuff I'm genuinely proud of
 
 I could talk about every one of the dozens of specs that went into getting here, but let me
@@ -87,7 +128,9 @@ Border can reach you the moment it has an answer or needs a decision, not just w
 have the app open.
 
 **And I built the whole App Store journey in the open, including the parts that didn't go
-smoothly.** Real review rejections, real fixes, real privacy disclosures written honestly instead
+smoothly.** 
+
+Real review rejections, real fixes, real privacy disclosures written honestly instead
 of vaguely. I'll be publishing the full spec for how this app actually reached the store —
 mistakes and all — because I think that's more useful to other builders than a highlight reel.
 
@@ -135,8 +178,7 @@ community. Thank you — genuinely.
 - A **NetClaw Border** — and it doesn't need to be big. A small footprint with just a handful of
   skills and tools is enough to get started; you don't need the full hundred-plus integration set
   running day one.
-- If you don't want to run your own Border, joining an existing **Risk of NetClaws** (a federated
-  group of peer Borders) is the other path in.
+- Join your existing **Risk of NetClaws** (a federated group of peer Borders) is the other path in.
 - An Apple ID capable of installing from the App Store, and — for the Watch features — an Apple
   Watch paired to that phone.
 - Five minutes for enrollment: scan a one-time QR code your Border shows you, or enter a manual
@@ -153,6 +195,8 @@ ago](https://www.linkedin.com/posts/john-capobianco-644a1515_today-apple-reviewe
 and went deeper on the architecture and why nobody sits in the middle [in this
 post](https://www.automateyournetwork.ca/uncategorized/my-network-agent-lives-in-my-pocket-now-and-nobody-is-in-the-middle/).
 Two early prototype walkthroughs are here too — [iPhone](https://youtu.be/7GrbwIRGBUU) and
-[Apple Watch](https://youtu.be/9GUcBGuVZrc).
+[Apple Watch](https://youtu.be/9GUcBGuVZrc). And if the protocol section above hooked you, the
+actual IETF Internet-Draft is here:
+[draft-capobianco-ncfed-00](https://www.ietf.org/archive/id/draft-capobianco-ncfed-00.html).
 
 Your phone. Your Border. Your network. Now in your pocket, and on your wrist.
