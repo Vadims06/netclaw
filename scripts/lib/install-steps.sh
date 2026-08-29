@@ -3674,6 +3674,39 @@ fi
 echo ""
 }
 
+# ── ComfyUI Topology Visualization: AI-generated stylized stills (spec 119) ──
+component_install_comfyui_viz() {
+log_step "Configuring ComfyUI Topology Visualization..."
+echo "  Source: https://github.com/shawnrushefsky/comfyui-mcp"
+echo "  Turns a network topology into one stylized AI-generated still image via your own"
+echo "  already-running ComfyUI instance. Requires ComfyUI to be installed and running"
+echo "  separately — this does not install or manage ComfyUI itself."
+
+read -r -p "Enable ComfyUI Topology Visualization? [y/N] " enable_comfyui_viz
+if [[ "$enable_comfyui_viz" =~ ^[Yy]$ ]]; then
+    COMFYUI_MCP_DIR="$MCP_DIR/comfyui-mcp"
+    clone_or_pull "$COMFYUI_MCP_DIR" "https://github.com/shawnrushefsky/comfyui-mcp.git"
+
+    log_info "Building ComfyUI MCP server..."
+    cd "$COMFYUI_MCP_DIR"
+    npm install 2>/dev/null || log_warn "npm install failed for ComfyUI MCP"
+    npm run build 2>/dev/null || log_warn "npm run build failed for ComfyUI MCP"
+    cd "$NETCLAW_DIR"
+
+    echo ""
+    echo "  Configure in $RUNTIME_ENV:"
+    echo "    COMFYUI_URL=http://127.0.0.1:8000   # your own ComfyUI instance's endpoint"
+    echo ""
+    echo "  If NetClaw cannot reach that URL (common when ComfyUI runs on a separate Windows"
+    echo "  host from a WSL2 NetClaw install), see specs/119-comfyui-topology-viz/quickstart.md"
+    echo "  for the WSL2 mirrored-networking check and the --listen fallback."
+else
+    log_info "Skipping ComfyUI Topology Visualization — install it later with this same prompt."
+fi
+
+echo ""
+}
+
 # ── Chrome DevTools MCP: headless + Watch Mode (spec 048) ───────
 component_install_chrome_devtools() {
 log_step "Configuring Chrome DevTools MCP (headless + Watch Mode)..."

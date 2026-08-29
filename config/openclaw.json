@@ -668,6 +668,15 @@
         "SKETCHFAB_API_KEY": "${SKETCHFAB_API_KEY}"
       }
     },
+    "comfyui-mcp": {
+      "command": "node",
+      "args": [
+        "mcp-servers/comfyui-mcp/dist/index.js"
+      ],
+      "env": {
+        "COMFYUI_URL": "${COMFYUI_URL}"
+      }
+    },
     "n2n-mcp": {
       "command": "python3",
       "args": [
