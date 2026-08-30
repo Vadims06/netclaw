@@ -140,11 +140,13 @@ there's no forgiving human tapping "Cancel" on a suspicious cert warning.
 I could talk about every one of the dozens of specs that went into getting here, but let me
 highlight the half-dozen that I think best capture what this app is actually for:
 
-**Two-way voice, for real.** Ask NetClaw a question with Siri, and it doesn't just say "sent, I'll
-let you know" anymore — it waits for a real answer and speaks it back to you, tuned against real,
-measured Border response times so the window is honest instead of generous-and-useless. That
-sounds small until you've asked "is BGP up on the core switch" out loud while walking to a meeting
-and heard a real answer come back before you got there.
+**Siri is now, against all odds, actually useful. ;)** For years "Hey Siri" mostly meant timers,
+weather, and the occasional dad joke. Now you can genuinely say **"Hey Siri, ask NetClaw is BGP up
+on the core switch"** — out loud, hands-free, walking into a meeting — and instead of the old
+"sent to NetClaw, I'll let you know," Siri waits for your Border's real answer and speaks it back
+to you, tuned against real, measured response times so the window is honest instead of
+generous-and-useless. Getting a straight, correct, spoken answer out of Siri might be the single
+most quietly satisfying bug I fixed this year.
 
 **Your watch is a first-class citizen, not an afterthought.** The Apple Watch companion isn't a
 scaled-down phone screen — it shows live Border health, lets you review and approve pending
