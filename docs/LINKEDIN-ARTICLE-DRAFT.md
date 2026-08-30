@@ -239,6 +239,20 @@ inspires other people building in this space to work in the open too.
 
 **[LINK: GitHub repository]**
 
+## What's on the horizon
+
+**Android.** This isn't a "someday, maybe" — an early Android build was actually the *first*
+place any of this got tested, months before iOS, and the underlying architecture already supports
+it. What's actually gating a public release is Google Play's own requirement: a brand-new app
+needs a closed test with real testers before it's allowed to go live. I need **12 volunteers** to
+get there. If that's you — say so in the comments, or reach out directly. And if there's real
+demand for it, I'm happy to cover the one-time $25 Google Play developer registration myself to
+make it happen. This is genuinely reader-gated: enough of you show up, and Android happens.
+
+A couple of smaller things on the list too: a real adaptive layout for iPad instead of today's
+scaled-up phone screen, and — since more than one person asked after my last post — a look at
+Wear OS/Garmin for the watch side once Android itself is further along.
+
 ## Thank you
 
 This app did not get built or tested alone. Real testers, in real time zones around the world,
@@ -262,6 +276,23 @@ community. Thank you — genuinely.
   separate step to go hunt down afterward.
 
 **[LINK: App Store download link]**
+
+## A few quick questions
+
+**Is it actually free?** Yes. No subscription, no in-app purchase, no paid tier.
+
+**Do I need to already have NetClaw running?** Yes — this is a companion app for a self-hosted
+Border you (or your operator) run. There's nothing to sign up for on its own.
+
+**Does my conversation data go to you, or to NetClaw the project?** No. It goes only to your own
+Border, which forwards it to whichever AI model *you* (or your operator) configured — including a
+fully local, offline model with zero third-party sharing, if that's what you set up.
+
+**Does it work on iPad?** Yes, today — just without an iPad-shaped layout yet (see "on the
+horizon" above).
+
+**What about Android / Garmin?** Coming — see "on the horizon" above. I need 12 testers to unlock
+it on Google Play.
 
 ## Where this started
 
