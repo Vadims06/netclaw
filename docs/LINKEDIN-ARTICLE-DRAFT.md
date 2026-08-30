@@ -1,4 +1,4 @@
-# Agentic Networking Goes Mobile
+# Agentic Operations Goes Mobile
 
 ### The official NetClaw Mobile app is here — drive your infrastructure securely right from your phone, or even your watch.
 
@@ -31,9 +31,9 @@ what this is for.
 
 Most of what passes for "mobile network automation" today is really just ChatOps wearing a
 different hat — you ask a bot a question inside Slack, Discord, Microsoft Teams, WhatsApp,
-Telegram, or Webex, and something on the other end eventually answers. It works, but it comes with
-real limitations that have nothing to do with the automation itself and everything to do with
-where the conversation lives:
+Telegram, or Webex, and something on the other end eventually answers. That was NetClaw's own
+first six months, too. It works, but it comes with real limitations that have nothing to do with
+the automation itself and everything to do with where the conversation lives:
 
 - Your infrastructure conversation is a guest inside somebody else's cloud, subject to somebody
   else's retention policy, somebody else's breach history, somebody else's outage.
@@ -202,12 +202,24 @@ Whatever your Border already knows how to talk to, your phone and watch can reac
 an abstract claim, so here's some of what's actually in there today: **IP Fabric** for network
 assurance, **Itential** for orchestration, **Forward Networks** for intent-based verification,
 **Check Point** for security policy, Cisco **ACI** and **Catalyst Center**, **Arista CloudVision**,
-**Palo Alto Panorama**, **Juniper JunOS**, **ServiceNow** for change workflows, **PagerDuty** for
-on-call and incidents, **Zabbix** for monitoring, **Nautobot** and **NetBox** for source-of-truth,
-plus full lab environments like **Cisco Modeling Labs** and **GNS3** for building and testing
-topologies from scratch. That's not a "someday roadmap" list — those are real, working skills
-your Border can already call today, and every one of them just became something you can reach from
-your pocket.
+**Palo Alto Panorama**, **Juniper JunOS**, **pyATS** for real device/lab validation, **ServiceNow**
+for change workflows, **PagerDuty** for on-call and incidents, **Zabbix** for monitoring,
+**Nautobot**, **NetBox**, and **InfraHub** for source-of-truth, plus full lab and container
+environments to build and test topologies from scratch — **Cisco Modeling Labs**, **GNS3**,
+**EVE-NG**, and **Containerlab**. That's not a "someday roadmap" list — those are real,
+working skills your Border can already call today, and every one of them just became something you
+can reach from your pocket.
+
+## A network far, far away (yes, really)
+
+Not every "name you'll recognize" is a network vendor. NetClaw can also render your topology as an
+actual, explorable 3D scene, not a flat box-and-line diagram: **Blender** for a cinematic,
+walk-through render; **Unreal Engine 5** for a real-time, explorable digital twin you can fly
+through like a level; **Three.js** for an interactive, browser-based view your whole team can
+spin, zoom, and walk around with nothing to install. Somewhere between "Death Star briefing-room
+hologram" and "a genuinely useful way to actually see your own fabric" — and yes, that CML lab I
+mentioned earlier, the one built from a photo of a napkin sketch? Once it existed, turning it into
+something you could stand inside was one more conversation away.
 
 ## The part I think actually matters
 
