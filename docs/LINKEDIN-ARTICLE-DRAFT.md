@@ -15,6 +15,18 @@ says something bigger about where network automation is headed.
 
 **[LINK: App Store download link]**
 
+## Why mobile, why now
+
+We stopped being desk-bound a long time ago, and network operations never really caught up. Since
+the pandemic reshuffled where and how we work, "at the office, on the VPN, on the laptop" stopped
+being the default for a huge number of us — and yet most of the tooling we use to actually run
+infrastructure still quietly assumes exactly that. An outage doesn't wait for you to get back to a
+desk. A pending change doesn't politely hold off until you're back on the VPN. We're on the move —
+on the road, in an airport, at a kid's soccer game — far more of the time than the tools we use
+were ever designed to assume. Every other part of our lives went mobile-first years ago: banking,
+healthcare, commerce. Infrastructure operations, for the most part, didn't. That gap is exactly
+what this is for.
+
 ## The problem I kept running into
 
 Most of what passes for "mobile network automation" today is really just ChatOps wearing a
@@ -54,6 +66,33 @@ use, then pinned: you scan a one-time QR code (or enter a manual enrollment code
 phone to your Border exactly once, and from then on the two of them recognize each other
 cryptographically, the same way SSH host keys work, not the same way an OAuth token you have to
 trust a third party to protect works.
+
+## A quick tour of the app
+
+Before I get into the deeper stuff, here's plainly what's actually on the screen, top to bottom:
+
+- **Welcome** — a one-time explainer screen: what this app is, what it needs (your own Border),
+  and what it doesn't do (there is no NetClaw account to sign up for).
+- **Enroll** — point your camera at your Border's QR code, or type the details in by hand if
+  scanning isn't practical. One time, ever, per device.
+- **Dashboard** — connection status at a glance, your device's identity, an unread count, a
+  pending-approvals count. The "is everything okay" screen.
+- **Chat** — type or speak a question to your Border's agent and get a real answer back. Search
+  your own chat history. Copy or share any answer straight from the message itself. If a question
+  failed, retry it with one tap instead of retyping it.
+- **Feed** — your Border's heartbeats, alerts, and pushed notifications, in one running list.
+  Search it, acknowledge an item once you've seen it, delete what you don't need to keep.
+- **Approvals** — anything your Border wants to do that needs a human yes first. Approve or deny,
+  gated by Face ID or Touch ID.
+- **Settings** — toggle which capture types (photo/video/audio) your Border is allowed to request,
+  check your notification status, turn on an app-lock with a grace period, switch appearance, find
+  the privacy policy, and remove this device's enrollment if you ever need to.
+- **The Watch** — the same core ideas, sized for a wrist: Status (a live heartbeat summary),
+  Approvals, Feed, Ask, and History, each independently reachable, each relayed securely through
+  your phone.
+
+Nothing exotic. It looks like an app, because it is one — the interesting part is what's
+underneath it.
 
 ## The part most people won't see: this started as a protocol, not an app
 
@@ -133,6 +172,42 @@ smoothly.**
 Real review rejections, real fixes, real privacy disclosures written honestly instead
 of vaguely. I'll be publishing the full spec for how this app actually reached the store —
 mistakes and all — because I think that's more useful to other builders than a highlight reel.
+
+## What this actually looks like in the wild
+
+A few real shapes this takes, not hypotheticals:
+
+- You're walking into a meeting with two minutes to spare and a nagging feeling. "Hey Siri, ask
+  NetClaw if BGP is stable on the core switches." You get a real, spoken answer before you sit
+  down — not a "sent, I'll let you know."
+- A BGP session flaps three times in five minutes at 11pm. Your Border already applied its own
+  auto-remediation and logged it to the Feed. You see it, acknowledge it, and go back to sleep —
+  no page, no laptop, no VPN client to open first.
+- You're standing in a server room, staring at a rack, and something looks wrong. You snap a photo
+  right there in the app and send it through the same encrypted channel — no separate "email it to
+  yourself later and forget."
+- Your Border wants to push a config change it's confident about but shouldn't do unattended.
+  A Watch notification lands on your wrist mid-walk; you review it and approve with a glance and a
+  double-tap, without ever pulling your phone out.
+- You built a full topology diagram in Cisco Modeling Labs — from a photo of a literal napkin
+  sketch — entirely through a conversation with your Border, checked the render, and iterated on
+  it from your phone before you were back at a desk.
+- You ask a plain-language question about interface health on a lab node and get back a real,
+  live table pulled via pyATS — not a canned response, an actual query against actual running
+  infrastructure, answered in a chat bubble.
+
+## Names you'll recognize
+
+Whatever your Border already knows how to talk to, your phone and watch can reach too — that's not
+an abstract claim, so here's some of what's actually in there today: **IP Fabric** for network
+assurance, **Itential** for orchestration, **Forward Networks** for intent-based verification,
+**Check Point** for security policy, Cisco **ACI** and **Catalyst Center**, **Arista CloudVision**,
+**Palo Alto Panorama**, **Juniper JunOS**, **ServiceNow** for change workflows, **PagerDuty** for
+on-call and incidents, **Zabbix** for monitoring, **Nautobot** and **NetBox** for source-of-truth,
+plus full lab environments like **Cisco Modeling Labs** and **GNS3** for building and testing
+topologies from scratch. That's not a "someday roadmap" list — those are real, working skills
+your Border can already call today, and every one of them just became something you can reach from
+your pocket.
 
 ## The part I think actually matters
 
