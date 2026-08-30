@@ -152,7 +152,7 @@ def count_mcp_integrations():
 
 
 def check_doc_claims(skill_count, mcp_count):
-    """Best-effort scan of README.md/SOUL.md for numeric skill/MCP claims.
+    """Check selected README.md/SOUL.md inventory claims.
 
     Deliberately scoped to the specific "headline" claim locations spec 047
     identified (top prose, HUD prose, section headings, SOUL.md identity
@@ -168,8 +168,10 @@ def check_doc_claims(skill_count, mcp_count):
     unlocatable = []
     notes = []
 
+    # Numeric claims provide capture groups to compare. Qualitative claims use
+    # the same fail-closed location check with an empty capture list.
     # (file, description, compiled pattern, [(kind, capture group index), ...])
-    headline_patterns = [
+    claim_patterns = [
         (README, "top prose (skills + MCP)",
          re.compile(r"Claude,\s*(\d+)\s*skills,\s*and\s*(\d+)\s*MCP integrations"),
          [("skill", 1), ("MCP", 2)]),
@@ -195,6 +197,22 @@ def check_doc_claims(skill_count, mcp_count):
         (README, "Skills section heading",
          re.compile(r"^## Skills \((\d+)\)", re.MULTILINE),
          [("skill", 1)]),
+        (README, "project tree (skills)",
+         re.compile(
+             r"^│\s+└── skills/\s+#\s+(\d+)\s+skill definitions \(source of truth\)$",
+             re.MULTILINE,
+         ),
+         [("skill", 1)]),
+        (README, "config/openclaw.json role (models + MCP registration)",
+         re.compile(
+             r"^\| `config/openclaw\.json` \| "
+             r"(?=[^|\n]*\bmodels?\b)"
+             r"(?=[^|\n]*\bMCP\b)"
+             r"(?![^|\n]*\bno\s+MCP\b)"
+             r"[^|\n]+ \|$",
+             re.IGNORECASE | re.MULTILINE,
+         ),
+         []),
         (SOUL, "identity line (skills + MCP)",
          re.compile(r"\*\*(\d+) skills\*\* backed by (\d+) MCP servers"),
          [("skill", 1), ("MCP", 2)]),
@@ -204,7 +222,7 @@ def check_doc_claims(skill_count, mcp_count):
     ]
 
     doc_cache = {}
-    for doc_path, description, pattern, kinds in headline_patterns:
+    for doc_path, description, pattern, kinds in claim_patterns:
         doc_name = os.path.basename(doc_path)
         if doc_path not in doc_cache:
             if not os.path.isfile(doc_path):

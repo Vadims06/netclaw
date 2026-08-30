@@ -2362,7 +2362,7 @@ netclaw/
 ├── MISSION01.md                          # Completed — core pyATS + 11 skills
 ├── MISSION02.md                          # Completed — full platform, 78 skills, 32 MCP
 ├── workspace/
-│   └── skills/                           # 82 skill definitions (source of truth)
+│   └── skills/                           # 223 skill definitions (source of truth)
 │       ├── pyats-network/                # Core device automation (8 MCP tools)
 │       ├── pyats-health-check/           # Health + NetBox cross-ref + pCall
 │       ├── pyats-routing/                # OSPF, BGP, EIGRP, IS-IS analysis
@@ -2517,7 +2517,7 @@ netclaw/
 | `HEARTBEAT.md` | Periodic checks. Device reachability, OSPF/BGP state, CPU/memory, syslog. |
 | `workspace/skills/` | Skill source files. `install.sh` copies these to `~/.openclaw/workspace/skills/` |
 | `testbed/testbed.yaml` | pyATS device inventory. Referenced by `PYATS_TESTBED_PATH` env var |
-| `config/openclaw.json` | Model config template. Sets primary/fallback model only — no MCP config |
+| `config/openclaw.json` | Model config template. Contains primary/fallback model settings and pre-registered MCP server definitions |
 | `mcp-servers/` | Tool backends cloned by `install.sh`. Gitignored — rebuilt on install |
 | `scripts/mcp-call.py` | Handles MCP JSON-RPC protocol: initialize, notify, tool call, terminate |
 | `scripts/gait-stdio.py` | Wraps GAIT MCP server for stdio mode (default is SSE) |
