@@ -2,18 +2,12 @@
 
 ### The official NetClaw Mobile app is here — drive your infrastructure securely right from your phone, or even your watch.
 
----
-
-**[HERO IMAGE PLACEHOLDER — swap in your App Store badge / product shot before publishing]**
-
----
-
 A few months ago I wrote about wanting my network agent to live in my pocket, with nobody in the
 middle. Today that stopped being a wish. **NetClaw Mobile is live on the Apple App Store**, and I
 want to walk you through what it actually does, why it exists, and why I think the way it's built
 says something bigger about where network automation is headed.
 
-**[LINK: App Store download link]**
+**[Download NetClaw Mobile on the App Store](https://apps.apple.com/us/app/netclaw/id6800859524)**
 
 ## Why mobile, why now
 
@@ -169,11 +163,10 @@ Border can reach you the moment it has an answer or needs a decision, not just w
 have the app open.
 
 **And I built the whole App Store journey in the open, including the parts that didn't go
-smoothly.** 
-
-Real review rejections, real fixes, real privacy disclosures written honestly instead
-of vaguely. I'll be publishing the full spec for how this app actually reached the store —
-mistakes and all — because I think that's more useful to other builders than a highlight reel.
+smoothly.** Real review rejections, real fixes, real privacy disclosures written honestly instead
+of vaguely — the full spec for how this app actually reached the store, mistakes included, is
+already sitting in the same public repo as everything else, because I think that's more useful to
+other builders than a highlight reel.
 
 ## What this actually looks like in the wild
 
@@ -251,7 +244,7 @@ on GitHub, right now. I'm not asking anyone to trust a black box. I hope seeing 
 laid bare — including the messy parts, the App Review rejections, the bugs found by real testers —
 inspires other people building in this space to work in the open too.
 
-**[LINK: GitHub repository]**
+**[github.com/automateyournetwork/netclaw](https://github.com/automateyournetwork/netclaw)**
 
 ## What's on the horizon
 
@@ -281,7 +274,8 @@ community. Thank you — genuinely.
 - A **NetClaw Border** — and it doesn't need to be big. A small footprint with just a handful of
   skills and tools is enough to get started; you don't need the full hundred-plus integration set
   running day one.
-- Join your existing **Risk of NetClaws** (a federated group of peer Borders) is the other path in.
+- Or, join an existing **Risk of NetClaws** (a federated group of peer Borders) if you don't want
+  to run your own Border at all.
 - An Apple ID capable of installing from the App Store, and — for the Watch features — an Apple
   Watch paired to that phone.
 - Five minutes for enrollment: scan a one-time QR code your Border shows you, or enter a manual
@@ -289,7 +283,7 @@ community. Thank you — genuinely.
   your first device right at the end of setup, once your Border is actually up and running — no
   separate step to go hunt down afterward.
 
-**[LINK: App Store download link]**
+**[Download NetClaw Mobile on the App Store](https://apps.apple.com/us/app/netclaw/id6800859524)**
 
 ## A few quick questions
 

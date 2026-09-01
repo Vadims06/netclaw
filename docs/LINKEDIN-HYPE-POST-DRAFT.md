@@ -13,11 +13,12 @@ test, public on GitHub right now.
 I wrote up the full story — what it took to get here, what's actually in it, and why I think no
 big vendor's enterprise platform has ever really put this in your pocket before:
 
-**[LINK: full LinkedIn Article]**
+**[PASTE ARTICLE LINK HERE — only available after you publish the Article itself on LinkedIn; grab
+its URL from the published post and drop it in right before you post this]**
 
 Huge thank you to my testers around the world, and to the VibeOps Forum community for the
 ideation, the pressure-testing, and the support that got this over the line.
 
-**[LINK: App Store download link]**
+**[Download NetClaw Mobile on the App Store](https://apps.apple.com/us/app/netclaw/id6800859524)**
 
 #NetworkAutomation #AgenticAI #NetDevOps #OpenSource #AppleWatch #iOS
