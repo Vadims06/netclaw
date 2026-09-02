@@ -73,7 +73,7 @@ CATALOG=(
     "zabbix|Observability|Zabbix SNMP-Poller NMS|Polled metric history, problems and device availability from a self-hosted Zabbix. Read-only. Answers what something WAS doing over time — the layer NetClaw had no source for"
     "bgp-intel|Observability|BGP & Registry Intelligence|RPKI origin validation, RDAP ownership, PeeringDB peering, routing visibility (public APIs, no credentials)"
     "globalping|Observability|Globalping|Outside-in measurement from ~4800 global probes — ping, traceroute, DNS, MTR, HTTP (remote, no install)"
-    "topolograph|Observability|Topolograph|OSPF/IS-IS link-state topology analysis — shortest/backup path, edge/node failure simulation, MPLS-TE/CSPF, event timeline (remote HTTP, read-only, no install)"
+    "topolograph|Observability|Topolograph|OSPF/IS-IS link-state and BGP topology analysis — shortest/backup path, edge/node failure simulation, MPLS-TE/CSPF, event timeline, BGP sessions/routes/VRF inventory (remote HTTP, read-only, no install)"
     "telemetry-receivers|Observability|Telemetry Receivers|SNMP trap, syslog, IPFIX/NetFlow receivers over UDP (3 servers)"
     "auvik|Observability|Auvik|Read-only network monitoring — inventory, alerts, lifecycle, performance (bundled, 20 tools)"
 

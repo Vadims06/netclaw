@@ -299,6 +299,32 @@ and the `*_lsp` mutation tools are not in `tools/list`. NetClaw scopes the surfa
 `get_cspf_path`, a prediction. Confirm on the device when the question is "is this true right now",
 and always report how old the `graph_time` is.
 
+## Topolograph BGP Topology Analysis (`topolograph-mcp`, remote)
+
+Same server and credential as the IGP tools above — BGP speakers, sessions, route table, and
+VRF/VPN inventory from Topolograph's BMP-fed BGP topology. **Requires Topolograph >= 2.69** and a
+`topolograph-mcp-server` build carrying this tool surface (upstream PR #1) — an older instance lists
+these tools but every call 404s or returns empty.
+
+| Tool | Purpose |
+|---|---|
+| `list_bgp_graphs` / `get_bgp_graph` | List BGP epochs (BMP collection cycles) — get a `bgp_graph_time` |
+| `list_bgp_nodes` / `list_bgp_sessions` | BGP speakers and peering sessions of an epoch (eBGP/iBGP, families, IGP relation) |
+| `search_bgp_routes` | Route table search, whole-graph or scoped to one speaker's resolved RIB view |
+| `get_bgp_node_route_summary` / `get_bgp_route_state` | Per-speaker route totals by RIB tag; point-in-time route state |
+| `compare_bgp_routes` / `get_bgp_events_timeline` | Route diff between two instants; BGP session/route monitoring events |
+| `list_bgp_bindings` / `get_bgp_binding` | Whether a BGP epoch's speakers match a stored IGP graph, and how confidently |
+| `resolve_route` | End-to-end destination resolution across a BGP/VPN/MPLS handoff, not just IGP SPF |
+| `get_vrf_inventory` / `list_vpn_routers` | VRF names/RDs/route-targets per router; VPN-PE candidates for `resolve_route` |
+
+**Read-only, same enforcement as the IGP tools**: none of the 14 mutate; scoped client-side with
+`defenseclaw tool allow topolograph-mcp <tool>`.
+
+**Empty is not "no BGP data"**: every one of these tools silently returned empty on Topolograph
+instances predating the v2.69.1/v2.69.2 auth fix (12 `/bgp-graph*` endpoints ran with no security
+scheme, so a valid bearer token was never even checked). If every call comes back empty, confirm the
+Topolograph version before concluding there is no BGP monitoring configured.
+
 ## Cisco PSIRT Advisories (`cisco-psirt-mcp`)
 
 Answers whether a running Cisco version is affected by a published advisory. Read-only,

@@ -4157,6 +4157,8 @@ component_install_topolograph() {
 log_step "Enabling Topolograph (remote MCP)..."
 echo "  OSPF/IS-IS link-state topology analysis — shortest/backup path,"
 echo "  edge/node failure simulation, MPLS-TE/CSPF, topology event timeline."
+echo "  Plus BGP topology (Topolograph >= 2.69): speakers, sessions, route"
+echo "  search, VRF/VPN inventory, BGP-to-IGP graph binding."
 echo "  Read-only: the server hides all mutation tools from tools/list."
 
 # Fronts an operator-run Topolograph HTTP API, actively developed upstream:
