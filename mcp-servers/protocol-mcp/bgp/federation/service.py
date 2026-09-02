@@ -197,6 +197,16 @@ class FederationService:
             "n2n/tasks/status": self.invoker.handle_task_status,
             "n2n/tasks/result": self.invoker.handle_task_result,
             "n2n/tasks/cancel": self.invoker.handle_task_cancel,
+            # spec 121: deterministic tool execution on a member (as opposed to
+            # agentic n2n/tasks/submit) had no dispatch entry at all — an inbound
+            # n2n/tools/call on an internal channel hit ERR_METHOD_NOT_FOUND
+            # unconditionally, regardless of grants. Reuses the same grant-gated
+            # Invoker.handle_tools_call already used for eN2N tool calls; see the
+            # matching attestation fix in dial_border() below (negotiate.allows()
+            # requires attestation=="possession", which an InternalChannel never
+            # set despite iN2N's pinned-key signed-nonce handshake actually being
+            # a possession proof).
+            "n2n/tools/call": self.invoker.handle_tools_call,
         }
         # feature 066: Border-side handlers for edge (phone) connections. Only
         # the handshake + built-in health methods (FR-012) — never BGP/eN2N/
@@ -2171,6 +2181,15 @@ class FederationService:
                 raise RuntimeError("iN2N hub attestation failed — refusing to trust Border")
             logger.info("iN2N: verified hub attestation for %s", risk_name)
         ch.trusted = True   # we pinned the Border endpoint at provisioning
+        # spec 121: by this point we've proven possession of our own pinned key
+        # (self.risk.self_sign(nonce) above) and, if we hold an anchor, verified
+        # Border's hub attestation too — a genuine possession proof, just via
+        # iN2N's pinned-key/signed-nonce mechanism rather than eN2N's TLS
+        # cert-binding one. Without this, channel.attestation stays at
+        # FederationChannel's "self-asserted" default forever, and
+        # negotiate.allows() tier-0-denies n2n/tools/call unconditionally on
+        # every internal channel regardless of how well authenticated it is.
+        ch.attestation = "possession"
         self.border_channel = ch
         logger.info("iN2N: dialed Border %s:%s as %s (%s)", host, port, member_id,
                     {k: v for k, v in resp.items() if k not in ("risk_ca", "hub_attestation")})

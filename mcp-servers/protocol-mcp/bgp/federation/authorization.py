@@ -120,8 +120,20 @@ class Authorizer:
 
     # ---- the decision (FR-012/013/017) --------------------------------
 
-    def authorize(self, peer_identity: str, target_type: str, target_name: str) -> Decision:
-        if not self.manager.is_federated(peer_identity):
+    def authorize(self, peer_identity: str, target_type: str, target_name: str,
+                  *, already_trusted: bool = False) -> Decision:
+        # spec 121: is_federated() checks the eN2N federation_peer table — a
+        # concept that doesn't exist for an iN2N member's own self-referential
+        # peer_identity (its one channel to Border, see _in2n_member_submit's
+        # comment: peer_identity == this member's own member_id on that
+        # channel). Confirmed live: an already fully pinned-key-authenticated,
+        # possession-attested internal channel still got "severed"/"peer not
+        # federated" here, because there's no federation_peer row for "myself".
+        # already_trusted lets an internal-channel caller (invocation.py's
+        # handle_tools_call, the only current caller that sets it) skip only
+        # this eN2N-specific gate — the grant/rate/budget checks below still
+        # run unconditionally for every caller.
+        if not already_trusted and not self.manager.is_federated(peer_identity):
             return Decision(False, "severed", reason="peer not federated")
         grant = self._find_grant(peer_identity, target_type, target_name)
         if not grant:

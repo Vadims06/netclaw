@@ -7,13 +7,14 @@ from NetClaw's conversational orchestration layer, tagged with either a "source_
 sources.SourceKind's live-source values) or a "freeform_description" string (FR-010, FR-011).
 """
 
-import generation
+import federated_generation
 import sources
-from generation_model import FailureKind, GeneratedImage, GenerationFailure
+from federated_generation import FederatedResult
+from generation_model import FailureKind, GenerationFailure
 from topology_model import SourceKind
 
 
-def visualize_topology_via_comfyui(topology_input: dict) -> GeneratedImage:
+def visualize_topology_via_comfyui(topology_input: dict) -> FederatedResult:
     """Raises GenerationFailure (generation_model.py) with a distinct FailureKind for every
     failure condition this feature defines — callers should catch it and report
     `exc.kind`/`exc.message` to the engineer rather than a generic error."""
@@ -36,4 +37,4 @@ def visualize_topology_via_comfyui(topology_input: dict) -> GeneratedImage:
                 f"Topology source {exc.source_kind!r} is unreachable or returned an error: {exc.detail}",
             ) from exc
 
-    return generation.run_generation(snapshot)
+    return federated_generation.run_federated_generation(snapshot)

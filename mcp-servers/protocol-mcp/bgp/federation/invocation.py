@@ -122,7 +122,13 @@ class Invoker:
                               outcome="denied")
             raise RpcError(ERR_NOT_ALLOWLISTED,
                            "possession proof required for tools/call (tier-0 self-asserted peer)")
-        decision = self.authz.authorize(peer, "tool", tool)
+        # spec 121: an internal (iN2N) channel's peer_identity is this member's
+        # own self-referential identity for its channel to Border, not an eN2N
+        # BGP peer — is_federated() has no row for that and always denies it.
+        # See authorization.py's already_trusted param docstring.
+        from .internal_channel import InternalChannel
+        already_trusted = isinstance(channel, InternalChannel)
+        decision = self.authz.authorize(peer, "tool", tool, already_trusted=already_trusted)
 
         if not decision.allowed and decision.code != "approval_required":
             self.audit.record(direction="inbound", peer_identity=peer, target_type="tool",
@@ -599,8 +605,25 @@ class Invoker:
 
     async def _channel(self, ident):
         """Get a live channel, reconnecting on demand (FR-009) rather than
-        failing on a dead/absent one."""
+        failing on a dead/absent one.
+
+        spec 121: every outbound caller here (invoke_remote_tool, etc.) had only
+        ever been exercised against eN2N BGP-identity peers — ensure_channel()
+        looks up self.service.channels (the eN2N dict) and raises "not
+        federated" for ANY identity it doesn't recognize as a BGP peer,
+        including a perfectly live internal (iN2N) member such as
+        "johns-risk/viz", which lives in self.service.member_channels instead
+        and is brought up via ensure_member_up(), not ensure_channel(). Without
+        this branch, Border could never actually call n2n/tools/call (or any
+        other outbound method) on one of its own members — confirmed live: a
+        real call to invoke_remote_tool("johns-risk/viz", ...) failed with
+        "peer_unreachable: not federated" despite the member being connected."""
         try:
+            if self.service.is_member_task(ident):
+                ch = await self.service.ensure_member_up(ident)
+                if ch is None:
+                    raise RuntimeError(f"member {ident!r} could not be brought up")
+                return ch
             return await self.service.ensure_channel(ident)
         except Exception as e:
             raise RpcError(ERR_SEVERED, str(e))

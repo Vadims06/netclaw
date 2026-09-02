@@ -236,6 +236,40 @@ The ComfyUI MCP server ([shawnrushefsky/comfyui-mcp](https://github.com/shawnrus
 - `run_workflow`'s `workflow` parameter requires a full ComfyUI workflow JSON (API format) — it does not accept a bare text prompt. Use `search_templates(taskType="txt2img")` → `get_template(templateId, parameters={prompt, checkpoint, ...})` to get a populated workflow without authoring raw node graphs.
 - `npm audit` on the built server reports 10 vulnerabilities (1 low, 2 moderate, 7 high) in transitive dependencies (`hono`, `path-to-regexp`, `qs`, `sharp`, `ws`) used for the server's own internal HTTP/media handling, not this skill's stdio-only usage — tracked non-blocking, same treatment as `sketchfab-mcp-server`'s own audit findings. Do not run `npm audit fix --force` without testing afterward — it force-upgrades `sharp` with a breaking change.
 
+## topology-diagram-mcp / image-style-mcp (spec 121 federated topology viz)
+
+Two new NetClaw-authored MCP servers, together spec 121's federated two-stage pipeline for
+`comfyui-topology-viz` — same skill entry point as spec 120's `comfyui-mcp`-based path above, now
+tried first when a live topology source is available, with spec 120's original path as the
+automatic fallback (`generation_path` in the response says which was used). Neither server is
+usable standalone; both run on the `johns-risk/viz` federation member, invoked from Border via
+`n2n/tools/call` (never in-process on Border — FR-005). See
+`specs/121-federated-topology-viz/research.md` for the full design.
+
+- **`topology-diagram-mcp`** (Stage A): one tool, `render_structural(snapshot_id, devices, links)`
+  → `{image_base64, format, positions, device_count}`. Deterministic — networkx (Kamada-Kawai
+  layout) + Pillow (drawing), procedural per-role icon shapes (circle=router, port-ticked
+  rect=switch, brick-hatched rect=firewall, diamond=load_balancer, monitor glyph=client). No
+  diffusion model, no external CLI. The original design called for N2G → draw.io XML → the draw.io
+  desktop CLI; that path doesn't work headlessly on this host (no `drawio` CLI anywhere, `graphviz`'s
+  system package needs interactive `sudo` this environment doesn't have) — research.md R3a.
+- **`image-style-mcp`** (Stage B): one tool, `style_image(image_base64, style_prompt,
+  negative_prompt)` → `{styled_image_base64, format}`. Talks to ComfyUI **directly via REST**
+  (`/prompt`, `/history/{id}`, `/view`, `/upload/image`) — not through `comfyui-mcp`'s task
+  tracker, confirmed broken in spec 120 (see the ComfyUI MCP Server section above). Runs an
+  image-edit workflow (Qwen-Image-Edit-2509 GGUF, `UnetLoaderGGUF` + `CLIPLoader` +
+  `TextEncodeQwenImageEdit` + `ReferenceLatent`, `denoise≈0.5` — structure-preserving, never a
+  fresh txt2img generation) so restyling can't drift the diagram's structure (FR-003). Model
+  weights (Q4_K_M unet 13.1GB, fp8-scaled text encoder 9.4GB, VAE 254MB — verified real sizes at
+  the HuggingFace source, Apache-2.0, ungated) live on the ComfyUI Windows host at
+  `models/unet/`, `models/text_encoders/`, `models/vae/` respectively.
+- **A real, previously-unexercised gap in the shared federation infrastructure had to be fixed to
+  make internal `n2n/tools/call` work at all** — four separate issues in `bgp/federation/{service,
+  invocation,authorization}.py` (missing dispatch entry, missing attestation elevation, eN2N-only
+  channel resolution, eN2N-only `is_federated` gate). All additive/backward-compatible, live-verified
+  end to end against the real `johns-risk/viz` member. See research.md R10 for the full account —
+  this was the first working internal `n2n/tools/call` in NetClaw's history.
+
 ## Claroty xDome MCP Server
 
 The Claroty xDome MCP server provides 21 tools (15 read-only + 6 ITSM-gated writes) for OT / IoT / IoMT visibility via stdio transport:

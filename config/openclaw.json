@@ -687,6 +687,23 @@
         "BGP_DAEMON_API": "${BGP_DAEMON_API:-http://127.0.0.1:8179}"
       }
     },
+    "topology-diagram-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/topology-diagram-mcp/server.py"
+      ]
+    },
+    "image-style-mcp": {
+      "command": "python3",
+      "args": [
+        "-u",
+        "mcp-servers/image-style-mcp/server.py"
+      ],
+      "env": {
+        "COMFYUI_URL": "${COMFYUI_URL}"
+      }
+    },
     "rag-mcp": {
       "command": "python3",
       "args": [
