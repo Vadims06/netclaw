@@ -33,14 +33,24 @@ spec 120's gated-repo incident established).
 
 ## FR-015 spike outcome
 
-See `spike-findings.md` for the actual go/no-go finding. If the spike is a "no-go" and FLUX.2
-[klein] 4B is downloaded instead per research.md R9's fallback, the Qwen files above become
-candidates for cleanup (update this ledger and delete them at that point — don't leave rejected
-multi-GB weights on an already-tight drive). If "go," these three files are the load-bearing Tier
-B set going forward, alongside spec 120's untouched Tier C fallback.
+**NO-GO.** See `spike-findings.md` for the full finding — the Windows/WSL2 host above never
+completed a scoreable job (repeated ComfyUI crashes); a second attempt on a macOS host (native
+ComfyUI, direct call, outside this ledger's original WSL2 path) did complete but failed the fixed
+fidelity bar (garbled labels, negligible visible styling). The spec was closed 2026-09-03 without
+proceeding to the FLUX.2 [klein] 4B fallback.
+
+**This table's three Windows/WSL2-host files were never confirmed downloaded-and-kept past this
+session's writing** — the host itself never got far enough to matter, and it is not reachable from
+the session that closed this spec out. If that machine is being decommissioned, delete its copy of
+the three Tier B files above (`/mnt/c/Users/ptcap/Documents/ComfyUI/models/{unet,text_encoders,vae}/`)
+separately, following the same policy.
+
+The macOS host's own copy of the same three files (downloaded fresh there, same verified sizes)
+**was deleted** as part of this closeout, along with the native ComfyUI install itself
+(`~/comfyui`, `~/comfyui-spike-models` — both outside this repo).
 
 ## Cleanup policy
 
 Same as spec 120's own policy: Tier C (Flux+ControlNet) stays — it's the intentional fallback,
-not a leftover. Tier B stays if the spike confirms it; if the spike rejects Qwen-Image-Edit for
-FLUX.2 [klein] instead, delete the three files above and update this table.
+not a leftover. Tier B is now rejected per the NO-GO finding above — delete it wherever it still
+exists rather than leaving rejected multi-GB weights in place.

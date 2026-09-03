@@ -44,8 +44,8 @@
 - [X] T016 [US1] Implement `device_count` validation and the transport-size ceiling check (post-render, data-model.md rule 1; contracts/topology-diagram-mcp.md failure shape) in `mcp-servers/topology-diagram-mcp/server.py`
 - [X] T016a [US1] Implement the working-resolution density ceiling check (pre-render, data-model.md rule 2 — `device_count` vs. the fixed 1024×1024 canvas, distinct from T016's transport-size check per Edge Cases: "a topology so large it exceeds what the styling stage can process at its working resolution") in `mcp-servers/topology-diagram-mcp/server.py`
 - [X] T017 [US1] Write `mcp-servers/topology-diagram-mcp/README.md` (tools, env vars, transport, install) per Constitution XII
-- [ ] T018 [US1] Run the FR-015 research spike: feed 2-3 real spec 120 output images (`workspace/output/comfyui-topology-viz/`) as source input to a Qwen-Image-Edit-2509 GGUF image-edit workflow on the live ComfyUI instance; verify the real download size and license directly at the HuggingFace source before pulling anything (FR-016); score against the fixed bar (100% exact label reproduction, fully traceable lines); document the go/no-go finding in `specs/121-federated-topology-viz/spike-findings.md`
-- [ ] T019 [US1] If T018 is a "no-go": repeat the identical protocol against FLUX.2 [klein] 4B (verifying its own real size/license first) and record that finding in the same `specs/121-federated-topology-viz/spike-findings.md`; if T018 is a "go", record the model selection there instead
+- [X] T018 [US1] Run the FR-015 research spike: feed 2-3 real spec 120 output images (`workspace/output/comfyui-topology-viz/`) as source input to a Qwen-Image-Edit-2509 GGUF image-edit workflow on the live ComfyUI instance; verify the real download size and license directly at the HuggingFace source before pulling anything (FR-016); score against the fixed bar (100% exact label reproduction, fully traceable lines); document the go/no-go finding in `specs/121-federated-topology-viz/spike-findings.md` — **NO-GO**, run on two hosts (Windows/WSL2, then macOS); see `spike-findings.md`
+- [ ] T019 [US1] **Deliberately not pursued — spec closed 2026-09-03 on T018's NO-GO rather than continuing to this fallback.** If T018 is a "no-go": repeat the identical protocol against FLUX.2 [klein] 4B (verifying its own real size/license first) and record that finding in the same `specs/121-federated-topology-viz/spike-findings.md`; if T018 is a "go", record the model selection there instead
 - [X] T020 [US1] Implement a direct ComfyUI REST client (`/prompt`, `/history/{id}`, `/view`, `/upload/image`), ported from `workspace/skills/comfyui-topology-viz/comfyui_client.py`'s proven direct-REST approach, in `mcp-servers/image-style-mcp/server.py`
 - [X] T021 [US1] Implement the image-edit workflow graph using the T018/T019-selected model (image-to-image, structure-preserving, `style_prompt`/`negative_prompt` passthrough per contracts/image-style-mcp.md) and wire it into the `style_image` tool in `mcp-servers/image-style-mcp/server.py`
 - [X] T022 [US1] Write `mcp-servers/image-style-mcp/README.md` per Constitution XII
@@ -107,9 +107,21 @@
 - [X] T046 [P] Update `.env.example`: confirm/annotate any env var the two new servers need (expected: `COMFYUI_URL` only, already documented by spec 120 — add a comment noting the new consumer if so)
 - [X] T047 [P] Update `TOOLS.md`: infrastructure reference entries for `topology-diagram-mcp` and `image-style-mcp`
 - [X] T048 Run the full existing spec 120 test suite (`tests/unit/test_comfyui_*.py`, `tests/integration/test_comfyui_topology_viz.py`) and confirm zero regressions (FR-012/Constitution XV)
-- [ ] T049 Create `specs/121-federated-topology-viz/model-inventory.md` tracking any model weights downloaded during T018/T019, and delete any weights the spike rejected (mirrors spec 120's own cleanup precedent)
-- [ ] T050 Record a GAIT session log entry for this feature's implementation (Constitution IV)
-- [ ] T051 Draft a WordPress milestone blog post per Constitution XVII and present it to John for review before publishing
+- [X] T049 Create `specs/121-federated-topology-viz/model-inventory.md` tracking any model weights downloaded during T018/T019, and delete any weights the spike rejected (mirrors spec 120's own cleanup precedent) — done 2026-09-03: macOS host's Tier B weights + local ComfyUI install deleted; Windows/WSL2 host's copy flagged in `model-inventory.md` as unreachable from this session, needs separate cleanup there if that host is decommissioned
+- [ ] T050 Record a GAIT session log entry for this feature's implementation (Constitution IV) — **not done**: spec closed as a NO-GO/failure, not a shipped milestone; no session log entry judged worth recording
+- [ ] T051 Draft a WordPress milestone blog post per Constitution XVII and present it to John for review before publishing — **not done, and not applicable**: this spec closed with no meaningful result to publish about
+
+## Closure
+
+**This spec is closed as of 2026-09-03, NO-GO.** The FR-015 research spike (T018) never produced a
+result clearing spec.md's fixed fidelity bar on either of two real attempted hosts (Windows/WSL2,
+then macOS) — see `spike-findings.md` for the full account. T019's documented fallback (FLUX.2
+[klein] 4B) was deliberately not attempted; this is a decision to stop here, not an oversight.
+
+The already-merged pipeline code (Phases 1-6 above, minus T018/T019/T050/T051) stays in the repo —
+Stage A (the deterministic structural renderer) works correctly and was never in question; only
+Stage B's specific model choice failed its own gate. Nothing about this closure implies the code
+should be reverted.
 
 ## Dependencies & Execution Order
 
