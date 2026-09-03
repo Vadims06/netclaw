@@ -106,22 +106,36 @@ def _mock_happy_path(tmp_path):
 
 
 def test_freeform_end_to_end(tmp_path):
-    """FR-011: freeform description, real sources.from_freeform parsing, comfyui-mcp mocked."""
+    """FR-011: freeform description, real sources.from_freeform parsing, comfyui-mcp mocked.
+
+    spec 121: visualize_topology_via_comfyui() now returns a FederatedResult wrapping the
+    GeneratedImage (FR-004/FR-004a) — freeform always routes straight to spec 120's fallback
+    pipeline (research.md), which is what this test still exercises via the mocks below."""
     patches = _mock_happy_path(tmp_path)
     with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8]:
         result = visualize_topology_via_comfyui(
             {"freeform_description": "a router called core1, core1 connects to a switch called sw1"}
         )
-    assert Path(result.file_path).is_file()
-    assert result.snapshot_source.value == "freeform"
+    assert result.generation_path == "fallback"
+    assert Path(result.image.file_path).is_file()
+    assert result.image.snapshot_source.value == "freeform"
 
 
 def test_live_source_shaped_request_produces_same_request_shape_as_freeform(tmp_path):
     """FR-010/FR-011: a live-source-shaped input produces a request through the identical
     pipeline as the freeform path (fixture data shaped like a real CML export, per the same
-    convention spec 046's own integration test uses; comfyui-mcp mocked)."""
+    convention spec 046's own integration test uses; comfyui-mcp mocked).
+
+    spec 121: a non-freeform snapshot now tries the federated path first (research.md) — forcing
+    _member_reachable False here keeps this test's original, still-valid intent (spec 120's own
+    fallback pipeline, isolated, comfyui-mcp mocked) rather than incidentally becoming a live
+    federation test, which tests/integration/test_federated_topology_viz.py already covers."""
+    import federated_generation
+
     patches = _mock_happy_path(tmp_path)
-    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8]:
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], \
+         patch.object(federated_generation, "_member_reachable", return_value=False):
         result = visualize_topology_via_comfyui(_CML_RAW)
-    assert Path(result.file_path).is_file()
-    assert result.snapshot_source.value == "cml"
+    assert result.generation_path == "fallback"
+    assert Path(result.image.file_path).is_file()
+    assert result.image.snapshot_source.value == "cml"

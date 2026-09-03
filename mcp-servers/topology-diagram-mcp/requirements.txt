@@ -1,0 +1,7 @@
+# Upper bound is LOAD-BEARING: mcp 2.0.0 removed mcp.server.fastmcp
+# (FastMCP moved to the standalone `fastmcp` distribution), and this server
+# imports `from mcp.server.fastmcp import FastMCP`. See mcp-servers/n2n-mcp/requirements.txt
+# for the same note (spec 077) — do not "tidy" this bound away.
+mcp>=1.0.0,<2
+networkx>=3.0
+Pillow>=10.0

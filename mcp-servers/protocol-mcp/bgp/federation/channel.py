@@ -128,6 +128,10 @@ class FederationChannel:
         # this channel) — NOT class-level, so multiple services in one process
         # (e.g. tests) don't clobber each other's handlers.
         self.handlers: dict = dict(handlers or {})
+        # spec 121 research.md R10: strong refs for tasks spawned by _dispatch_task,
+        # so a long-running dispatch (e.g. a multi-minute n2n/tools/call) isn't
+        # garbage-collected mid-flight once _read_loop moves on to the next frame.
+        self._dispatch_tasks: set = set()
 
     def register(self, method: str, handler: Handler):
         self.handlers[method] = handler
@@ -229,7 +233,22 @@ class FederationChannel:
                         "Reassembled message exceeds %d-octet bound — closing",
                         NCFED_MAX_MESSAGE)
                     break
-                await self._dispatch(full)
+                # spec 121 research.md R10 (heartbeat-vs-long-call finding): dispatching
+                # inline (awaiting it here) blocks this SAME loop from reading the NEXT
+                # frame until the current one finishes — for a long n2n/tools/call
+                # (Stage B image generation genuinely runs minutes), any heartbeat frame
+                # the peer sends in the meantime just sits unread in the socket buffer.
+                # _misses only resets when a frame is actually READ (line ~188 above),
+                # so the peer's own _heartbeat_loop (a separate task, still ticking
+                # normally) sees no reset and tears the channel down as "unresponsive"
+                # — even though it is correctly, busily doing exactly what was asked.
+                # Live-verified: a real Stage B call died this way with "3 missed
+                # heartbeats — closing" ~66s in. Running dispatch as its own task lets
+                # the read loop immediately go back to consuming frames (heartbeats,
+                # or another concurrent request/response) while a slow one finishes in
+                # the background — the same non-blocking-dispatch pattern any protocol
+                # multiplexing concurrent in-flight requests over one connection needs.
+                self._dispatch_task(full)
         except (asyncio.IncompleteReadError, ConnectionError):
             self.logger.info("Channel closed by peer")
         except asyncio.CancelledError:
@@ -271,6 +290,22 @@ class FederationChannel:
         await self.close()
 
     # ---- dispatch -----------------------------------------------------
+
+    def _dispatch_task(self, raw: bytes) -> None:
+        """Fire-and-track: runs _dispatch as its own task instead of blocking the read
+        loop on it (see the call site's comment — spec 121 research.md R10). Keeps a
+        strong reference in self._dispatch_tasks so the task isn't garbage-collected
+        mid-flight, and logs (rather than silently drops) an exception that escapes
+        _dispatch's own internal handling."""
+        task = asyncio.create_task(self._dispatch(raw))
+        self._dispatch_tasks.add(task)
+
+        def _done(t: asyncio.Task) -> None:
+            self._dispatch_tasks.discard(t)
+            if not t.cancelled() and t.exception() is not None:
+                self.logger.error("Unhandled exception in dispatched task: %s", t.exception())
+
+        task.add_done_callback(_done)
 
     async def _dispatch(self, raw: bytes):
         try:

@@ -3681,6 +3681,10 @@ echo "  Source: https://github.com/shawnrushefsky/comfyui-mcp"
 echo "  Turns a network topology into one stylized AI-generated still image via your own"
 echo "  already-running ComfyUI instance. Requires ComfyUI to be installed and running"
 echo "  separately — this does not install or manage ComfyUI itself."
+echo "  Also installs the two NetClaw-authored MCP servers (topology-diagram-mcp,"
+echo "  image-style-mcp) spec 121's federated pipeline uses — Border's fallback tier is"
+echo "  the comfyui-mcp path above; the federated tier additionally requires a live"
+echo "  johns-risk/viz federation member (see specs/121-federated-topology-viz/quickstart.md)."
 
 read -r -p "Enable ComfyUI Topology Visualization? [y/N] " enable_comfyui_viz
 if [[ "$enable_comfyui_viz" =~ ^[Yy]$ ]]; then
@@ -3693,6 +3697,19 @@ if [[ "$enable_comfyui_viz" =~ ^[Yy]$ ]]; then
     npm run build 2>/dev/null || log_warn "npm run build failed for ComfyUI MCP"
     cd "$NETCLAW_DIR"
 
+    log_info "Installing topology-diagram-mcp and image-style-mcp dependencies (spec 121)..."
+    python3 -m pip install --user --break-system-packages -r "$MCP_DIR/topology-diagram-mcp/requirements.txt" 2>/dev/null \
+        || log_warn "pip install failed for topology-diagram-mcp"
+    python3 -m pip install --user --break-system-packages -r "$MCP_DIR/image-style-mcp/requirements.txt" 2>/dev/null \
+        || log_warn "pip install failed for image-style-mcp"
+
+    if command -v openclaw &> /dev/null; then
+        openclaw mcp set topology-diagram-mcp "{\"command\":\"python3\",\"args\":[\"-u\",\"mcp-servers/topology-diagram-mcp/server.py\"],\"cwd\":\"$NETCLAW_DIR\"}" 2>/dev/null \
+            || log_warn "openclaw mcp set failed for topology-diagram-mcp"
+        openclaw mcp set image-style-mcp "{\"command\":\"python3\",\"args\":[\"-u\",\"mcp-servers/image-style-mcp/server.py\"],\"cwd\":\"$NETCLAW_DIR\",\"env\":{\"COMFYUI_URL\":\"\${COMFYUI_URL}\"}}" 2>/dev/null \
+            || log_warn "openclaw mcp set failed for image-style-mcp"
+    fi
+
     echo ""
     echo "  Configure in $RUNTIME_ENV:"
     echo "    COMFYUI_URL=http://127.0.0.1:8000   # your own ComfyUI instance's endpoint"
@@ -3700,6 +3717,11 @@ if [[ "$enable_comfyui_viz" =~ ^[Yy]$ ]]; then
     echo "  If NetClaw cannot reach that URL (common when ComfyUI runs on a separate Windows"
     echo "  host from a WSL2 NetClaw install), see specs/120-comfyui-topology-viz/quickstart.md"
     echo "  for the WSL2 mirrored-networking check and the --listen fallback."
+    echo ""
+    echo "  For the federated (spec 121) path: grant johns-risk/viz the two new tool"
+    echo "  capabilities and confirm it's live — see"
+    echo "  specs/121-federated-topology-viz/quickstart.md. Without this the skill still"
+    echo "  works via the comfyui-mcp fallback path above."
 else
     log_info "Skipping ComfyUI Topology Visualization — install it later with this same prompt."
 fi

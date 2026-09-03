@@ -111,6 +111,9 @@ mcp-servers/zabbix-mcp/.venv/
 mcp-servers/anta-mcp/.venv/
 !mcp-servers/zoom-rtms-mcp/
 # Spec 118: NetClaw for Zoom -- Meeting Intelligence.
+!mcp-servers/topology-diagram-mcp/
+!mcp-servers/image-style-mcp/
+# Spec 121: federated topology viz Stage A/B, NetClaw-authored, not vendored.
 
 # Traces
 trace.json
