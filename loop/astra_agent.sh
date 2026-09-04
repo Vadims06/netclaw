@@ -6,6 +6,17 @@
 # exactly like the `claude -p` invocation this replaces — codex exec does the same when no
 # [PROMPT] argument is given (research.md R1).
 #
+# IMPORTANT (discovered running iteration 0): codex exec does NOT authenticate from an
+# OPENAI_API_KEY env var at invocation time. It needs a one-time `codex login --with-api-key`
+# that persists a session under $CODEX_HOME/auth.json; absent that, it falls back to whatever
+# ChatGPT-account login already exists in $CODEX_HOME (default ~/.codex/), which on this host is
+# the OPERATOR's own personal login used across other, unrelated projects — reusing it here is
+# both wrong (a "distinct OpenAI-backed identity," spec.md User Story 3, should not literally be
+# the operator's own account) and fragile (that session's refresh token had already gone stale
+# from unrelated use elsewhere, which is what actually broke iteration 0). Astra Twin gets its
+# own isolated CODEX_HOME, logged in once with the API key from .env, completely separate from
+# the operator's ~/.codex/.
+#
 # Frozen (see specs/122-astra-live-digital-twin/plan.md, loop.md). Not run directly — ralph.sh
 # invokes it as $AGENT_CMD.
 
@@ -13,20 +24,14 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Load OPENAI_API_KEY from .env without sourcing the whole file (which may contain other
-# variables ralph.sh's preflight explicitly requires to be ABSENT, e.g. production creds —
-# this only extracts the one line it needs).
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  if [[ -f "$REPO_ROOT/.env" ]]; then
-    OPENAI_API_KEY="$(grep -E '^OPENAI_API_KEY=' "$REPO_ROOT/.env" | head -1 | cut -d= -f2-)"
-  fi
-fi
+export CODEX_HOME="${CODEX_HOME:-$HOME/.openclaw/astra-twin/codex-home}"
 
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  echo "FATAL: OPENAI_API_KEY not set and not found in .env — refusing to run Astra Twin unauthenticated." >&2
+if [[ ! -f "$CODEX_HOME/auth.json" ]]; then
+  echo "FATAL: no Astra Twin codex session at \$CODEX_HOME/auth.json ($CODEX_HOME)." >&2
+  echo "  One-time setup: grep -E '^OPENAI_API_KEY=' $REPO_ROOT/.env | cut -d= -f2- | \\" >&2
+  echo "    CODEX_HOME=\"$CODEX_HOME\" codex login --with-api-key" >&2
   exit 1
 fi
-export OPENAI_API_KEY
 
 MODEL_ARGS=()
 if [[ -n "${ASTRA_MODEL:-}" ]]; then

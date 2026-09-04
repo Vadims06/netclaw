@@ -70,9 +70,12 @@ preflight() {
     [[ -z "${!v:-}" ]] || die "$v is set — clear production credentials before looping"
   done
 
-  # Astra Twin's own credential must be present — see astra_agent.sh.
-  if [[ -z "${OPENAI_API_KEY:-}" ]] && ! grep -qE '^OPENAI_API_KEY=' .env 2>/dev/null; then
-    die "OPENAI_API_KEY not set and not found in .env — Astra Twin cannot run unauthenticated"
+  # Astra Twin's own codex session must exist — a real, working session under its own isolated
+  # CODEX_HOME, not merely OPENAI_API_KEY being present in .env (that alone does not
+  # authenticate codex exec — see astra_agent.sh's comment on why iteration 0 first failed here).
+  ASTRA_CODEX_HOME="${CODEX_HOME:-$HOME/.openclaw/astra-twin/codex-home}"
+  if [[ ! -f "$ASTRA_CODEX_HOME/auth.json" ]]; then
+    die "no Astra Twin codex session at $ASTRA_CODEX_HOME/auth.json — see astra_agent.sh for one-time setup"
   fi
 
   mkdir -p "$STATE_DIR" "$RUNS_DIR"
