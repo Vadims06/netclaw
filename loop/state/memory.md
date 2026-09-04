@@ -260,6 +260,14 @@ gate. Next iteration should focus on checker-verifiable evidence for those three
 The script defaults `base_dir` to `/tmp/astra-twin-test-federation-home` so only the DB artifact
 is persisted in the worktree; transient key material stays outside `loop/state/`.
 
+## C3 re-verification evidence path (iteration 1 rerun)
+
+For C3 reverification runs, `harness/run_gates.sh loop/runs/1` passes on current HEAD while
+`visual_verify.py` still reports SKIP because `http://localhost:3001/` is not reachable in this
+runner during gate execution. C3 should therefore be evidenced by direct source inspection of
+`ui/netclaw-visual/src/twin/live-twin.js` (snapshot reconcile + incremental `applyDelta` + debug
+global upkeep) plus gate pass output, not by expecting visual-verify to execute here.
+
 ## C2 re-verification pass result on current HEAD
 
 A C2-only re-verification iteration reran `harness/run_gates.sh loop/runs/0` and passed:

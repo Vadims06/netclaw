@@ -76,6 +76,12 @@ subscribes to `/ws/twin` and applies `TwinDelta` messages incrementally by kind
 without scene rebuild. Overflow control (`twin:resync_required`) re-fetches snapshot. The module
 maintains `window.__astraTwinDebug = { nodeCount, linkCount, lastError }` and keeps counts
 current as deltas apply.
+Re-verified (iteration 1 rerun): current `src/twin/live-twin.js` still performs initial snapshot
+reconciliation, opens `/ws/twin`, applies each incoming delta incrementally via `applyDelta`
+without full scene rebuild, handles `twin:resync_required` by refetching snapshot, and maintains
+`window.__astraTwinDebug` through snapshot, delta, and error paths. `harness/run_gates.sh
+loop/runs/1` passed on this HEAD (visual_verify still skipped in this runner because
+`http://localhost:3001/` is not reachable during gate execution).
 
 ### C4. Freshness indicator (FR-010)
 

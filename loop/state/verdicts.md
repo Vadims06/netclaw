@@ -156,3 +156,14 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: Visual runtime verification remains skipped in this runner (`visual_verify.py` reports `http://localhost:3001/` not reachable), so this accept is based on direct code-path validation plus deterministic gate replay evidence.
+
+## Iteration 1 — C3. Delta-application scene layer (ui/netclaw-visual/src/twin/) — re-verification pass
+Verdict: ACCEPT
+Criteria evidenced:
+  - FR-002: Independent source check of `ui/netclaw-visual/src/twin/live-twin.js` confirms initial snapshot reconciliation (`fetchSnapshot` -> `reconcileSnapshot`), incremental per-delta updates (`applyDelta` switch over TwinDelta kinds), and websocket tailing on `/ws/twin` with no full-scene teardown/rebuild in the delta path.
+  - FR-008: Independent runtime probe (executed via `node --input-type=module` from `ui/netclaw-visual`) drove startup snapshot and a live `node_added` delta while injecting an intentional camera mutation inside label creation; camera pose was restored before/after both update paths (`withPreservedView` behavior observed), and assertions passed (`runtime_probe_ok`).
+  - FR-009: Same runtime probe confirmed delta-path handling plus operator-visible change path remains wired (`showChange(delta)` is called on each processed delta kind in `applyDelta`).
+  - SC-001: Deterministic gate replay succeeded (`harness/run_gates.sh loop/runs/1` exit 0), and runtime probe observed immediate in-process delta application with debug counters advancing (`window.__astraTwinDebug.nodeCount` from 1 to 2 after injected delta).
+Criteria claimed but not evidenced:
+  - none
+Concerns: `visual_verify.py` is still skipped in this runner because `http://localhost:3001/` is unreachable during gate execution, so browser-level visual confirmation remains environment-blocked here.
