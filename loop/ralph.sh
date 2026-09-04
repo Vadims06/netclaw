@@ -120,7 +120,12 @@ run_checker() {
   local n="$1" out="$RUNS_DIR/$n/check.log"
   log "iteration $n — checker (Astra Twin)"
   ITERATION="$n" $AGENT_CMD < "$LOOP_DIR/CHECK.md" > "$out" 2>&1
-  grep -qE '^VERDICT:[[:space:]]*ACCEPT' "$out"
+  # IMPORTANT: check.log contains the full echoed CHECK.md prompt, which itself contains the
+  # literal example line "VERDICT: ACCEPT" as a template illustration. A whole-file grep for
+  # that string always matches regardless of the checker's real conclusion, silently turning
+  # every iteration into an ACCEPT. Only the LAST non-empty line is the real verdict.
+  last_line="$(grep -v '^[[:space:]]*$' "$out" | tail -1)"
+  [[ "$last_line" =~ ^VERDICT:[[:space:]]*ACCEPT ]]
 }
 
 done_check() {

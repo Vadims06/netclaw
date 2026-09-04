@@ -45,11 +45,16 @@ effort. If the task requires sustained work, do all of it.
 
 Constraints:
 
-- **Frozen paths.** `mcp-servers/astra-twin-mcp/`, `models/twin_schema.py`, `harness/`,
-  `tests/contract/`, everything in `specs/122-astra-live-digital-twin/`, and everything in
-  `loop/` except `IMPLEMENTATION_PLAN.md`, `state/memory.md`, and `state/debt.md`. Touching any
-  of these halts the entire loop. If a task appears to require editing a frozen path, that is a
-  signal the task is wrong — record it in `debt.md` and stop.
+- **Frozen paths.** The exact, complete list (matching `ralph.sh`'s own `FROZEN_PATHS` array
+  verbatim): `mcp-servers/astra-twin-mcp/`, `models/twin_schema.py`, `harness/`,
+  `tests/contract/`, `specs/122-astra-live-digital-twin/spec.md`, `.../plan.md`, `.../loop.md`,
+  `loop/PROMPT.md`, `loop/CHECK.md`, `loop/ralph.sh`, `loop/astra_agent.sh`, and
+  `loop/state/verdicts.md`. Touching any of these halts the entire loop. Nothing else is frozen —
+  `loop/runs/$ITERATION/task.txt` and `diff.patch` are files you are required to write every
+  iteration, and `loop/IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, `loop/state/debt.md`, and
+  `loop/state/iterations.md` are all normal working files. If a task appears to require editing a
+  path from the frozen list above, that is a signal the task is wrong — record it in `debt.md`
+  and stop.
 - **Diff cap.** 400 changed lines. Over cap, the iteration is reverted. If the task genuinely
   does not fit, split it in `IMPLEMENTATION_PLAN.md` and do the first part.
 - **Read-only against production, read-only against the twin's own subject matter.** Never write

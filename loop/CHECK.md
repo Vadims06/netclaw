@@ -44,11 +44,17 @@ For the task claimed, and for every acceptance criterion the diff plausibly touc
   evidence.
 - **Check for the shortcut.** Was the criterion met, or was a test adjusted until it passed? Did
   the maker touch a frozen path to make its own change easier (immediate REJECT, no exceptions —
-  frozen paths are `mcp-servers/astra-twin-mcp/`, `models/twin_schema.py`, `harness/`,
-  `tests/contract/`, everything under `specs/122-astra-live-digital-twin/`, and everything in
-  `loop/` except `IMPLEMENTATION_PLAN.md`/`state/memory.md`/`state/debt.md`)? Does the claimed
-  read-only guarantee (FR-003/FR-005) actually hold — grep the diff for any new call to a
-  write-capable tool (e.g. `pyats_configure_device`), not just trust the task description.
+  the exact, complete list, matching `ralph.sh`'s own `FROZEN_PATHS` array verbatim, is:
+  `mcp-servers/astra-twin-mcp/`, `models/twin_schema.py`, `harness/`, `tests/contract/`,
+  `specs/122-astra-live-digital-twin/spec.md`, `.../plan.md`, `.../loop.md`, `loop/PROMPT.md`,
+  `loop/CHECK.md`, `loop/ralph.sh`, `loop/astra_agent.sh`, and `loop/state/verdicts.md`. Nothing
+  else is frozen — in particular, `loop/runs/$ITERATION/task.txt` and `diff.patch` are files the
+  maker is *required* to write every iteration (see `PROMPT.md`), and `loop/IMPLEMENTATION_PLAN.md`,
+  `loop/state/memory.md`, `loop/state/debt.md`, and `loop/state/iterations.md` are all normal,
+  writable working files — touching any of these is not a violation of anything and must never be
+  cited as a rejection reason)? Does the claimed read-only guarantee (FR-003/FR-005) actually
+  hold — grep the diff for any new call to a write-capable tool (e.g. `pyats_configure_device`),
+  not just trust the task description.
 - **Check the blast radius.** Did the diff change behaviour the task did not call for?
   Unrequested changes are a rejection even when they look like improvements — they are how
   comprehension debt accumulates.
