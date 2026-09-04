@@ -279,3 +279,14 @@ skips in this runner because `http://localhost:3001/` is not reachable from the 
 - shared global poll loop with `twinSinceSeq` (not per-client polling)
 - `get_deltas({ since_seq: twinSinceSeq })` call and raw `TwinDelta` JSON broadcast
 - overflow control message `{ type: 'twin:resync_required', reason: 'buffer_overflow', snapshot: '/api/twin/snapshot' }`
+
+## C4 re-verification evidence path (iteration 4 rerun)
+
+`harness/run_gates.sh loop/runs/4` passes on current HEAD, with the same environment SKIP for
+`visual_verify.py` because `http://localhost:3001/` is not reachable from this runner.
+
+When re-checking FR-010 in this environment, use direct source verification on:
+- `ui/netclaw-visual/server.js` route `GET /api/twin/status` calling `get_status()`
+- `ui/netclaw-visual/src/twin/live-twin.js` freshness path:
+  `computeFreshness()` + `staleThresholdSeconds()` + `pollStatus()` and forced STALE on
+  missing/invalid timestamp, status-fetch failures, and nonzero `consecutive_failures`.

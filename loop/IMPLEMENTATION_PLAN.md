@@ -94,6 +94,12 @@ Done (iteration 4): `server.js` now exposes `GET /api/twin/status` via `get_stat
 (`Twin data LIVE|STALE`) that computes staleness from `last_successful_poll` against a dynamic
 threshold (`max(45s, poll_interval_seconds*3+5)`). Null/invalid timestamps, status-fetch
 failures, and nonzero `consecutive_failures` all force a visible STALE state.
+Re-verified (iteration 4 rerun): current `server.js` still exposes `GET /api/twin/status`
+through `get_status()`, and current `src/twin/live-twin.js` still computes freshness from
+`last_successful_poll` with threshold `max(45s, poll_interval_seconds*3+5)` while forcing STALE
+on invalid/missing timestamps, status fetch errors, or nonzero `consecutive_failures`.
+`harness/run_gates.sh loop/runs/4` passed on this HEAD (visual_verify still skipped in this
+runner because `http://localhost:3001/` is not reachable during gate execution).
 
 ### C5. Delta highlighting (FR-009)
 

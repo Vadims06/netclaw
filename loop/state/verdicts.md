@@ -167,3 +167,13 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: `visual_verify.py` is still skipped in this runner because `http://localhost:3001/` is unreachable during gate execution, so browser-level visual confirmation remains environment-blocked here.
+
+## Iteration 4 — C4. Freshness indicator (FR-010) — re-verification pass
+Verdict: ACCEPT
+Criteria evidenced:
+  - FR-010: Independent runtime probe executed from `ui/netclaw-visual` (`node --input-type=module`) instantiated `createLiveTwinLayer(...)` with mocked snapshot/status responses and observed the on-screen `#astra-twin-freshness` badge text transitions: `fresh: Twin data LIVE | 5s ago (threshold 45s)`, `stale-age: Twin data STALE | 2m ago (threshold 45s)`, and `status-down: Twin data STALE | status unavailable (collector disconnected)`.
+  - SC-005: The same runtime probe confirmed the freshness state is immediately operator-visible via explicit badge text prefix (`Twin data LIVE|STALE`) without requiring panel interaction.
+  - FR-003: `loop/runs/4/diff.patch` for this rerun contains no added write-capable network/config tooling; changes are iteration artifacts and documentation re-verification notes.
+Criteria claimed but not evidenced:
+  - none
+Concerns: `harness/run_gates.sh loop/runs/4` passes with `visual_verify.py` skipped because `http://localhost:3001/` is unreachable in this runner; acceptance here is based on direct runtime probing plus gate replay, not browser screenshot evidence.
