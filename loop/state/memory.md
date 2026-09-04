@@ -174,3 +174,19 @@ To satisfy Principle XI and clear catalog coverage, `astra-twin-mcp` must be coh
 If any one of those is missing, `python3 scripts/verify-catalog-coverage.py` fails with an unexplained vendored server gap. After adding all four plus README/SOUL count updates, both `verify-catalog-coverage.py` and `verify-inventory-counts.py` pass with MCP totals at 169 (106 config + 63 external).
 
 `component_install_astra_twin()` intentionally only installs `mcp-servers/astra-twin-mcp/requirements.txt`; it does not install pyATS itself. pyATS remains owned by `component_install_pyats()`. The deploy step now also exports `PYATS_TESTBED` alongside `PYATS_TESTBED_PATH` so astra-twin-mcp has the env name it requires.
+
+## D1 blocker reconfirmed on iteration 9: sandbox-enforced readonly federation DB
+
+Even when Unix perms show writable owner (`-rw-r--r-- johncapobianco`), this runner cannot write
+`~/.openclaw/n2n/federation.db` because it is outside writable roots. Two independent repros:
+
+- `sqlite3 ~/.openclaw/n2n/federation.db "CREATE TABLE IF NOT EXISTS __astra_probe(id INTEGER);"`
+  fails with `attempt to write a readonly database`.
+- Real enrollment code path via repo modules
+  (`FederationManager(db_path=..., base_dir=...)`, `RiskManager(fm)`,
+  `set_role('border')`, then intended `issue_token`/`consume_token`) fails on first write with the
+  same error.
+
+Also reconfirmed the live DB schema currently has no `member.model_provider` column (`.schema member`
+omits it), so FR-007/SC-004 cannot be evidenced in this runner until executed where `~/.openclaw`
+is writable and migration/enrollment can commit.

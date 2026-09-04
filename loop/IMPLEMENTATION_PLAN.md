@@ -109,6 +109,12 @@ Blocked (iteration 7): enrollment flow was executed via
 `mcp-servers/protocol-mcp/bgp/federation/risk.py` (`issue_token` + `consume_token`), but this
 runner cannot write `~/.openclaw/n2n/federation.db` (`sqlite3.OperationalError: attempt to write a
 readonly database`). Re-run D1 on a loop runner with writable `~/.openclaw`.
+Blocked (iteration 9): revalidated with direct sqlite write probe
+(`CREATE TABLE IF NOT EXISTS __astra_probe...`) and real repo enrollment path
+(`FederationManager` + `RiskManager.set_role('border')` before `issue_token`/`consume_token`);
+both fail with the same sqlite readonly error on `~/.openclaw/n2n/federation.db`. Also confirmed
+live DB schema still lacks `member.model_provider`, so SC-004 evidence cannot be produced in this
+runner even before enrollment.
 
 ### D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
 

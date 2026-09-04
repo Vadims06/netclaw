@@ -29,3 +29,5 @@ completed as scoped, and by ralph.sh on a stall halt.
   `~/.openclaw` is writable.
 
 - **D2 workspace/skills checklist item is not applicable for spec 122** — this feature adds a HUD extension and one MCP server (`astra-twin-mcp`), but no new operator-facing skill surface under `workspace/skills/`. Recorded explicitly per D2 instructions so the checklist item is not silently skipped.
+
+- **D1 remains deferred after iteration 9 due sandbox write boundary on `~/.openclaw`** — this run re-attempted the real enrollment path (`mcp-servers/protocol-mcp/bgp/federation/{manager,risk}.py`) and an independent sqlite write probe; both fail with `sqlite3.OperationalError: attempt to write a readonly database` when targeting `~/.openclaw/n2n/federation.db`. Because the same DB still lacks `member.model_provider`, FR-007/SC-004 evidence remains blocked until D1 is run on a loop worker with writable `~/.openclaw`.

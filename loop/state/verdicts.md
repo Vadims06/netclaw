@@ -88,3 +88,12 @@ Criteria claimed but not evidenced:
   - FR-006 / FR-007 / SC-004: No mesh enrollment/member-record change or lookup evidence is present in this iteration; provider-attributed Astra Twin membership is not independently evidenced here.
   - FR-011 / SC-006: Runtime AI-independence is described in docs, but this iteration provides no independent runtime verification evidence.
 Concerns: Immediate policy violation: `loop/runs/8/diff.patch` modifies frozen path `loop/state/iterations.md` (driver-owned under `loop/`; only `loop/IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, and `loop/state/debt.md` are maker-writable). Additional checker note: `specs/122-astra-live-digital-twin/contracts/data-model.md` referenced by checker instructions is absent in this worktree, limiting contract-level shape validation to `contracts/astra-twin-mcp.md`.
+
+## Iteration 9 — D1. Enroll Astra Twin as a real iN2N member
+Verdict: REJECT
+Criteria evidenced:
+  - FR-006: `loop/runs/9/diff.patch` contains only documentation/state updates (`loop/IMPLEMENTATION_PLAN.md`, `loop/state/debt.md`, `loop/state/iterations.md`, `loop/state/memory.md`) and no enrollment artifact; independent DB query on `~/.openclaw/n2n/federation.db` (`SELECT member_id,node_type,state,updated_at FROM member WHERE member_id='astra-twin';`) returned no row.
+  - FR-007: Independent schema inspection on `~/.openclaw/n2n/federation.db` (`PRAGMA table_info(member);` and `.schema member`) shows no `model_provider` column, so provider attribution for Astra Twin is not representable/evidenced in this iteration.
+Criteria claimed but not evidenced:
+  - SC-004: No primary evidence shows Astra Twin as a distinct, correctly AI-provider-attributed member in admin lookups.
+Concerns: Immediate policy violation: `loop/runs/9/diff.patch` modifies frozen path `loop/state/iterations.md` (outside allowed `loop/` exceptions), and this is out of task scope for D1 implementation.
