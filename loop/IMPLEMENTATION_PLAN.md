@@ -10,6 +10,29 @@ Format: one task per `##` heading, in priority order within its phase. A rejecte
 here with the checker's reason appended under it, sorted above new work in the same phase per
 `loop.md`'s Select step.
 
+## ⚠ RE-VERIFICATION REQUIRED (read before trusting any "Done" note below)
+
+A bug in `loop/ralph.sh` (fixed 2026-09-04, outside this loop — a human found and fixed it)
+caused every iteration's real checker verdict to be silently ignored and treated as ACCEPT
+regardless of what the checker actually concluded. `loop/state/verdicts.md`'s own entries for
+iterations 1, 3, 4, 5, 6, 7, 9, 10, 11, 12 all say `Verdict: REJECT` — mostly because `CHECK.md`
+itself (also now fixed) wrongly told the checker that `loop/runs/$ITERATION/task.txt` and
+`loop/state/iterations.md` were frozen paths, when they were never actually enforced as frozen by
+`ralph.sh` and are files the maker is *required* to touch every iteration. That was a false
+rejection reason, not evidence the code itself is wrong — but it also means **C2, C3, C4, C5, C6,
+and D2 below have never received a genuine, correctly-gated ACCEPT.** Their "Done" notes are the
+maker's own self-report from iterations that were, in reality, rejected.
+
+**Before doing any new work**, spend iterations re-verifying C2, C3, C4, C5, C6, and D2 in that
+order: read the existing code each note describes, run the gates yourself, and if it genuinely
+still satisfies its criteria, make no functional change (a no-op/whitespace touch is fine if
+needed to trigger a fresh diff) so a *real* checker pass runs against it and records a genuine
+ACCEPT in `verdicts.md` this time. If you find the existing code does NOT actually satisfy its
+criteria, fix it for real — don't assume the old "Done" note was accurate just because it exists.
+Do not skip straight to D3/D4 — `harness/done_gate.sh` needs genuine ACCEPT-backed evidence for
+every one of these criteria, and D4's own listed gaps (FR-004/FR-005/SC-003) are additive to this
+list, not a substitute for it.
+
 ## Phase C — Live HUD integration
 
 ### C1. `GET /api/twin/snapshot` in `ui/netclaw-visual/server.js`
