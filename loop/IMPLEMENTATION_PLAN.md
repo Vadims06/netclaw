@@ -110,6 +110,11 @@ transient fixed HUD notice (`#astra-twin-last-change`, 3s visibility) with expli
 for all delta kinds, including removals (`node_removed`, `link_removed`). Existing geometry-level
 flash behavior remains for node/link add or state-change deltas, so both in-scene emphasis and
 operator-visible textual "just changed" context are present.
+Re-verified (iteration 5 rerun): current `src/twin/live-twin.js` still routes every recognized
+`TwinDelta.kind` through `showChange(delta)` to `#astra-twin-last-change` with explicit text for
+add/remove/state-change events, including removals where no geometry remains to pulse.
+`harness/run_gates.sh loop/runs/5` passed on this HEAD (visual_verify still skipped in this
+runner because `http://localhost:3001/` is not reachable during gate execution).
 
 ### C6. Camera-state preservation (FR-008)
 

@@ -177,3 +177,13 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: `harness/run_gates.sh loop/runs/4` passes with `visual_verify.py` skipped because `http://localhost:3001/` is unreachable in this runner; acceptance here is based on direct runtime probing plus gate replay, not browser screenshot evidence.
+
+## Iteration 5 — C5. Delta highlighting (FR-009) — re-verification pass
+Verdict: ACCEPT
+Criteria evidenced:
+  - FR-009: Contract/source alignment check confirms all `DeltaKind` values from `specs/122-astra-live-digital-twin/data-model.md` (`node_added`, `node_removed`, `node_status_changed`, `link_added`, `link_removed`, `link_state_changed`) are explicitly described in `ui/netclaw-visual/src/twin/live-twin.js` (`describeDeltaChange`, lines 147-155) and are surfaced to operators via `showChange(delta)` in `applyDelta` (`line 382`).
+  - FR-009: Independent runtime drive from `ui/netclaw-visual` using `node --input-type=module` with mocked `WebSocket`/`fetch` produced HUD evidence for removal cases: `Twin change | Node removed: R1` and `Twin change | Link removed: r1:g0/0--r2:g0/0`, proving removals are visibly distinguished even after geometry disappears.
+  - FR-003: Iteration patch scope (`loop/runs/5/diff.patch`) and current twin source introduce no configuration-write-capable network action; change remains UI/read-path only.
+Criteria claimed but not evidenced:
+  - none
+Concerns: none

@@ -290,3 +290,16 @@ When re-checking FR-010 in this environment, use direct source verification on:
 - `ui/netclaw-visual/src/twin/live-twin.js` freshness path:
   `computeFreshness()` + `staleThresholdSeconds()` + `pollStatus()` and forced STALE on
   missing/invalid timestamp, status-fetch failures, and nonzero `consecutive_failures`.
+
+## C5 re-verification pass result on current HEAD
+
+`harness/run_gates.sh loop/runs/5` passes on current HEAD:
+python import/compile, `pytest tests/contract`, and `npm test` are green. As with other reruns
+in this environment, `visual_verify.py` still reports SKIP because `http://localhost:3001/` is
+not reachable from this runner during gate execution.
+
+Primary-source FR-009 checks remain in `ui/netclaw-visual/src/twin/live-twin.js`:
+- all recognized `TwinDelta.kind` events call `showChange(delta)` after apply path completion
+- `showChange` writes `Twin change | ...` into `#astra-twin-last-change`
+- `describeDeltaChange` includes both removal cases (`node_removed`, `link_removed`) so
+  removals still produce an operator-visible "just changed" signal after geometry disappears
