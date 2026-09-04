@@ -37,3 +37,8 @@ completed as scoped, and by ralph.sh on a stall halt.
 - **D1 still deferred after iteration 11: sandbox remains read-only for `~/.openclaw/n2n/federation.db`** — reconfirmed no `member.model_provider` column via `PRAGMA table_info(member)`, direct sqlite update (`UPDATE risk SET role='border' WHERE id=1`) still fails readonly, and the real `FederationManager`/`RiskManager` enrollment path still fails at first write. Task remains blocked until loop execution in a runner where `~/.openclaw` is writable.
 
 - **D1 still deferred after iteration 12: enrollment path blocked before token issuance** — reran D1 with `mcp-servers/protocol-mcp/bgp/federation/{manager,risk}.py`; the first write at `RiskManager.set_role('border')` still fails on `~/.openclaw/n2n/federation.db` with `sqlite3.OperationalError: attempt to write a readonly database`. Schema still lacks `member.model_provider` and no `astra-twin` member row exists. Deferred until loop runs on a worker with writable `~/.openclaw`.
+
+- **D3 loop completion still blocked on checker-ledger evidence IDs** — in this iteration,
+  `harness/run_gates.sh loop/runs/1` passed, but `harness/done_gate.sh` failed with missing
+  `FR-004 FR-005 SC-003` in `loop/state/verdicts.md`. Maker does not write `verdicts.md`, so
+  this remains deferred to a checker-accepted evidence pass.

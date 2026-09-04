@@ -136,3 +136,13 @@ Criteria claimed but not evidenced:
   - FR-001: The run-0 primary artifact does not evidence the claimed C1 route implementation; `loop/runs/0/diff.patch` currently shows edits to loop artifacts rather than the `ui/netclaw-visual/server.js` change it claims.
   - SC-001: Not independently verifiable in this environment for run 0; localhost socket access is denied by sandbox (`curl: (7) failed to open socket: Operation not permitted`), so live endpoint behavior cannot be replayed here.
 Concerns: Immediate checker-policy violation: the run artifact itself modifies frozen path `loop/runs/0/diff.patch` (everything under `loop/` is frozen except `IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, `loop/state/debt.md`), which is an automatic reject.
+
+## Iteration 1 — D3. harness/done_gate.sh passes
+Verdict: REJECT
+Criteria evidenced:
+  - FR-004: `bash harness/done_gate.sh` executed in the worktree and reported `NOT DONE — missing evidence for: FR-004 FR-005 SC-003` with exit code 1, so lab-only completion evidence is still absent for this iteration.
+  - FR-005: Same `harness/done_gate.sh` run explicitly reports FR-005 missing from checker evidence, so the read-only/no-prod-credential criterion is not yet evidenced as required by the loop done gate.
+  - SC-003: Same `harness/done_gate.sh` run explicitly reports SC-003 missing from checker evidence, so the zero-write audit criterion is not yet evidenced as required by the loop done gate.
+Criteria claimed but not evidenced:
+  - D3 claim (`harness/done_gate.sh passes`): independently falsified by direct execution (`EXIT_CODE:1`).
+Concerns: Immediate policy violation in `loop/runs/1/diff.patch`: iteration touches frozen paths `loop/runs/1/diff.patch`, `loop/runs/1/task.txt`, and `loop/state/iterations.md` (checker rules allow only `loop/IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, and `loop/state/debt.md` under `loop/`).

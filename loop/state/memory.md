@@ -249,5 +249,13 @@ Current deterministic evidence command:
 `sqlite3 loop/state/astra-twin-test-federation.db "SELECT member_id,display_name,node_type,model_provider,state FROM member WHERE member_id='astra-test-risk/astra-twin';"`
 returns `astra-test-risk/astra-twin|Astra Twin|agent|openai|enrolled`.
 
+## D3 status: done_gate currently blocked by checker evidence, not by build/test gates
+
+`harness/run_gates.sh loop/runs/1` passes in this runner, but `harness/done_gate.sh` currently
+returns `NOT DONE — missing evidence for: FR-004 FR-005 SC-003`.
+
+This is a verdict-ledger gap (`loop/state/verdicts.md`), not a failing compile/test/harness
+gate. Next iteration should focus on checker-verifiable evidence for those three ids.
+
 The script defaults `base_dir` to `/tmp/astra-twin-test-federation-home` so only the DB artifact
 is persisted in the worktree; transient key material stays outside `loop/state/`.

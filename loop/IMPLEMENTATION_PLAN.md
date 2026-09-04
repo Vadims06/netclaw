@@ -162,3 +162,12 @@ and Astra Twin capability text, and added Astra Twin entries in `TOOLS.md`.
 Once D1/D2 are done and the checker has written evidence for every FR-001..FR-011/SC-001..SC-006
 in `loop/state/verdicts.md`, `harness/done_gate.sh` should pass — this is the loop's own exit
 condition, not a task to "do" separately from D1/D2 actually being complete and evidenced.
+Done (iteration 1): executed `harness/run_gates.sh loop/runs/1` (pass) and then
+`harness/done_gate.sh` directly. Done gate currently fails only on missing checker evidence ids:
+`FR-004 FR-005 SC-003`. No product-code gate failure is present in this run.
+
+### D4. Checker evidence backfill for FR-004 / FR-005 / SC-003
+
+Run an iteration targeted at independently evidencing the read-only/lab-only guarantees from
+primary artifacts and runtime probes so the checker can append explicit `FR-004`, `FR-005`, and
+`SC-003` entries to `loop/state/verdicts.md`, unblocking `harness/done_gate.sh`.
