@@ -347,3 +347,16 @@ It performs three deterministic checks:
 
 Current pass evidence is captured at `loop/runs/9/d4_evidence.log` with terminal marker:
 `PASS: FR-004/FR-005/SC-003 evidence checks completed`.
+
+## D1 re-verification command and expected evidence row
+
+For D1 reruns in sandboxed workers, `python3 scripts/in2n-enroll-astra-twin-test-db.py --reset`
+remains deterministic and should recreate `loop/state/astra-twin-test-federation.db` with
+`astra-test-risk/astra-twin` enrolled as `node_type=agent`, `model_provider=openai`,
+`state=enrolled`.
+
+Validation query:
+`sqlite3 loop/state/astra-twin-test-federation.db "SELECT member_id,display_name,node_type,model_provider,state FROM member WHERE member_id='astra-test-risk/astra-twin';"`
+
+Expected row on this host/current HEAD:
+`astra-test-risk/astra-twin|Astra Twin|agent|openai|enrolled`.

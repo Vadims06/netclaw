@@ -219,3 +219,13 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: none
+
+## Iteration 0 — D1. Enroll Astra Twin as a real iN2N member (test DB redirect) — re-verification pass
+Verdict: ACCEPT
+Criteria evidenced:
+  - FR-006: Re-ran `python3 scripts/in2n-enroll-astra-twin-test-db.py --reset`; command completed successfully and produced member record `member_id=astra-test-risk/astra-twin`, `display_name=Astra Twin`, `node_type=agent`, `state=enrolled` in `loop/state/astra-twin-test-federation.db`.
+  - FR-007: Independently queried the DB (`sqlite3 loop/state/astra-twin-test-federation.db "SELECT member_id,display_name,node_type,model_provider,state FROM member WHERE member_id='astra-test-risk/astra-twin';"`) and observed `astra-test-risk/astra-twin|Astra Twin|agent|openai|enrolled`, evidencing correct OpenAI provider attribution.
+  - SC-004: Independent lookup evidence is deterministic and repeatable in this run (same sqlite row above after reset), showing Astra Twin is discoverable as a distinct provider-attributed member in the test-scoped mesh DB used for loop verification.
+Criteria claimed but not evidenced:
+  - none
+Concerns: none

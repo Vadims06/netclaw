@@ -179,6 +179,11 @@ D1 flow deterministically, then ran it with `--reset` to create and migrate
 `model_provider='openai'`. Verified directly via sqlite query on that test DB:
 `SELECT member_id,display_name,node_type,model_provider,state FROM member ...` returns
 `astra-test-risk/astra-twin|Astra Twin|agent|openai|enrolled`.
+Re-verified (iteration 0 rerun): reran
+`python3 scripts/in2n-enroll-astra-twin-test-db.py --reset` and confirmed the same enrolled row
+via `sqlite3 loop/state/astra-twin-test-federation.db ...`:
+`astra-test-risk/astra-twin|Astra Twin|agent|openai|enrolled`. `harness/run_gates.sh loop/runs/0`
+also passed on this HEAD.
 
 ### D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
 

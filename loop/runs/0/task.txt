@@ -1,1 +1,1 @@
-C2. WS /ws/twin in ui/netclaw-visual/server.js (re-verification pass)
+D1. Enroll Astra Twin as a real iN2N member (test DB redirect) — re-verification pass
