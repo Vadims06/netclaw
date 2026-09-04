@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
 
@@ -65,6 +66,40 @@ collector = Collector(pyats_testbed=PYATS_TESTBED, poll_interval_seconds=POLL_IN
 
 mcp = FastMCP("astra-twin-mcp")
 
+# --- persistent-process cache -------------------------------------------------------------
+#
+# ui/netclaw-visual/server.js's twin routes (and every other MCP integration in this repo)
+# call MCP tools via scripts/mcp-call.py, which spawns a FRESH server process per call. That
+# is fine for stateless queries, but astra-twin-mcp's whole point is a continuously-running
+# collector accumulating state across polls — a fresh process per HTTP request would restart
+# the collector from empty state every single time and pay a full pyATS/SSH round trip on
+# every request. So this server, when run as a long-lived process (a systemd service, not
+# spawned per-call), also writes its current state to a small cache file on a fixed interval.
+# ui/netclaw-visual/server.js reads that file directly (no subprocess, no MCP round trip) for
+# its own twin routes; the MCP tools below remain fully available for an AI agent to query
+# this server directly via mcp-call.py exactly as before — the two paths are independent.
+CACHE_DIR = os.path.expanduser(os.environ.get("ASTRA_TWIN_CACHE_DIR", "~/.openclaw/astra-twin"))
+CACHE_PATH = os.path.join(CACHE_DIR, "twin_cache.json")
+CACHE_WRITE_INTERVAL_SECONDS = float(os.environ.get("ASTRA_TWIN_CACHE_WRITE_INTERVAL_SECONDS", "2"))
+
+
+async def _cache_writer() -> None:
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    while True:
+        snap = await collector.snapshot()
+        all_deltas = await collector.all_buffered_deltas()
+        payload = {
+            "snapshot": snap.to_dict(),
+            "deltas": [d.to_dict() for d in (all_deltas or [])],
+            "status": collector.status(),
+            "written_at": datetime.now(timezone.utc).isoformat(),
+        }
+        tmp_path = CACHE_PATH + f".tmp.{os.getpid()}"
+        with open(tmp_path, "w") as fh:
+            json.dump(payload, fh)
+        os.replace(tmp_path, CACHE_PATH)  # atomic on the same filesystem — no partial reads
+        await asyncio.sleep(CACHE_WRITE_INTERVAL_SECONDS)
+
 
 @mcp.tool()
 async def get_snapshot() -> str:
@@ -97,10 +132,26 @@ async def get_status() -> str:
 
 async def _run() -> None:
     poll_task = asyncio.create_task(collector.run_forever())
+    cache_task = asyncio.create_task(_cache_writer())
     try:
         await mcp.run_stdio_async()
     finally:
         poll_task.cancel()
+        cache_task.cancel()
+
+
+async def _run_headless() -> None:
+    """Run the collector + cache writer without the MCP stdio transport — for use as a
+    persistent background service (e.g. a systemd unit) where nothing is piping stdio into
+    this process. The MCP tools (get_snapshot/get_deltas/get_status) remain available whenever
+    this same script is invoked normally (spawned per-call via mcp-call.py, per this server's
+    original design) — that path is untouched; this is an additional way to run it."""
+    poll_task = asyncio.create_task(collector.run_forever())
+    cache_task = asyncio.create_task(_cache_writer())
+    try:
+        await asyncio.gather(poll_task, cache_task)
+    except asyncio.CancelledError:
+        pass
 
 
 if __name__ == "__main__":
@@ -109,4 +160,7 @@ if __name__ == "__main__":
         PYATS_TESTBED,
         POLL_INTERVAL,
     )
-    asyncio.run(_run())
+    if "--headless" in sys.argv:
+        asyncio.run(_run_headless())
+    else:
+        asyncio.run(_run())

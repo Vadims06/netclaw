@@ -119,6 +119,13 @@ class Collector:
                 return None
             return [d for d in self._deltas if d.seq > since_seq]
 
+    async def all_buffered_deltas(self) -> list[TwinDelta]:
+        """Everything currently in the ring buffer, regardless of how far it's rolled over —
+        for internal use (e.g. the cache writer) that wants the buffer's actual contents, not
+        deltas_since()'s "since a client-tracked sequence number" semantics."""
+        async with self._lock:
+            return list(self._deltas)
+
     def status(self) -> dict:
         return {
             "last_successful_poll": self.last_successful_poll,
