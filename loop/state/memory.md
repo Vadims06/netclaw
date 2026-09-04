@@ -237,3 +237,17 @@ succeeds, so D1 remains runner-blocked rather than logic-blocked.
 Phase C routes are already implemented, so this skip in current loop runs is due local socket
 reachability/runtime startup assumptions, not missing C tasks. Do not treat this skip message as
 proof that C1-C3 are absent.
+
+## D1 redirected enrollment is now scriptable and reproducible in sandboxed runners
+
+Use `scripts/in2n-enroll-astra-twin-test-db.py --reset` for Phase D1 in restricted runners.
+It runs the exact enrollment sequence against a worktree-local DB:
+`RiskManager.set_role('border')` -> `issue_token` -> `consume_token(..., model_provider='openai')`,
+writing `loop/state/astra-twin-test-federation.db` and printing the enrolled row.
+
+Current deterministic evidence command:
+`sqlite3 loop/state/astra-twin-test-federation.db "SELECT member_id,display_name,node_type,model_provider,state FROM member WHERE member_id='astra-test-risk/astra-twin';"`
+returns `astra-test-risk/astra-twin|Astra Twin|agent|openai|enrolled`.
+
+The script defaults `base_dir` to `/tmp/astra-twin-test-federation-home` so only the DB artifact
+is persisted in the worktree; transient key material stays outside `loop/state/`.

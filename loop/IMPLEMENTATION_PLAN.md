@@ -123,6 +123,12 @@ should record that SC-004 was evidenced against a test-scoped DB, not the produc
 — see this task's own reasoning above) so a human reviewing the loop's output later understands
 real enrollment into the live mesh is a separate, deliberate, human-run step, not something this
 loop did or was ever meant to do unattended.
+Done (iteration 14): added `scripts/in2n-enroll-astra-twin-test-db.py` to execute the redirected
+D1 flow deterministically, then ran it with `--reset` to create and migrate
+`loop/state/astra-twin-test-federation.db` and enroll `astra-test-risk/astra-twin` with
+`model_provider='openai'`. Verified directly via sqlite query on that test DB:
+`SELECT member_id,display_name,node_type,model_provider,state FROM member ...` returns
+`astra-test-risk/astra-twin|Astra Twin|agent|openai|enrolled`.
 
 ### D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
 

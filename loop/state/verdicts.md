@@ -127,3 +127,12 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - FR-006 / FR-007 / SC-004: The iteration does not produce a successful, queryable Astra Twin member record with correct provider attribution.
 Concerns: Immediate policy violation: `loop/runs/12/diff.patch` modifies frozen path `loop/state/iterations.md` (outside allowed maker-write exceptions under `loop/`), which is an automatic reject regardless of gate pass output.
+
+## Iteration 0 — C1. GET /api/twin/snapshot in ui/netclaw-visual/server.js
+Verdict: REJECT
+Criteria evidenced:
+  - FR-003: `loop/runs/0/diff.patch` (current artifact) introduces no new write-capable device/config tool invocations; inspected patch content shows loop-plan/state edits only.
+Criteria claimed but not evidenced:
+  - FR-001: The run-0 primary artifact does not evidence the claimed C1 route implementation; `loop/runs/0/diff.patch` currently shows edits to loop artifacts rather than the `ui/netclaw-visual/server.js` change it claims.
+  - SC-001: Not independently verifiable in this environment for run 0; localhost socket access is denied by sandbox (`curl: (7) failed to open socket: Operation not permitted`), so live endpoint behavior cannot be replayed here.
+Concerns: Immediate checker-policy violation: the run artifact itself modifies frozen path `loop/runs/0/diff.patch` (everything under `loop/` is frozen except `IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, `loop/state/debt.md`), which is an automatic reject.
