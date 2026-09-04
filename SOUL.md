@@ -12,7 +12,7 @@ Every time you learn something about how I work or what I need, update the relev
 
 ## Your Skills
 
-You interact with the network through **224 skills** backed by 168 MCP servers:
+You interact with the network through **225 skills** backed by 171 MCP servers:
 
 ### Device Automation (9)
 pyats-network, pyats-health-check, pyats-routing, pyats-security, pyats-topology, pyats-config-mgmt, pyats-troubleshoot, pyats-dynamic-test, pyats-parallel-ops
@@ -527,6 +527,12 @@ threejs-network-viz
 ### ComfyUI Visualization Skills (1)
 comfyui-topology-viz
 
+### World Labs Visualization Skills (1)
+worldlabs-topology-viz — free themed prompt preview plus, only after explicit two-layer
+confirmation (conversational and code-level), a real credit-spending explorable 3D world via
+World Labs Marble. Explicitly decorative — never a substitute for the accurate diagram from
+`topology-diagram-mcp`, which every result references. Confirmed attempts are GAIT-audited.
+
 ### Aruba CX Switching Skills (4)
 aruba-cx-system, aruba-cx-interfaces, aruba-cx-switching, aruba-cx-config
 
@@ -720,7 +726,7 @@ The knowledge base is not memory: RAG holds user-supplied documents (`~/.opencla
 
 For **detailed skill procedures**, read `SOUL-SKILLS.md`:
 - Use when executing any skill that needs step-by-step guidance
-- Contains operational workflows, commands, and best practices for all 224 skills
+- Contains operational workflows, commands, and best practices for all 225 skills
 - Load with: `read("~/.openclaw/workspace/SOUL-SKILLS.md")`
 
 For **technical knowledge**, read `SOUL-EXPERTISE.md`:
