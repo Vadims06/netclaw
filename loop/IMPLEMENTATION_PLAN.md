@@ -55,6 +55,10 @@ Done (iteration 1): `server.js` now exposes `WS /ws/twin` with shared polling ag
 `get_deltas(since_seq)` and broadcasts each delta as a raw `TwinDelta` JSON message (no
 wrapper). On `{"buffer_overflow": true}`, it sends a `twin:resync_required` control message
 pointing clients at `/api/twin/snapshot`.
+Re-verified (iteration 0 rerun): reran `harness/run_gates.sh loop/runs/0` on current HEAD with
+this task selected; gate passed (python import/compile, `pytest tests/contract`, `npm test`).
+Current `server.js` still has shared `twinSinceSeq` polling, raw `TwinDelta` broadcast, and
+`twin:resync_required` overflow signaling to `/api/twin/snapshot`.
 
 ### C3. Delta-application scene layer (`ui/netclaw-visual/src/twin/`)
 

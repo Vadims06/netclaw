@@ -259,3 +259,15 @@ gate. Next iteration should focus on checker-verifiable evidence for those three
 
 The script defaults `base_dir` to `/tmp/astra-twin-test-federation-home` so only the DB artifact
 is persisted in the worktree; transient key material stays outside `loop/state/`.
+
+## C2 re-verification pass result on current HEAD
+
+A C2-only re-verification iteration reran `harness/run_gates.sh loop/runs/0` and passed:
+python import/compile, `pytest tests/contract`, and `npm test` all green. Visual verify still
+skips in this runner because `http://localhost:3001/` is not reachable from the loop process.
+
+`ui/netclaw-visual/server.js` still implements the expected C2 contract points:
+- dedicated WebSocket path `/ws/twin` (`new WebSocketServer({ server, path: '/ws/twin' })`)
+- shared global poll loop with `twinSinceSeq` (not per-client polling)
+- `get_deltas({ since_seq: twinSinceSeq })` call and raw `TwinDelta` JSON broadcast
+- overflow control message `{ type: 'twin:resync_required', reason: 'buffer_overflow', snapshot: '/api/twin/snapshot' }`

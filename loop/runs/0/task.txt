@@ -1,1 +1,1 @@
-C1. GET /api/twin/snapshot in ui/netclaw-visual/server.js
+C2. WS /ws/twin in ui/netclaw-visual/server.js (re-verification pass)

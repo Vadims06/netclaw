@@ -146,3 +146,13 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - D3 claim (`harness/done_gate.sh passes`): independently falsified by direct execution (`EXIT_CODE:1`).
 Concerns: Immediate policy violation in `loop/runs/1/diff.patch`: iteration touches frozen paths `loop/runs/1/diff.patch`, `loop/runs/1/task.txt`, and `loop/state/iterations.md` (checker rules allow only `loop/IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, and `loop/state/debt.md` under `loop/`).
+
+## Iteration 0 — C2. WS /ws/twin in ui/netclaw-visual/server.js (re-verification pass)
+Verdict: ACCEPT
+Criteria evidenced:
+  - FR-002: Independent source inspection of `ui/netclaw-visual/server.js` shows `/ws/twin` is still wired with a shared poll loop (`twinSinceSeq`), polling `get_deltas({ since_seq: twinSinceSeq })`, and broadcasting each delta as the raw `TwinDelta` object (no wrapper), matching the C2 contract behavior.
+  - FR-003: Independent scan of `loop/runs/0/diff.patch` and current `server.js` found no introduced write-capable network/configuration action; the twin path remains read-only MCP tool usage (`get_deltas`, `get_snapshot`, `get_status`).
+  - SC-001: Independent gate replay via `harness/run_gates.sh loop/runs/0` returned exit code 0 on current HEAD, confirming the claimed re-verification pass was reproducible in this checker run.
+Criteria claimed but not evidenced:
+  - none
+Concerns: Visual runtime verification remains skipped in this runner (`visual_verify.py` reports `http://localhost:3001/` not reachable), so this accept is based on direct code-path validation plus deterministic gate replay evidence.
