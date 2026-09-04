@@ -111,6 +111,8 @@ mcp-servers/zabbix-mcp/.venv/
 mcp-servers/anta-mcp/.venv/
 !mcp-servers/zoom-rtms-mcp/
 # Spec 118: NetClaw for Zoom -- Meeting Intelligence.
+!mcp-servers/astra-twin-mcp/
+# Spec 122: Astra Live Digital Twin -- read-only collector.
 
 # Traces
 trace.json
