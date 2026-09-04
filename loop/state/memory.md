@@ -303,3 +303,20 @@ Primary-source FR-009 checks remain in `ui/netclaw-visual/src/twin/live-twin.js`
 - `showChange` writes `Twin change | ...` into `#astra-twin-last-change`
 - `describeDeltaChange` includes both removal cases (`node_removed`, `link_removed`) so
   removals still produce an operator-visible "just changed" signal after geometry disappears
+
+## C6 re-verification pass result on current HEAD
+
+`harness/run_gates.sh loop/runs/6` passes on current HEAD:
+python import/compile, `pytest tests/contract`, and `npm test` are green. `visual_verify.py`
+still reports SKIP in this runner because `http://localhost:3001/` is not reachable during gate
+execution.
+
+Primary-source FR-008 checks remain in the same places:
+- `ui/netclaw-visual/src/main.js` passes live chart `camera` and `controls` into
+  `createLiveTwinLayer(...)`
+- `ui/netclaw-visual/src/twin/live-twin.js` preserves view state by wrapping both
+  `reconcileSnapshot` and `applyDelta` in `withPreservedView(...)`
+- `withPreservedView` captures pose via `captureTwinViewState(camera, controls)` and restores it
+  after each update via `restoreTwinViewState(camera, controls, before)`
+- `ui/netclaw-visual/src/twin/live-twin.test.js` still covers capture/restore no-op and
+  mutation-then-restore behavior, including projection/control update callbacks

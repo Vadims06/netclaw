@@ -1,1 +1,1 @@
-C6. Camera-state preservation (FR-008)
+C6. Camera-state preservation (FR-008) — re-verification pass

@@ -187,3 +187,14 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: none
+
+## Iteration 6 — C6. Camera-state preservation (FR-008) — re-verification pass
+Verdict: ACCEPT
+Criteria evidenced:
+  - FR-008: Source check confirmed `ui/netclaw-visual/src/twin/live-twin.js` wraps both `applyDelta` and `reconcileSnapshot` in `withPreservedView(...)`, which captures and restores `{camera.position, camera.zoom, controls.target}` on every live update path.
+  - FR-008: Independent runtime verification from `ui/netclaw-visual` (`node --input-type=module`) drove a real websocket delta (`node_status_changed`) through `createLiveTwinLayer(...)`; output showed identical pose before/after with `"unchanged": true`.
+  - FR-008: Independent runtime verification also drove the snapshot-reconcile path by emitting `twin:resync_required`; output showed `"unchanged": true` after a second snapshot fetch (`"snapCount": 2`), confirming camera/target preservation across snapshot updates too.
+  - FR-003: Iteration artifact patch (`loop/runs/6/diff.patch`) introduces no write-capable device/config command path; this re-verification pass does not expand runtime privileges.
+Criteria claimed but not evidenced:
+  - none
+Concerns: `loop/runs/6/gates.log` still skips `visual_verify.py` in this runner because `http://localhost:3001/` is unreachable, but FR-008 was independently validated here via direct runtime-driven layer execution.

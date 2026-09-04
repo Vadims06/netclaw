@@ -128,6 +128,12 @@ capture/restore helpers that reset camera position/zoom + controls target if any
 mutates them. `src/main.js` now passes the live chart `camera` and `controls` into the twin layer.
 Added `src/twin/live-twin.test.js` coverage for capture/restore behavior, including mutation-then-
 restore with projection/control update callbacks invoked once.
+Re-verified (iteration 6 rerun): current `src/twin/live-twin.js` still wraps both
+`reconcileSnapshot` and `applyDelta` in `withPreservedView`, preserving `{camera.position, zoom,
+controls.target}` across live updates, and `src/main.js` still passes `camera` + `controls` into
+`createLiveTwinLayer(...)`. `harness/run_gates.sh loop/runs/6` passed on this HEAD (visual_verify
+still skipped in this runner because `http://localhost:3001/` is not reachable during gate
+execution).
 
 ### C7. `harness/run_gates.sh`'s visual_verify step becomes mandatory
 
