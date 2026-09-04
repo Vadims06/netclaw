@@ -206,6 +206,13 @@ added `component_install_astra_twin()` and `PYATS_TESTBED` environment export in
 updated `.env.example` with Astra Twin/OpenAI env vars, updated README/SOUL MCP counts
 and Astra Twin capability text, and added Astra Twin entries in `TOOLS.md`.
 `python3 scripts/verify-catalog-coverage.py` now passes with zero vendored-state gaps.
+Re-verified (iteration 8 rerun): current HEAD still carries all D2 coherence artifacts:
+`README.md` Astra Twin live-twin capability and MCP catalog entry text, `scripts/lib/catalog.sh`
+`astra-twin` component row, `scripts/lib/install-steps.sh` `component_install_astra_twin()`
+plus `PYATS_TESTBED` export, `config/openclaw.json` `astra-twin-mcp` registration,
+`.env.example` Astra Twin/OpenAI and MCP env docs, and `TOOLS.md` Astra Twin MCP/loop env docs.
+`python3 scripts/verify-catalog-coverage.py` and `python3 scripts/verify-inventory-counts.py`
+both pass on this HEAD.
 
 ### D3. `harness/done_gate.sh` passes
 

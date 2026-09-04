@@ -198,3 +198,14 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: `loop/runs/6/gates.log` still skips `visual_verify.py` in this runner because `http://localhost:3001/` is unreachable, but FR-008 was independently validated here via direct runtime-driven layer execution.
+
+## Iteration 8 — D2. Full Artifact Coherence Checklist (constitution.md Principle XI) — re-verification pass
+Verdict: ACCEPT
+Criteria evidenced:
+  - FR-003: Independent patch-scope check of `loop/runs/8/diff.patch` and direct grep across claimed artifact files found no added write-capable device action (no `pyats_configure_device`/config-push path introduced in this iteration scope).
+  - FR-004: Independent source check confirms lab-target wiring remains coherent across required surfaces (`config/openclaw.json` includes `astra-twin-mcp` with `PYATS_TESTBED`; `scripts/lib/install-steps.sh` exports `PYATS_TESTBED` and documents Astra Twin runtime env).
+  - FR-011: Independent source check confirms runtime AI-independence messaging is coherently documented (`README.md` Astra Twin capability text states no runtime AI dependency; `TOOLS.md` separates `OPENAI_API_KEY` as loop build/maintenance identity only).
+  - SC-002: Independent coherence gate replay `python3 scripts/verify-catalog-coverage.py` returned `PASS (zero unexplained gaps)` with exit code 0, evidencing config/catalog/install/doc artifact alignment for the registered Astra Twin integration.
+Criteria claimed but not evidenced:
+  - none
+Concerns: `specs/122-astra-live-digital-twin/contracts/data-model.md` is absent in this worktree; contract validation for this checker pass was limited to the available `contracts/astra-twin-mcp.md` plus direct source/gate evidence.

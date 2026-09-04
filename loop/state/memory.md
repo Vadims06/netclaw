@@ -320,3 +320,19 @@ Primary-source FR-008 checks remain in the same places:
   after each update via `restoreTwinViewState(camera, controls, before)`
 - `ui/netclaw-visual/src/twin/live-twin.test.js` still covers capture/restore no-op and
   mutation-then-restore behavior, including projection/control update callbacks
+
+## D2 re-verification command set and pass markers (iteration 8 rerun)
+
+For D2 reruns, use one grep sweep plus two validators; this is enough to prove coherence without
+touching frozen paths:
+
+- `rg -n "astra-twin|astra twin|Astra Twin|astra-twin-mcp|OPENAI_API_KEY|PYATS_TESTBED" README.md SOUL.md TOOLS.md .env.example config/openclaw.json scripts/lib/catalog.sh scripts/lib/install-steps.sh`
+- `python3 scripts/verify-catalog-coverage.py`
+- `python3 scripts/verify-inventory-counts.py`
+
+Expected pass markers on this host/current HEAD:
+- catalog coverage: `PASS (zero unexplained gaps)` with `Catalog entries: 106` and
+  `Registered config/openclaw.json servers: 106`
+- inventory counts: `Documentation check: PASS` with `MCP integration count: 169`
+
+If those markers regress, treat D2 as broken before attempting D3/D4 evidence closure.
