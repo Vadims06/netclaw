@@ -35,6 +35,16 @@ not skip ahead because a later task looks more interesting. Write the task title
 If the queue is empty and every blocking acceptance criterion in `spec.md` already has evidence
 in `verdicts.md`, write `NOTHING TO DO` to `task.txt`, change nothing, and exit.
 
+**Keep your diff scoped to exactly the task you selected — nothing else.** The checker rejects
+on blast radius regardless of whether the claimed work is correct: it has already, more than
+once, rejected genuinely-working evidence solely because the diff also touched
+`loop/state/iterations.md`, added an unplanned new section to `IMPLEMENTATION_PLAN.md`, or
+otherwise bundled in something the task didn't call for. If you are re-verifying already-working
+code (a task explicitly asking you to confirm prior work rather than build something new), that
+usually means a *smaller* diff than a from-scratch task, not a larger one — resist the urge to
+also tidy up, reorganize, or add planning notes while you're in there. Anything you notice but
+don't act on belongs in `debt.md`, not in this iteration's diff.
+
 ## Do the work
 
 You have full authority to complete this task. This is a disposable worktree on a lab-only
