@@ -107,3 +107,13 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: `loop/runs/10/diff.patch` only updates loop planning/debt/memory notes and does not implement or land any enrollment/migration artifact, so the claimed D1 outcome is not completed.
+
+## Iteration 11 — D1. Enroll Astra Twin as a real iN2N member
+Verdict: REJECT
+Criteria evidenced:
+  - FR-006: Independent lookup found no Astra Twin member row (`sqlite3 ~/.openclaw/n2n/federation.db "SELECT member_id, display_name FROM member WHERE lower(display_name) LIKE '%astra twin%' OR lower(member_id) LIKE '%astra%';"` returned no rows).
+  - FR-007: Independent schema check shows `model_provider` still absent (`sqlite3 ~/.openclaw/n2n/federation.db "PRAGMA table_info(member);"` lists 26 columns; `SELECT ... model_provider ...` fails with `no such column: model_provider`).
+  - SC-004: Independent write-path probe still fails at first mutation (`sqlite3 ~/.openclaw/n2n/federation.db "UPDATE risk SET role='border' WHERE id=1;"` => `attempt to write a readonly database`), so enrollment/provider-attribution cannot be completed in this run.
+Criteria claimed but not evidenced:
+  - SC-004: No evidence that Astra Twin is discoverable as a distinct, correctly provider-attributed mesh member in any admin lookup.
+Concerns: Immediate policy violation: `loop/runs/11/diff.patch` modifies frozen path `loop/state/iterations.md`; for this checker workflow that is an automatic reject independent of gates.

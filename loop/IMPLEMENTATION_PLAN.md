@@ -120,6 +120,13 @@ Blocked (iteration 10): reran the actual enrollment flow using
 `RiskManager.set_role('border')` (updates the `risk` table before token issue), with the same
 `sqlite3.OperationalError: attempt to write a readonly database` on
 `~/.openclaw/n2n/federation.db`. D1 remains blocked on runner write access to `~/.openclaw`.
+Blocked (iteration 11): reconfirmed with three probes in this runner:
+`PRAGMA table_info(member)` still shows no `model_provider` column, direct sqlite
+`UPDATE risk SET role='border' WHERE id=1` still fails with readonly-db, and the real enrollment
+path (`FederationManager` + `RiskManager.set_role` + `issue_token`/`consume_token`) still raises
+`sqlite3.OperationalError: attempt to write a readonly database` against
+`~/.openclaw/n2n/federation.db`. D1 remains blocked until the loop executes on a worker with
+writable `~/.openclaw`.
 
 ### D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
 

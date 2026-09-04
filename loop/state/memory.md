@@ -201,3 +201,17 @@ step with `sqlite3.OperationalError: attempt to write a readonly database`.
 
 For future retries in constrained runners: checking only whether `consume_token` can run is not
 sufficient; writable DB is required from the `set_role` step onward.
+
+## D1 blocker reconfirmed on iteration 11: schema unchanged and writes still denied
+
+Iteration 11 re-ran D1 validation with three independent checks against
+`~/.openclaw/n2n/federation.db`:
+
+- `PRAGMA table_info(member);` still lists 26 columns and does not include `model_provider`.
+- Direct sqlite write probe (`UPDATE risk SET role='border' WHERE id=1;`) still fails with
+  `attempt to write a readonly database`.
+- Real module path (`mcp-servers/protocol-mcp/bgp/federation/{manager,risk}.py`) still raises
+  `sqlite3.OperationalError: attempt to write a readonly database` at `RiskManager.set_role`.
+
+This confirms D1 cannot be completed in this sandbox; failure is environmental, not a transient in
+token issuance/consumption logic.
