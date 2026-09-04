@@ -3729,6 +3729,48 @@ fi
 echo ""
 }
 
+# ── World Labs Marble: fantastical topology viz (spec 122) ───────
+component_install_worldlabs_marble() {
+log_step "Configuring World Labs Fantastical Topology Visualization..."
+echo "  Source: mcp-servers/worldlabs-marble-mcp (NetClaw-authored, spec 122)"
+echo "  Free themed preview (no cost, no credential needed) plus, after explicit"
+echo "  confirmation, an image-conditioned explorable 3D world generated via the World"
+echo "  Labs Marble API — decorative/companion only, never a substitute for the accurate"
+echo "  topology diagram it is derived from (reuses topology-diagram-mcp unmodified)."
+echo "  The generate step spends real World Labs credits (~5 minutes per world) and"
+echo "  requires a funded account: https://platform.worldlabs.ai/billing"
+
+read -r -p "Enable World Labs Fantastical Topology Visualization? [y/N] " enable_worldlabs_marble
+if [[ "$enable_worldlabs_marble" =~ ^[Yy]$ ]]; then
+    WORLDLABS_MARBLE_MCP_DIR="$MCP_DIR/worldlabs-marble-mcp"
+
+    if [ -d "$WORLDLABS_MARBLE_MCP_DIR" ]; then
+        netclaw_pip_install -r "$WORLDLABS_MARBLE_MCP_DIR/requirements.txt" 2>/dev/null || \
+            log_warn "World Labs Marble MCP dependency install failed (mcp, httpx)"
+        log_info "World Labs Marble MCP prepared: $WORLDLABS_MARBLE_MCP_DIR"
+    else
+        log_warn "World Labs Marble MCP directory missing: $WORLDLABS_MARBLE_MCP_DIR"
+    fi
+
+    if command -v openclaw &> /dev/null; then
+        openclaw mcp set worldlabs-marble-mcp "{\"command\":\"python3\",\"args\":[\"-u\",\"mcp-servers/worldlabs-marble-mcp/server.py\"],\"cwd\":\"$NETCLAW_DIR\",\"env\":{\"WLT_API_KEY\":\"\${WLT_API_KEY}\"}}" 2>/dev/null \
+            || log_warn "openclaw mcp set failed for worldlabs-marble-mcp"
+    fi
+
+    echo ""
+    echo "  Configure in $RUNTIME_ENV:"
+    echo "    WLT_API_KEY=your_worldlabs_api_key   # https://platform.worldlabs.ai/api-keys"
+    echo ""
+    echo "  Only needed for the generate step — the free preview mode needs no credential."
+    echo "  See specs/122-worldlabs-topology-viz/quickstart.md."
+    echo ""
+else
+    log_info "Skipping World Labs Fantastical Topology Visualization — install it later with this same prompt."
+fi
+
+echo ""
+}
+
 # ── Chrome DevTools MCP: headless + Watch Mode (spec 048) ───────
 component_install_chrome_devtools() {
 log_step "Configuring Chrome DevTools MCP (headless + Watch Mode)..."

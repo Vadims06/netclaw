@@ -105,6 +105,7 @@ CATALOG=(
     "ue5|Analysis & Diagrams|Unreal Engine 5|3D digital twin (requires UE5.8+ with MCP plugin)"
     "threejs-viz|Analysis & Diagrams|Three.js Network Viz|Browser-based 3D topology, no desktop app/GPU (optional Sketchfab real-stencil mode)"
     "comfyui-viz|Analysis & Diagrams|ComfyUI Topology Visualization|AI-generated stylized topology stills via a self-hosted ComfyUI instance"
+    "worldlabs-marble|Analysis & Diagrams|World Labs Fantastical Topology Viz|Free themed prompt preview + (credits-spending, confirmation-gated) explorable 3D world generation via World Labs Marble (spec 122)"
     "chrome-devtools|Analysis & Diagrams|Chrome DevTools|Browser automation/inspection — visualization QA, controller GUI gap-fill, API discovery, Watch Mode (2 servers)"
     "computer-use|Analysis & Diagrams|Computer Use|Full-desktop automation for API-less/browser-less targets — Xvfb+XFCE virtual desktop, 17 actions, VNC Watch Mode (via ClawHub)"
 

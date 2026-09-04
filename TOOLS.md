@@ -270,6 +270,41 @@ usable standalone; both run on the `johns-risk/viz` federation member, invoked f
   end to end against the real `johns-risk/viz` member. See research.md R10 for the full account —
   this was the first working internal `n2n/tools/call` in NetClaw's history.
 
+## worldlabs-marble-mcp (spec 122 fantastical topology viz)
+
+One new NetClaw-authored MCP server, a thin fully stateless proxy to three World Labs Marble REST
+endpoints, backing `workspace/skills/worldlabs-topology-viz/`. Unlike spec 121's pair above, this
+runs standalone on Border — no federation member required. See
+`specs/122-worldlabs-topology-viz/research.md` and `contracts/worldlabs-marble-mcp.md` for the full
+design.
+
+- **`generate_world(image_base64, text_prompt, display_name, user_confirmed, image_extension="png", model="marble-1.1")`**
+  — the one credit-spending operation. Passes the reference PNG inline via Marble's
+  `data_base64` image-reference source (no separate upload round trip — research.md R1). Requires
+  `user_confirmed=true`; a missing/false value is rejected with `confirmation_required` before any
+  request reaches World Labs (FR-016, research.md R8) — a code-level guard *in addition to* the
+  conversational confirmation the skill also requires.
+- **`check_generation_status(operation_id)`** — polls a started generation; a 404 maps to
+  `not_found_or_expired` (operation records carry roughly a one-hour `expires_at`).
+- **`get_world(world_id)`** — durable, no-cost fallback lookup for when an operation record has
+  expired but the world it produced has not (research.md R4); a 404 here maps to `not_found`
+  instead, since a world either exists or it doesn't.
+- Every non-200 response is normalized into one of five categories (`authentication_failure`,
+  `insufficient_credits`, `rate_limited`, `not_found_or_expired`/`not_found`, `generic_failure`) —
+  never the raw provider error object, and the `WLT_API_KEY` value is read fresh from the
+  environment on every call, never logged, never echoed in a result (FR-010).
+- **Explicitly decorative, not authoritative**: every preview and generation result the skill
+  produces carries a fixed statement (`topology_model.DECORATIVE_LABEL`) that the generated world
+  is an artistic interpretation, not an accurate diagram — the real, structurally-correct diagram
+  (from the existing, unmodified `topology-diagram-mcp/render_structural`) remains the source of
+  truth. Confirmed generation attempts are recorded in the existing GAIT audit trail
+  (`gait_record_turn`, Constitution Principle IV) — not a new store, and not optional (FR-015).
+- **Real-world finding, not documented upstream**: a freshly-created, funded World Labs API key can
+  return a bare HTTP 401 with no further detail — this was a platform-side propagation delay/issue,
+  not a client-side mistake (verified by reproducing the exact documented quickstart request
+  byte-for-byte and still getting 401, then confirming a newly-rotated key worked immediately).
+  Don't assume a 401 from a just-created key means the key or the request is wrong.
+
 ## Claroty xDome MCP Server
 
 The Claroty xDome MCP server provides 21 tools (15 read-only + 6 ITSM-gated writes) for OT / IoT / IoMT visibility via stdio transport:
