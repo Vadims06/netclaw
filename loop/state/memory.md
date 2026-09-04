@@ -66,3 +66,14 @@ were independently confirmed to be a real, human-controlled CML lab (one points 
 external DevNet sandbox host, not a lab under local control). Do not populate the allowlist
 with a guess at which existing testbed is "probably fine" — that decision belongs to the human
 running the loop, not to a build iteration.
+
+## C1 wiring detail: server.js uses mcp-call.py to reach astra-twin-mcp
+
+`ui/netclaw-visual/server.js` now implements `GET /api/twin/snapshot` via
+`scripts/mcp-call.py` and `get_snapshot()` (stdio MCP call), matching the one-shot tool-call
+pattern already used for `rag-mcp`. Useful overrides for later Phase C work:
+- `ASTRA_TWIN_MCP_SERVER_CMD` to set a full custom server command
+- `ASTRA_TWIN_MCP_PYTHON` and `ASTRA_TWIN_MCP_SERVER_PATH` to compose that command from parts
+
+The route returns the MCP payload shape as-is (`structuredContent` preferred, then JSON text
+content fallback), so frontend contracts should consume the `TwinSnapshot` schema directly.

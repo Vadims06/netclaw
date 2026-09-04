@@ -17,8 +17,9 @@ here with the checker's reason appended under it, sorted above new work in the s
 Add a route that calls `astra-twin-mcp`'s `get_snapshot()` tool (spawn it as an MCP client over
 stdio, matching how `astra-twin-mcp/collector.py` itself talks to `pyATS_MCP` — same pattern,
 one level up) and returns the `TwinSnapshot` JSON unmodified, per
-`specs/122-astra-live-digital-twin/contracts/astra-twin-mcp.md`. Not done: `astra-twin-mcp`
-tool-call wiring inside `server.js`.
+`specs/122-astra-live-digital-twin/contracts/astra-twin-mcp.md`.
+Done (iteration 0): `server.js` now exposes `GET /api/twin/snapshot`, calling `get_snapshot()`
+through `scripts/mcp-call.py` over stdio and returning the payload shape unchanged.
 
 ### C2. `WS /ws/twin` in `ui/netclaw-visual/server.js`
 

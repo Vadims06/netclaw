@@ -28,6 +28,13 @@ const TESTBED_FILE = path.join(ROOT, 'testbed/testbed.yaml');
 const CONFIG_FILE = path.join(ROOT, 'config/openclaw.json');
 const IDENTITY_FILE = path.join(ROOT, 'IDENTITY.md');
 const SOUL_FILE = path.join(ROOT, 'SOUL.md');
+const MCP_CALL_SCRIPT = path.join(ROOT, 'scripts', 'mcp-call.py');
+const ASTRA_TWIN_MCP_PYTHON = process.env.ASTRA_TWIN_MCP_PYTHON || 'python3';
+const ASTRA_TWIN_MCP_SERVER = process.env.ASTRA_TWIN_MCP_SERVER_PATH
+  ? process.env.ASTRA_TWIN_MCP_SERVER_PATH.replace(/^~/, os.homedir())
+  : path.join(ROOT, 'mcp-servers', 'astra-twin-mcp', 'server.py');
+const ASTRA_TWIN_MCP_CMD = process.env.ASTRA_TWIN_MCP_SERVER_CMD
+  || `${ASTRA_TWIN_MCP_PYTHON} -u ${ASTRA_TWIN_MCP_SERVER}`;
 
 const INTEGRATION_CATALOG = [
   { id: 'pyats', name: 'pyATS', category: 'Device Automation', prefixes: ['pyats-'], color: '#4cc9f0', transport: 'stdio', toolEstimate: 120, description: 'CLI-first device automation, health checks, routing, topology, and controlled change workflows.' },
@@ -898,12 +905,47 @@ function buildGraph() {
 
 export { buildGraph };
 
+function callAstraTwinTool(tool, args = {}, timeoutSec = 60) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'python3',
+      [MCP_CALL_SCRIPT, ASTRA_TWIN_MCP_CMD, tool, JSON.stringify(args)],
+      {
+        timeout: (timeoutSec + 30) * 1000,
+        maxBuffer: 64 * 1024 * 1024,
+        env: { ...process.env, MCP_CALL_TIMEOUT: String(timeoutSec) },
+      },
+      (err, stdout, stderr) => {
+        if (err) return reject(new Error(stderr || err.message));
+        try {
+          const result = JSON.parse(stdout);
+          const payload = result.structuredContent
+            || (result.content && result.content[0] && JSON.parse(result.content[0].text))
+            || result;
+          resolve(payload);
+        } catch (parseErr) {
+          reject(new Error(`Unparseable astra-twin-mcp response: ${parseErr.message}`));
+        }
+      }
+    );
+  });
+}
+
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, service: 'netclaw-visual-api', generatedAt: new Date().toISOString() });
 });
 
 app.get('/api/graph', (req, res) => {
   res.json(buildGraph());
+});
+
+app.get('/api/twin/snapshot', async (req, res) => {
+  try {
+    const snapshot = await callAstraTwinTool('get_snapshot', {}, 60);
+    res.json(snapshot);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // ── BGP topology endpoint ─────────────────────────────────────────

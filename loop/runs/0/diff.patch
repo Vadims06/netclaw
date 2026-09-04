@@ -1,0 +1,102 @@
+diff --git a/loop/IMPLEMENTATION_PLAN.md b/loop/IMPLEMENTATION_PLAN.md
+index 3f90b30..2e023e1 100644
+--- a/loop/IMPLEMENTATION_PLAN.md
++++ b/loop/IMPLEMENTATION_PLAN.md
+@@ -17,8 +17,9 @@ here with the checker's reason appended under it, sorted above new work in the s
+ Add a route that calls `astra-twin-mcp`'s `get_snapshot()` tool (spawn it as an MCP client over
+ stdio, matching how `astra-twin-mcp/collector.py` itself talks to `pyATS_MCP` — same pattern,
+ one level up) and returns the `TwinSnapshot` JSON unmodified, per
+-`specs/122-astra-live-digital-twin/contracts/astra-twin-mcp.md`. Not done: `astra-twin-mcp`
+-tool-call wiring inside `server.js`.
++`specs/122-astra-live-digital-twin/contracts/astra-twin-mcp.md`.
++Done (iteration 0): `server.js` now exposes `GET /api/twin/snapshot`, calling `get_snapshot()`
++through `scripts/mcp-call.py` over stdio and returning the payload shape unchanged.
+ 
+ ### C2. `WS /ws/twin` in `ui/netclaw-visual/server.js`
+ 
+diff --git a/loop/state/memory.md b/loop/state/memory.md
+index 612b45c..780b56e 100644
+--- a/loop/state/memory.md
++++ b/loop/state/memory.md
+@@ -66,3 +66,14 @@ were independently confirmed to be a real, human-controlled CML lab (one points
+ external DevNet sandbox host, not a lab under local control). Do not populate the allowlist
+ with a guess at which existing testbed is "probably fine" — that decision belongs to the human
+ running the loop, not to a build iteration.
++
++## C1 wiring detail: server.js uses mcp-call.py to reach astra-twin-mcp
++
++`ui/netclaw-visual/server.js` now implements `GET /api/twin/snapshot` via
++`scripts/mcp-call.py` and `get_snapshot()` (stdio MCP call), matching the one-shot tool-call
++pattern already used for `rag-mcp`. Useful overrides for later Phase C work:
++- `ASTRA_TWIN_MCP_SERVER_CMD` to set a full custom server command
++- `ASTRA_TWIN_MCP_PYTHON` and `ASTRA_TWIN_MCP_SERVER_PATH` to compose that command from parts
++
++The route returns the MCP payload shape as-is (`structuredContent` preferred, then JSON text
++content fallback), so frontend contracts should consume the `TwinSnapshot` schema directly.
+diff --git a/ui/netclaw-visual/server.js b/ui/netclaw-visual/server.js
+index 25501d8..c3d63fd 100644
+--- a/ui/netclaw-visual/server.js
++++ b/ui/netclaw-visual/server.js
+@@ -28,6 +28,13 @@ const TESTBED_FILE = path.join(ROOT, 'testbed/testbed.yaml');
+ const CONFIG_FILE = path.join(ROOT, 'config/openclaw.json');
+ const IDENTITY_FILE = path.join(ROOT, 'IDENTITY.md');
+ const SOUL_FILE = path.join(ROOT, 'SOUL.md');
++const MCP_CALL_SCRIPT = path.join(ROOT, 'scripts', 'mcp-call.py');
++const ASTRA_TWIN_MCP_PYTHON = process.env.ASTRA_TWIN_MCP_PYTHON || 'python3';
++const ASTRA_TWIN_MCP_SERVER = process.env.ASTRA_TWIN_MCP_SERVER_PATH
++  ? process.env.ASTRA_TWIN_MCP_SERVER_PATH.replace(/^~/, os.homedir())
++  : path.join(ROOT, 'mcp-servers', 'astra-twin-mcp', 'server.py');
++const ASTRA_TWIN_MCP_CMD = process.env.ASTRA_TWIN_MCP_SERVER_CMD
++  || `${ASTRA_TWIN_MCP_PYTHON} -u ${ASTRA_TWIN_MCP_SERVER}`;
+ 
+ const INTEGRATION_CATALOG = [
+   { id: 'pyats', name: 'pyATS', category: 'Device Automation', prefixes: ['pyats-'], color: '#4cc9f0', transport: 'stdio', toolEstimate: 120, description: 'CLI-first device automation, health checks, routing, topology, and controlled change workflows.' },
+@@ -898,6 +905,32 @@ function buildGraph() {
+ 
+ export { buildGraph };
+ 
++function callAstraTwinTool(tool, args = {}, timeoutSec = 60) {
++  return new Promise((resolve, reject) => {
++    execFile(
++      'python3',
++      [MCP_CALL_SCRIPT, ASTRA_TWIN_MCP_CMD, tool, JSON.stringify(args)],
++      {
++        timeout: (timeoutSec + 30) * 1000,
++        maxBuffer: 64 * 1024 * 1024,
++        env: { ...process.env, MCP_CALL_TIMEOUT: String(timeoutSec) },
++      },
++      (err, stdout, stderr) => {
++        if (err) return reject(new Error(stderr || err.message));
++        try {
++          const result = JSON.parse(stdout);
++          const payload = result.structuredContent
++            || (result.content && result.content[0] && JSON.parse(result.content[0].text))
++            || result;
++          resolve(payload);
++        } catch (parseErr) {
++          reject(new Error(`Unparseable astra-twin-mcp response: ${parseErr.message}`));
++        }
++      }
++    );
++  });
++}
++
+ app.get('/api/health', (req, res) => {
+   res.json({ ok: true, service: 'netclaw-visual-api', generatedAt: new Date().toISOString() });
+ });
+@@ -906,6 +939,15 @@ app.get('/api/graph', (req, res) => {
+   res.json(buildGraph());
+ });
+ 
++app.get('/api/twin/snapshot', async (req, res) => {
++  try {
++    const snapshot = await callAstraTwinTool('get_snapshot', {}, 60);
++    res.json(snapshot);
++  } catch (err) {
++    res.status(502).json({ error: err.message });
++  }
++});
++
+ // ── BGP topology endpoint ─────────────────────────────────────────
+ const BGP_API = 'http://127.0.0.1:8179';
+ 
