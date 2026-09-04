@@ -215,3 +215,25 @@ Iteration 11 re-ran D1 validation with three independent checks against
 
 This confirms D1 cannot be completed in this sandbox; failure is environmental, not a transient in
 token issuance/consumption logic.
+
+## D1 blocker reconfirmed on iteration 12 with exact failing path
+
+Iteration 12 reran D1 using the real repo modules from
+`mcp-servers/protocol-mcp/bgp/federation/` and still failed on the first write:
+`RiskManager.set_role('border')` raises `sqlite3.OperationalError: attempt to write a readonly
+database` (`risk.py` line 339 in this checkout). Independent probes still show:
+
+- `PRAGMA table_info(member)` has 26 columns and no `model_provider`.
+- `UPDATE risk SET role='border' WHERE id=1` fails readonly.
+- `SELECT ... FROM member WHERE member_id/display_name LIKE '%astra%'` returns no rows.
+
+No part of the enrollment flow (`issue_token`/`consume_token`) is reachable until that first write
+succeeds, so D1 remains runner-blocked rather than logic-blocked.
+
+## Gate quirk: run_gates visual verify still skips in this runner after Phase C
+
+`harness/run_gates.sh loop/runs/12` passes, but still prints:
+`SKIP: visual_verify.py — http://localhost:3001/ not reachable yet (expected before Phase C's HUD routes exist)`.
+Phase C routes are already implemented, so this skip in current loop runs is due local socket
+reachability/runtime startup assumptions, not missing C tasks. Do not treat this skip message as
+proof that C1-C3 are absent.

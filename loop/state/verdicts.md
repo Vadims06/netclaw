@@ -117,3 +117,13 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - SC-004: No evidence that Astra Twin is discoverable as a distinct, correctly provider-attributed mesh member in any admin lookup.
 Concerns: Immediate policy violation: `loop/runs/11/diff.patch` modifies frozen path `loop/state/iterations.md`; for this checker workflow that is an automatic reject independent of gates.
+
+## Iteration 12 — D1. Enroll Astra Twin as a real iN2N member
+Verdict: REJECT
+Criteria evidenced:
+  - FR-006: Independent member lookup on `~/.openclaw/n2n/federation.db` found no Astra Twin enrollment row (`SELECT member_id,display_name,node_type,state FROM member WHERE member_id='astra-twin' OR member_id LIKE '%/astra-twin%' OR lower(display_name) LIKE '%astra twin%';` returned zero rows).
+  - FR-007: Independent schema inspection shows provider attribution is not representable in the live DB here (`PRAGMA table_info(member);` lists 26 columns and no `model_provider`; selecting that column errors with `no such column: model_provider`).
+  - SC-004: Independent write-path checks fail before enrollment/token flow can run: direct SQL `UPDATE risk SET role='border' WHERE id=1` returns `attempt to write a readonly database`, and real module-path execution (`FederationManager` + `RiskManager.set_role('border')`) raises `sqlite3.OperationalError: attempt to write a readonly database` at `mcp-servers/protocol-mcp/bgp/federation/risk.py:339`.
+Criteria claimed but not evidenced:
+  - FR-006 / FR-007 / SC-004: The iteration does not produce a successful, queryable Astra Twin member record with correct provider attribution.
+Concerns: Immediate policy violation: `loop/runs/12/diff.patch` modifies frozen path `loop/state/iterations.md` (outside allowed maker-write exceptions under `loop/`), which is an automatic reject regardless of gate pass output.

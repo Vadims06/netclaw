@@ -127,6 +127,12 @@ path (`FederationManager` + `RiskManager.set_role` + `issue_token`/`consume_toke
 `sqlite3.OperationalError: attempt to write a readonly database` against
 `~/.openclaw/n2n/federation.db`. D1 remains blocked until the loop executes on a worker with
 writable `~/.openclaw`.
+Blocked (iteration 12): reran D1 with fresh probes. `PRAGMA table_info(member)` still shows 26
+columns with no `model_provider`; `UPDATE risk SET role='border' WHERE id=1` still returns
+`attempt to write a readonly database`; and the real module path under
+`mcp-servers/protocol-mcp/bgp/federation/` still fails at `RiskManager.set_role('border')` with
+`sqlite3.OperationalError: attempt to write a readonly database`. No `astra-twin` member row can
+be created in this runner until `~/.openclaw` is writable.
 
 ### D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
 
