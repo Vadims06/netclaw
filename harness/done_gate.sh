@@ -4,8 +4,13 @@
 #
 # Frozen. This is a mechanical presence check, not a re-judgment of the checker's verdicts —
 # it exists so "done" can never be asserted by a maker/checker pair simply forgetting to write
-# an entry for a criterion. It is deliberately dumb: it does not evaluate whether the evidence
-# a criterion cites is actually convincing, only that every criterion has SOME entry.
+# an entry for a criterion. It is deliberately dumb about the QUALITY of evidence: it does not
+# evaluate whether the evidence a criterion cites is actually convincing, only that every
+# criterion appears under "Criteria evidenced:" inside a block whose own Verdict is ACCEPT (see
+# harness/parse_verdicts.py) — it must NOT be dumb about ACCEPT vs REJECT: a criterion merely
+# mentioned inside a rejected iteration's reasoning (e.g. "FR-006: not evidenced...") does not
+# count. A bare substring search across the whole file cannot make that distinction and falsely
+# reports done once every criterion has been mentioned anywhere, evidenced or not.
 
 set -uo pipefail
 
@@ -24,15 +29,21 @@ if [[ ${#CRITERIA[@]} -eq 0 ]]; then
   exit 1
 fi
 
-missing=()
-for id in "${CRITERIA[@]}"; do
-  if ! grep -q -- "$id" "$VERDICTS"; then
-    missing+=("$id")
-  fi
-done
+missing_output="$(python3 "$REPO_ROOT/harness/parse_verdicts.py" "$VERDICTS" "${CRITERIA[@]}")"
+parser_exit=$?
 
-if [[ ${#missing[@]} -gt 0 ]]; then
-  echo "NOT DONE — missing evidence for: ${missing[*]}" >&2
+# Exit 2 means the parser itself failed (usage error, crash) — this must NEVER be read as
+# "nothing missing." Only 0 (all satisfied) and 1 (some missing, with names on stdout) are
+# meaningful results.
+if [[ $parser_exit -ge 2 ]]; then
+  echo "ERROR: harness/parse_verdicts.py failed (exit $parser_exit) — refusing to report done:" >&2
+  echo "$missing_output" >&2
+  exit 1
+fi
+
+if [[ $parser_exit -eq 1 ]]; then
+  mapfile -t missing <<< "$missing_output"
+  echo "NOT DONE — missing ACCEPTed evidence for: ${missing[*]}" >&2
   exit 1
 fi
 
