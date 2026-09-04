@@ -66,6 +66,11 @@ failures, and nonzero `consecutive_failures` all force a visible STALE state.
 
 When a delta lands, visually distinguish the affected node/link from stable state for a short
 window (e.g., a brief highlight/pulse) so an operator can tell "just changed" from "steady."
+Done (iteration 5): `src/twin/live-twin.js` now surfaces every incoming `TwinDelta` as a
+transient fixed HUD notice (`#astra-twin-last-change`, 3s visibility) with explicit change text
+for all delta kinds, including removals (`node_removed`, `link_removed`). Existing geometry-level
+flash behavior remains for node/link add or state-change deltas, so both in-scene emphasis and
+operator-visible textual "just changed" context are present.
 
 ### C6. Camera-state preservation (FR-008)
 

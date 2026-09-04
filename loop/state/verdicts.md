@@ -52,3 +52,12 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - SC-005: Not independently timed with a real operator or full browser session in this environment; evidence is code-path + runtime harness output.
 Concerns: Immediate policy violation: `loop/runs/4/diff.patch` modifies frozen paths `loop/runs/4/task.txt` and `loop/state/iterations.md` (checker rule says everything under `loop/` is frozen except `IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, and `loop/state/debt.md`), requiring rejection regardless of functional correctness.
+
+## Iteration 5 — C5. Delta highlighting (FR-009)
+Verdict: REJECT
+Criteria evidenced:
+  - FR-009: [ui/netclaw-visual/src/twin/live-twin.js] adds a dedicated `#astra-twin-last-change` overlay and routes every recognized `TwinDelta.kind` through `showChange(delta)` after `applyDelta`, including removals. Independent runtime probe executed from `ui/netclaw-visual` (`node --input-type=module`) with a mocked WebSocket drove all six delta kinds and produced visible HUD text per event: `node_added: Twin change | Node added: R1`, `node_removed: Twin change | Node removed: R1`, `link_added: Twin change | Link added: r1-r2`, `link_removed: Twin change | Link removed: r1-r2`, `node_status_changed: Twin change | Node status: R2 -> down`, `link_state_changed: Twin change | Link state: l1 -> down`; overlay auto-faded to `opacity=0` after ~3.2s.
+  - FR-003: `loop/runs/5/diff.patch` introduces no write-capable network tool usage; changes are UI-only plus loop state/documentation files.
+Criteria claimed but not evidenced:
+  - none
+Concerns: Immediate policy violation: `loop/runs/5/diff.patch` modifies frozen path `loop/state/iterations.md` (driver-owned under `loop/`; only `loop/IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, and `loop/state/debt.md` are maker-writable), so this iteration must be rejected regardless of functional FR-009 behavior.

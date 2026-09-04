@@ -124,3 +124,13 @@ iteration and use normal file edits/gates flow.
 - Staleness rule is intentionally explicit in the client: stale when
   `now - last_successful_poll > max(45s, poll_interval_seconds*3 + 5)`. Also forced stale on null
   or unparseable timestamps, status endpoint errors, or `consecutive_failures > 0`.
+
+## C5 wiring detail: delta highlighting includes removal events via HUD notice
+
+`ui/netclaw-visual/src/twin/live-twin.js` now has two distinct "recent change" channels:
+- existing in-scene flash/pulse (`flashes` map in `tick()`) for node/link add + state-change deltas
+- a new fixed overlay `#astra-twin-last-change` that displays `Twin change | ...` for 3 seconds
+  on *every* recognized `TwinDelta` kind, including removals (`node_removed`, `link_removed`)
+
+This avoids the removals blind spot where an object disappears with no remaining geometry to pulse.
+If this element's id or text contract is changed later, update any visual checks that assert FR-009.

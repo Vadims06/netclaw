@@ -44,6 +44,8 @@ export function createLiveTwinLayer({
   let reconnectTimer = null;
   let statusPollTimer = null;
   let freshnessElement = null;
+  let changeElement = null;
+  let changeClearTimer = null;
   let disposed = false;
   let lastError = null;
   const nodeSlots = new Map();
@@ -72,6 +74,45 @@ export function createLiveTwinLayer({
       + 'letter-spacing:.02em;pointer-events:none;';
     document.body.appendChild(freshnessElement);
     return freshnessElement;
+  }
+
+  function ensureChangeElement() {
+    if (changeElement) return changeElement;
+    changeElement = document.getElementById('astra-twin-last-change');
+    if (changeElement) return changeElement;
+    changeElement = document.createElement('div');
+    changeElement.id = 'astra-twin-last-change';
+    changeElement.style.cssText = 'position:fixed;top:46px;right:10px;z-index:9999;'
+      + 'padding:6px 10px;border-radius:8px;border:1px solid #164e63;'
+      + 'background:rgba(8,47,73,.9);color:#cffafe;font:12px/1.4 ui-monospace,monospace;'
+      + 'letter-spacing:.02em;pointer-events:none;transition:opacity .25s ease;'
+      + 'opacity:0;';
+    document.body.appendChild(changeElement);
+    return changeElement;
+  }
+
+  function describeDeltaChange(delta) {
+    if (!delta || typeof delta !== 'object') return null;
+    if (delta.kind === 'node_added') return `Node added: ${delta.node?.label || delta.node?.id || 'unknown'}`;
+    if (delta.kind === 'node_removed') return `Node removed: ${delta.node?.label || delta.node?.id || 'unknown'}`;
+    if (delta.kind === 'node_status_changed') return `Node status: ${delta.node?.label || delta.node?.id || 'unknown'} -> ${delta.node?.status || 'unknown'}`;
+    if (delta.kind === 'link_added') return `Link added: ${delta.link?.id || 'unknown'}`;
+    if (delta.kind === 'link_removed') return `Link removed: ${delta.link?.id || 'unknown'}`;
+    if (delta.kind === 'link_state_changed') return `Link state: ${delta.link?.id || 'unknown'} -> ${delta.link?.state || 'unknown'}`;
+    return null;
+  }
+
+  function showChange(delta) {
+    const text = describeDeltaChange(delta);
+    if (!text) return;
+    const el = ensureChangeElement();
+    el.textContent = `Twin change | ${text}`;
+    el.style.opacity = '1';
+    if (changeClearTimer) clearTimeout(changeClearTimer);
+    changeClearTimer = setTimeout(() => {
+      changeClearTimer = null;
+      el.style.opacity = '0';
+    }, 3000);
   }
 
   function formatAge(seconds) {
@@ -284,6 +325,7 @@ export function createLiveTwinLayer({
       default:
         break;
     }
+    showChange(delta);
     setDebug();
   }
 
@@ -402,6 +444,8 @@ export function createLiveTwinLayer({
     if (reconnectTimer) clearTimeout(reconnectTimer);
     if (statusPollTimer) clearInterval(statusPollTimer);
     statusPollTimer = null;
+    if (changeClearTimer) clearTimeout(changeClearTimer);
+    changeClearTimer = null;
     if (socket) socket.close();
     for (const linkId of [...links.keys()]) removeLink(linkId);
     for (const nodeId of [...nodes.keys()]) removeNode(nodeId);
@@ -410,6 +454,8 @@ export function createLiveTwinLayer({
     Object.values(nodeMaterials).forEach((m) => m.dispose());
     freshnessElement?.remove();
     freshnessElement = null;
+    changeElement?.remove();
+    changeElement = null;
   }
 
   return {
