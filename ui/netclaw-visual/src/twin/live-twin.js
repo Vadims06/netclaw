@@ -16,9 +16,56 @@ function hashString(input) {
   return h >>> 0;
 }
 
+export function captureTwinViewState(camera, controls) {
+  if (!camera || !controls) return null;
+  const camPos = camera.position;
+  const target = controls.target;
+  if (!camPos || !target || !Number.isFinite(camera.zoom)) return null;
+  return {
+    camera: { x: camPos.x, y: camPos.y, z: camPos.z, zoom: camera.zoom },
+    target: { x: target.x, y: target.y, z: target.z },
+  };
+}
+
+function setVec3(vec, xyz) {
+  if (!vec || !xyz) return;
+  if (typeof vec.set === 'function') {
+    vec.set(xyz.x, xyz.y, xyz.z);
+    return;
+  }
+  vec.x = xyz.x;
+  vec.y = xyz.y;
+  vec.z = xyz.z;
+}
+
+export function restoreTwinViewState(camera, controls, snapshot) {
+  if (!snapshot || !camera || !controls) return false;
+  const pos = camera.position;
+  const target = controls.target;
+  if (!pos || !target) return false;
+  const cam = snapshot.camera;
+  const tgt = snapshot.target;
+  const changed = pos.x !== cam.x
+    || pos.y !== cam.y
+    || pos.z !== cam.z
+    || camera.zoom !== cam.zoom
+    || target.x !== tgt.x
+    || target.y !== tgt.y
+    || target.z !== tgt.z;
+  if (!changed) return false;
+  setVec3(pos, cam);
+  camera.zoom = cam.zoom;
+  camera.updateProjectionMatrix?.();
+  setVec3(target, tgt);
+  controls.update?.();
+  return true;
+}
+
 export function createLiveTwinLayer({
   scene,
   makeLabel,
+  camera = null,
+  controls = null,
   snapshotUrl = '/api/twin/snapshot',
   statusUrl = '/api/twin/status',
 }) {
@@ -52,6 +99,12 @@ export function createLiveTwinLayer({
   const nodes = new Map();
   const links = new Map();
   const flashes = new Map();
+
+  function withPreservedView(updateFn) {
+    const before = captureTwinViewState(camera, controls);
+    updateFn();
+    restoreTwinViewState(camera, controls, before);
+  }
 
   function setDebug(error = lastError) {
     lastError = error;
@@ -288,67 +341,71 @@ export function createLiveTwinLayer({
   }
 
   function applyDelta(delta) {
-    if (!delta || typeof delta !== 'object') return;
-    if (typeof delta.seq === 'number' && delta.seq <= lastSeq) return;
-    if (typeof delta.seq === 'number') lastSeq = delta.seq;
-    switch (delta.kind) {
-      case 'node_added':
-        if (delta.node) {
-          upsertNode(delta.node);
-          markChanged(`node:${delta.node.id}`);
-        }
-        break;
-      case 'node_removed':
-        if (delta.node?.id) removeNode(delta.node.id);
-        break;
-      case 'node_status_changed':
-        if (delta.node) {
-          upsertNode(delta.node);
-          markChanged(`node:${delta.node.id}`);
-        }
-        break;
-      case 'link_added':
-        if (delta.link) {
-          upsertLink(delta.link);
-          markChanged(`link:${delta.link.id}`);
-        }
-        break;
-      case 'link_removed':
-        if (delta.link?.id) removeLink(delta.link.id);
-        break;
-      case 'link_state_changed':
-        if (delta.link) {
-          upsertLink(delta.link);
-          markChanged(`link:${delta.link.id}`);
-        }
-        break;
-      default:
-        break;
-    }
-    showChange(delta);
-    setDebug();
+    withPreservedView(() => {
+      if (!delta || typeof delta !== 'object') return;
+      if (typeof delta.seq === 'number' && delta.seq <= lastSeq) return;
+      if (typeof delta.seq === 'number') lastSeq = delta.seq;
+      switch (delta.kind) {
+        case 'node_added':
+          if (delta.node) {
+            upsertNode(delta.node);
+            markChanged(`node:${delta.node.id}`);
+          }
+          break;
+        case 'node_removed':
+          if (delta.node?.id) removeNode(delta.node.id);
+          break;
+        case 'node_status_changed':
+          if (delta.node) {
+            upsertNode(delta.node);
+            markChanged(`node:${delta.node.id}`);
+          }
+          break;
+        case 'link_added':
+          if (delta.link) {
+            upsertLink(delta.link);
+            markChanged(`link:${delta.link.id}`);
+          }
+          break;
+        case 'link_removed':
+          if (delta.link?.id) removeLink(delta.link.id);
+          break;
+        case 'link_state_changed':
+          if (delta.link) {
+            upsertLink(delta.link);
+            markChanged(`link:${delta.link.id}`);
+          }
+          break;
+        default:
+          break;
+      }
+      showChange(delta);
+      setDebug();
+    });
   }
 
   function reconcileSnapshot(snapshot) {
-    const payload = snapshot && typeof snapshot === 'object' ? snapshot : {};
-    const snapshotNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
-    const snapshotLinks = Array.isArray(payload.links) ? payload.links : [];
+    withPreservedView(() => {
+      const payload = snapshot && typeof snapshot === 'object' ? snapshot : {};
+      const snapshotNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
+      const snapshotLinks = Array.isArray(payload.links) ? payload.links : [];
 
-    const nodeIds = new Set(snapshotNodes.map((n) => n.id));
-    const linkIds = new Set(snapshotLinks.map((l) => l.id));
+      const nodeIds = new Set(snapshotNodes.map((n) => n.id));
+      const linkIds = new Set(snapshotLinks.map((l) => l.id));
 
-    for (const staleNodeId of [...nodes.keys()]) {
-      if (!nodeIds.has(staleNodeId)) removeNode(staleNodeId);
-    }
-    for (const staleLinkId of [...links.keys()]) {
-      if (!linkIds.has(staleLinkId)) removeLink(staleLinkId);
-    }
+      for (const staleNodeId of [...nodes.keys()]) {
+        if (!nodeIds.has(staleNodeId)) removeNode(staleNodeId);
+      }
+      for (const staleLinkId of [...links.keys()]) {
+        if (!linkIds.has(staleLinkId)) removeLink(staleLinkId);
+      }
 
-    for (const node of snapshotNodes) upsertNode(node);
-    for (const link of snapshotLinks) upsertLink(link);
+      for (const node of snapshotNodes) upsertNode(node);
+      for (const link of snapshotLinks) upsertLink(link);
 
-    if (typeof payload.seq === 'number') lastSeq = payload.seq;
-    setDebug();
+      if (typeof payload.seq === 'number') lastSeq = payload.seq;
+      setDebug();
+    });
   }
 
   async function fetchSnapshot() {

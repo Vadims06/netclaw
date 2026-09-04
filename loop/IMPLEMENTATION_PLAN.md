@@ -78,6 +78,12 @@ Confirm — and if needed, wire — that applying a delta never resets camera po
 or any manual zoom/grouping already established by specs 101/102's camera-pose persistence.
 This should mostly fall out of C3 doing incremental updates rather than scene rebuilds; treat
 any camera reset on delta application as a bug to fix, not an acceptable side effect.
+Done (iteration 6): `src/twin/live-twin.js` now enforces camera/target preservation around both
+delta application and snapshot reconciliation (`withPreservedView`), using explicit
+capture/restore helpers that reset camera position/zoom + controls target if any twin update path
+mutates them. `src/main.js` now passes the live chart `camera` and `controls` into the twin layer.
+Added `src/twin/live-twin.test.js` coverage for capture/restore behavior, including mutation-then-
+restore with projection/control update callbacks invoked once.
 
 ### C7. `harness/run_gates.sh`'s visual_verify step becomes mandatory
 

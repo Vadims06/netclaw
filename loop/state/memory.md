@@ -134,3 +134,19 @@ iteration and use normal file edits/gates flow.
 
 This avoids the removals blind spot where an object disappears with no remaining geometry to pulse.
 If this element's id or text contract is changed later, update any visual checks that assert FR-009.
+
+## C6 guardrail: twin updates now hard-preserve camera/view pose
+
+FR-008 is now enforced directly in `ui/netclaw-visual/src/twin/live-twin.js`, not left as an
+implicit side effect of incremental rendering. The module captures `{camera.position, camera.zoom,
+controls.target}` before both `applyDelta` and `reconcileSnapshot`, then restores it if changed.
+This means any future twin code path that accidentally calls camera-framing logic during delta
+handling is automatically neutralized.
+
+`createLiveTwinLayer` now accepts `{ camera, controls }` (wired from `src/main.js`). If either is
+not passed, the preservation helper safely no-ops and behavior is unchanged.
+
+Regression coverage lives in `ui/netclaw-visual/src/twin/live-twin.test.js` against exported
+`captureTwinViewState` / `restoreTwinViewState`, including a mutation-then-restore assertion that
+also checks `updateProjectionMatrix()` and `controls.update()` are triggered exactly once on
+restore.

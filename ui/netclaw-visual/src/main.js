@@ -2886,7 +2886,12 @@ async function boot() {
 
     state.orgLayout = mountOrgChart(state.scene, state.n2n, state.orgCatalog, makeLabel);
     frameChart(state.camera, state.controls, chartNodes());
-    state.liveTwin = createLiveTwinLayer({ scene: state.scene, makeLabel });
+    state.liveTwin = createLiveTwinLayer({
+      scene: state.scene,
+      makeLabel,
+      camera: state.camera,
+      controls: state.controls,
+    });
     await state.liveTwin.start();
 
     // ── Feature 102: interactive layout ──────────────────────────────────

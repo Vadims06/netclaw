@@ -1,0 +1,268 @@
+diff --git a/loop/IMPLEMENTATION_PLAN.md b/loop/IMPLEMENTATION_PLAN.md
+index 616404f..d1a13fa 100644
+--- a/loop/IMPLEMENTATION_PLAN.md
++++ b/loop/IMPLEMENTATION_PLAN.md
+@@ -78,6 +78,12 @@ Confirm — and if needed, wire — that applying a delta never resets camera po
+ or any manual zoom/grouping already established by specs 101/102's camera-pose persistence.
+ This should mostly fall out of C3 doing incremental updates rather than scene rebuilds; treat
+ any camera reset on delta application as a bug to fix, not an acceptable side effect.
++Done (iteration 6): `src/twin/live-twin.js` now enforces camera/target preservation around both
++delta application and snapshot reconciliation (`withPreservedView`), using explicit
++capture/restore helpers that reset camera position/zoom + controls target if any twin update path
++mutates them. `src/main.js` now passes the live chart `camera` and `controls` into the twin layer.
++Added `src/twin/live-twin.test.js` coverage for capture/restore behavior, including mutation-then-
++restore with projection/control update callbacks invoked once.
+ 
+ ### C7. `harness/run_gates.sh`'s visual_verify step becomes mandatory
+ 
+diff --git a/loop/state/iterations.md b/loop/state/iterations.md
+index 31d9cb9..2eeb821 100644
+--- a/loop/state/iterations.md
++++ b/loop/state/iterations.md
+@@ -8,3 +8,4 @@ Written by the driver only — neither the maker nor the checker writes here dir
+ - iter 2: ACCEPT 7f45f412 (70s)
+ - iter 3: ACCEPT 44d220ae (362s)
+ - iter 4: ACCEPT 0d1deff2 (203s)
++- iter 5: ACCEPT 98b0b259 (151s)
+diff --git a/loop/state/memory.md b/loop/state/memory.md
+index 1683ccb..b56d6dd 100644
+--- a/loop/state/memory.md
++++ b/loop/state/memory.md
+@@ -134,3 +134,19 @@ iteration and use normal file edits/gates flow.
+ 
+ This avoids the removals blind spot where an object disappears with no remaining geometry to pulse.
+ If this element's id or text contract is changed later, update any visual checks that assert FR-009.
++
++## C6 guardrail: twin updates now hard-preserve camera/view pose
++
++FR-008 is now enforced directly in `ui/netclaw-visual/src/twin/live-twin.js`, not left as an
++implicit side effect of incremental rendering. The module captures `{camera.position, camera.zoom,
++controls.target}` before both `applyDelta` and `reconcileSnapshot`, then restores it if changed.
++This means any future twin code path that accidentally calls camera-framing logic during delta
++handling is automatically neutralized.
++
++`createLiveTwinLayer` now accepts `{ camera, controls }` (wired from `src/main.js`). If either is
++not passed, the preservation helper safely no-ops and behavior is unchanged.
++
++Regression coverage lives in `ui/netclaw-visual/src/twin/live-twin.test.js` against exported
++`captureTwinViewState` / `restoreTwinViewState`, including a mutation-then-restore assertion that
++also checks `updateProjectionMatrix()` and `controls.update()` are triggered exactly once on
++restore.
+diff --git a/ui/netclaw-visual/src/main.js b/ui/netclaw-visual/src/main.js
+index dc7fa36..4d4f1b9 100644
+--- a/ui/netclaw-visual/src/main.js
++++ b/ui/netclaw-visual/src/main.js
+@@ -2886,7 +2886,12 @@ async function boot() {
+ 
+     state.orgLayout = mountOrgChart(state.scene, state.n2n, state.orgCatalog, makeLabel);
+     frameChart(state.camera, state.controls, chartNodes());
+-    state.liveTwin = createLiveTwinLayer({ scene: state.scene, makeLabel });
++    state.liveTwin = createLiveTwinLayer({
++      scene: state.scene,
++      makeLabel,
++      camera: state.camera,
++      controls: state.controls,
++    });
+     await state.liveTwin.start();
+ 
+     // ── Feature 102: interactive layout ──────────────────────────────────
+diff --git a/ui/netclaw-visual/src/twin/live-twin.js b/ui/netclaw-visual/src/twin/live-twin.js
+index 53874d3..baea585 100644
+--- a/ui/netclaw-visual/src/twin/live-twin.js
++++ b/ui/netclaw-visual/src/twin/live-twin.js
+@@ -16,9 +16,56 @@ function hashString(input) {
+   return h >>> 0;
+ }
+ 
++export function captureTwinViewState(camera, controls) {
++  if (!camera || !controls) return null;
++  const camPos = camera.position;
++  const target = controls.target;
++  if (!camPos || !target || !Number.isFinite(camera.zoom)) return null;
++  return {
++    camera: { x: camPos.x, y: camPos.y, z: camPos.z, zoom: camera.zoom },
++    target: { x: target.x, y: target.y, z: target.z },
++  };
++}
++
++function setVec3(vec, xyz) {
++  if (!vec || !xyz) return;
++  if (typeof vec.set === 'function') {
++    vec.set(xyz.x, xyz.y, xyz.z);
++    return;
++  }
++  vec.x = xyz.x;
++  vec.y = xyz.y;
++  vec.z = xyz.z;
++}
++
++export function restoreTwinViewState(camera, controls, snapshot) {
++  if (!snapshot || !camera || !controls) return false;
++  const pos = camera.position;
++  const target = controls.target;
++  if (!pos || !target) return false;
++  const cam = snapshot.camera;
++  const tgt = snapshot.target;
++  const changed = pos.x !== cam.x
++    || pos.y !== cam.y
++    || pos.z !== cam.z
++    || camera.zoom !== cam.zoom
++    || target.x !== tgt.x
++    || target.y !== tgt.y
++    || target.z !== tgt.z;
++  if (!changed) return false;
++  setVec3(pos, cam);
++  camera.zoom = cam.zoom;
++  camera.updateProjectionMatrix?.();
++  setVec3(target, tgt);
++  controls.update?.();
++  return true;
++}
++
+ export function createLiveTwinLayer({
+   scene,
+   makeLabel,
++  camera = null,
++  controls = null,
+   snapshotUrl = '/api/twin/snapshot',
+   statusUrl = '/api/twin/status',
+ }) {
+@@ -53,6 +100,12 @@ export function createLiveTwinLayer({
+   const links = new Map();
+   const flashes = new Map();
+ 
++  function withPreservedView(updateFn) {
++    const before = captureTwinViewState(camera, controls);
++    updateFn();
++    restoreTwinViewState(camera, controls, before);
++  }
++
+   function setDebug(error = lastError) {
+     lastError = error;
+     window.__astraTwinDebug = {
+@@ -288,67 +341,71 @@ export function createLiveTwinLayer({
+   }
+ 
+   function applyDelta(delta) {
+-    if (!delta || typeof delta !== 'object') return;
+-    if (typeof delta.seq === 'number' && delta.seq <= lastSeq) return;
+-    if (typeof delta.seq === 'number') lastSeq = delta.seq;
+-    switch (delta.kind) {
+-      case 'node_added':
+-        if (delta.node) {
+-          upsertNode(delta.node);
+-          markChanged(`node:${delta.node.id}`);
+-        }
+-        break;
+-      case 'node_removed':
+-        if (delta.node?.id) removeNode(delta.node.id);
+-        break;
+-      case 'node_status_changed':
+-        if (delta.node) {
+-          upsertNode(delta.node);
+-          markChanged(`node:${delta.node.id}`);
+-        }
+-        break;
+-      case 'link_added':
+-        if (delta.link) {
+-          upsertLink(delta.link);
+-          markChanged(`link:${delta.link.id}`);
+-        }
+-        break;
+-      case 'link_removed':
+-        if (delta.link?.id) removeLink(delta.link.id);
+-        break;
+-      case 'link_state_changed':
+-        if (delta.link) {
+-          upsertLink(delta.link);
+-          markChanged(`link:${delta.link.id}`);
+-        }
+-        break;
+-      default:
+-        break;
+-    }
+-    showChange(delta);
+-    setDebug();
++    withPreservedView(() => {
++      if (!delta || typeof delta !== 'object') return;
++      if (typeof delta.seq === 'number' && delta.seq <= lastSeq) return;
++      if (typeof delta.seq === 'number') lastSeq = delta.seq;
++      switch (delta.kind) {
++        case 'node_added':
++          if (delta.node) {
++            upsertNode(delta.node);
++            markChanged(`node:${delta.node.id}`);
++          }
++          break;
++        case 'node_removed':
++          if (delta.node?.id) removeNode(delta.node.id);
++          break;
++        case 'node_status_changed':
++          if (delta.node) {
++            upsertNode(delta.node);
++            markChanged(`node:${delta.node.id}`);
++          }
++          break;
++        case 'link_added':
++          if (delta.link) {
++            upsertLink(delta.link);
++            markChanged(`link:${delta.link.id}`);
++          }
++          break;
++        case 'link_removed':
++          if (delta.link?.id) removeLink(delta.link.id);
++          break;
++        case 'link_state_changed':
++          if (delta.link) {
++            upsertLink(delta.link);
++            markChanged(`link:${delta.link.id}`);
++          }
++          break;
++        default:
++          break;
++      }
++      showChange(delta);
++      setDebug();
++    });
+   }
+ 
+   function reconcileSnapshot(snapshot) {
+-    const payload = snapshot && typeof snapshot === 'object' ? snapshot : {};
+-    const snapshotNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
+-    const snapshotLinks = Array.isArray(payload.links) ? payload.links : [];
++    withPreservedView(() => {
++      const payload = snapshot && typeof snapshot === 'object' ? snapshot : {};
++      const snapshotNodes = Array.isArray(payload.nodes) ? payload.nodes : [];
++      const snapshotLinks = Array.isArray(payload.links) ? payload.links : [];
+ 
+-    const nodeIds = new Set(snapshotNodes.map((n) => n.id));
+-    const linkIds = new Set(snapshotLinks.map((l) => l.id));
++      const nodeIds = new Set(snapshotNodes.map((n) => n.id));
++      const linkIds = new Set(snapshotLinks.map((l) => l.id));
+ 
+-    for (const staleNodeId of [...nodes.keys()]) {
+-      if (!nodeIds.has(staleNodeId)) removeNode(staleNodeId);
+-    }
+-    for (const staleLinkId of [...links.keys()]) {
+-      if (!linkIds.has(staleLinkId)) removeLink(staleLinkId);
+-    }
++      for (const staleNodeId of [...nodes.keys()]) {
++        if (!nodeIds.has(staleNodeId)) removeNode(staleNodeId);
++      }
++      for (const staleLinkId of [...links.keys()]) {
++        if (!linkIds.has(staleLinkId)) removeLink(staleLinkId);
++      }
+ 
+-    for (const node of snapshotNodes) upsertNode(node);
+-    for (const link of snapshotLinks) upsertLink(link);
++      for (const node of snapshotNodes) upsertNode(node);
++      for (const link of snapshotLinks) upsertLink(link);
+ 
+-    if (typeof payload.seq === 'number') lastSeq = payload.seq;
+-    setDebug();
++      if (typeof payload.seq === 'number') lastSeq = payload.seq;
++      setDebug();
++    });
+   }
+ 
+   async function fetchSnapshot() {

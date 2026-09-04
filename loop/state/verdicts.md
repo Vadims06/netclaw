@@ -61,3 +61,12 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: Immediate policy violation: `loop/runs/5/diff.patch` modifies frozen path `loop/state/iterations.md` (driver-owned under `loop/`; only `loop/IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, and `loop/state/debt.md` are maker-writable), so this iteration must be rejected regardless of functional FR-009 behavior.
+
+## Iteration 6 — C6. Camera-state preservation (FR-008)
+Verdict: REJECT
+Criteria evidenced:
+  - FR-008: [ui/netclaw-visual/src/main.js] now passes `camera` and `controls` into `createLiveTwinLayer(...)`; [ui/netclaw-visual/src/twin/live-twin.js] wraps both `applyDelta` and `reconcileSnapshot` in `withPreservedView(...)`, which captures and restores camera position/zoom plus controls target around every live twin update path.
+  - FR-008: Independent runtime probe executed from `ui/netclaw-visual` via `node --input-type=module` with mocked `fetch` + `WebSocket` and a deliberately camera-mutating `makeLabel` (to simulate accidental view mutation inside update paths) produced `snapshot_preserved true` and `delta_preserved true` after `start()` (snapshot reconcile) and a pushed `node_added` delta, confirming pose preservation across both update classes.
+Criteria claimed but not evidenced:
+  - none
+Concerns: Immediate policy violation: `loop/runs/6/diff.patch` modifies frozen path `loop/state/iterations.md` (outside the allowed `loop/` exceptions), requiring rejection per checker rules regardless of FR-008 behavior.
