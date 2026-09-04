@@ -209,3 +209,13 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: `specs/122-astra-live-digital-twin/contracts/data-model.md` is absent in this worktree; contract validation for this checker pass was limited to the available `contracts/astra-twin-mcp.md` plus direct source/gate evidence.
+
+## Iteration 9 — D4. Checker evidence backfill for FR-004 / FR-005 / SC-003
+Verdict: ACCEPT
+Criteria evidenced:
+  - FR-004: Independent runtime probe rejected a non-lab testbed via `harness/assert_lab_only.py` (`rc=1` with `contains devices outside the lab allowlist` for `203.0.113.10`), confirming lab-only enforcement failure-closed behavior.
+  - FR-005: Independent config/source inspection showed `config/openclaw.json` limits `astra-twin-mcp` env keys to `PYATS_TESTBED`, `PYATS_MCP_PYTHON`, `PYATS_MCP_SERVER_PATH`, `ASTRA_TWIN_POLL_INTERVAL_SECONDS`, `LAB_ALLOWLIST`; grep over `mcp-servers/astra-twin-mcp/` found no production credential markers (`NETCLAW_USERNAME|NETCLAW_PASSWORD|NETCLAW_ENABLE_PASSWORD|PRODUCTION|PROD`).
+  - SC-003: Independent source scan found collector MCP calls only at `mcp-servers/astra-twin-mcp/collector.py` to `pyats_list_devices` and `pyats_run_show_command`; `mcp-servers/astra-twin-mcp/server.py` exposes only `get_snapshot`, `get_deltas`, `get_status`; rerun of `python3 scripts/verify-astra-twin-safety.py` returned `PASS: FR-004/FR-005/SC-003 evidence checks completed` (exit 0).
+Criteria claimed but not evidenced:
+  - none
+Concerns: none

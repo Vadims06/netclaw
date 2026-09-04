@@ -336,3 +336,14 @@ Expected pass markers on this host/current HEAD:
 - inventory counts: `Documentation check: PASS` with `MCP integration count: 169`
 
 If those markers regress, treat D2 as broken before attempting D3/D4 evidence closure.
+
+## D4 evidence command: one-shot safety proof for FR-004/FR-005/SC-003
+
+Use `scripts/verify-astra-twin-safety.py` for checker-rerunnable evidence instead of ad-hoc grep notes.
+It performs three deterministic checks:
+- FR-004: runs `harness/assert_lab_only.py` against a synthetic non-allowlisted testbed and requires explicit allowlist rejection.
+- FR-005: validates `config/openclaw.json` `astra-twin-mcp` env surface stays within expected non-credential keys and that astra-twin-mcp code does not reference production credential vars.
+- SC-003: verifies collector MCP calls are limited to `pyats_list_devices` and `pyats_run_show_command`, and server tool surface is exactly `get_snapshot|get_deltas|get_status`.
+
+Current pass evidence is captured at `loop/runs/9/d4_evidence.log` with terminal marker:
+`PASS: FR-004/FR-005/SC-003 evidence checks completed`.

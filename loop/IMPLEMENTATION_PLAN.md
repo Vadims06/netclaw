@@ -228,3 +228,11 @@ Done (iteration 1): executed `harness/run_gates.sh loop/runs/1` (pass) and then
 Run an iteration targeted at independently evidencing the read-only/lab-only guarantees from
 primary artifacts and runtime probes so the checker can append explicit `FR-004`, `FR-005`, and
 `SC-003` entries to `loop/state/verdicts.md`, unblocking `harness/done_gate.sh`.
+Done (iteration 9): added `scripts/verify-astra-twin-safety.py` as a deterministic checker-facing
+probe for FR-004/FR-005/SC-003 and ran it successfully, with output captured at
+`loop/runs/9/d4_evidence.log`:
+- `FR-004 OK: assert_lab_only rejects non-allowlisted testbed ...`
+- `FR-005 OK: astra-twin-mcp is configured ... no production credential vars`
+- `SC-003 OK: collector uses read-only pyATS calls only ...`
+- `PASS: FR-004/FR-005/SC-003 evidence checks completed`
+Also reran required loop gates on this head: `harness/run_gates.sh loop/runs/9` passed (exit 0).
