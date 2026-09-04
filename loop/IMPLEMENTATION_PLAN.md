@@ -1,0 +1,106 @@
+# IMPLEMENTATION_PLAN — Astra Live Digital Twin build loop
+
+Derived from `specs/122-astra-live-digital-twin/tasks.md` and `plan.md`'s Pass Schedule
+(Phase C, then Phase D — Phase A/B are already built and frozen; see `loop.md`). This is the
+maker's work queue. The maker updates this file (marking tasks done, adding discovered tasks);
+it must never touch `IMPLEMENTATION_PLAN.md`'s ordering rule (Phase C before Phase D) or the
+frozen-path list this file references.
+
+Format: one task per `##` heading, in priority order within its phase. A rejected task returns
+here with the checker's reason appended under it, sorted above new work in the same phase per
+`loop.md`'s Select step.
+
+## Phase C — Live HUD integration
+
+### C1. `GET /api/twin/snapshot` in `ui/netclaw-visual/server.js`
+
+Add a route that calls `astra-twin-mcp`'s `get_snapshot()` tool (spawn it as an MCP client over
+stdio, matching how `astra-twin-mcp/collector.py` itself talks to `pyATS_MCP` — same pattern,
+one level up) and returns the `TwinSnapshot` JSON unmodified, per
+`specs/122-astra-live-digital-twin/contracts/astra-twin-mcp.md`. Not done: `astra-twin-mcp`
+tool-call wiring inside `server.js`.
+
+### C2. `WS /ws/twin` in `ui/netclaw-visual/server.js`
+
+New WebSocket endpoint using the already-present `ws` dependency (research.md R3). On a fixed
+interval, calls `astra-twin-mcp`'s `get_deltas(since_seq)` and forwards each new `TwinDelta` as
+its own JSON message to every connected client — no envelope/wrapper, exact `TwinDelta` shape
+per data-model.md. Handle the `{"buffer_overflow": true}` response by telling connected clients
+to re-fetch `/api/twin/snapshot` (see contracts/astra-twin-mcp.md's reconnect contract).
+
+### C3. Delta-application scene layer (`ui/netclaw-visual/src/twin/`)
+
+New module that: (a) on load, fetches `/api/twin/snapshot`, renders it using the existing
+Three.js node/link primitives from specs 101/102 (reuse, do not fork); (b) opens `/ws/twin` and
+applies each incoming delta incrementally — add/remove/update the specific node or link, never a
+full scene rebuild (FR-002, SC-001's 30-second-visible requirement depends on this being cheap).
+Sets and keeps current `window.__astraTwinDebug = { nodeCount, linkCount, lastError }` once the
+first frame has rendered — this is `harness/visual_verify.py`'s frozen contract (see
+`loop/state/memory.md`); the gate cannot pass without this exact global.
+
+### C4. Freshness indicator (FR-010)
+
+Poll `astra-twin-mcp`'s `get_status()` (via a small server.js route, e.g.
+`GET /api/twin/status`) and render a visible staleness indicator in the HUD once
+`last_successful_poll` falls outside a reasonable window. Must go visibly stale, not silently
+keep showing last-known state as current.
+
+### C5. Delta highlighting (FR-009)
+
+When a delta lands, visually distinguish the affected node/link from stable state for a short
+window (e.g., a brief highlight/pulse) so an operator can tell "just changed" from "steady."
+
+### C6. Camera-state preservation (FR-008)
+
+Confirm — and if needed, wire — that applying a delta never resets camera position/orientation
+or any manual zoom/grouping already established by specs 101/102's camera-pose persistence.
+This should mostly fall out of C3 doing incremental updates rather than scene rebuilds; treat
+any camera reset on delta application as a bug to fix, not an acceptable side effect.
+
+### C7. `harness/run_gates.sh`'s visual_verify step becomes mandatory
+
+Once C1-C3 exist and the HUD is reachable at `$ASTRA_TWIN_HUD_URL` (or the default
+`http://localhost:$HUD_PORT/`), `run_gates.sh`'s current SKIP for `visual_verify.py` (see its
+own comment) starts actually running and must pass — this is not a separate task, just a note
+that C1-C3 change the shape of every gate run after them.
+
+## Phase D — Astra Twin enrollment & constitution coherence
+
+*Depends on Phase C being done and gated green — do not start Phase D early just because a task
+looks easier; the pass schedule order in plan.md is deliberate (a human checkpoint sits between
+these phases).*
+
+### D1. Enroll Astra Twin as a real iN2N member
+
+Use the existing enrollment path (`bgp/federation/risk.py`'s `consume_token`, which already
+accepts `model_provider` — Phase A/B's groundwork, tasks.md T014) to enroll a member with
+`member_id="astra-twin"`, `model_provider="openai"`, `node_type="agent"`. Confirm the row lands
+in `~/.openclaw/n2n/federation.db` with `model_provider='openai'` — this is what
+`quickstart.md`'s Phase D checkpoint and `spec.md`'s SC-004 both check for.
+
+### D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
+
+For `astra-twin-mcp` and the HUD's twin routes, walk every item and make it real, not a
+box-check:
+- `README.md` — capability description, architecture note, updated tool/MCP-server count
+- `scripts/lib/catalog.sh` — one catalog entry for `astra-twin-mcp`
+- `scripts/lib/install-steps.sh` — one `component_install_astra_twin_mcp()` function
+- `scripts/verify-catalog-coverage.py` — run it; it must pass with zero unexplained gaps
+- `ui/netclaw-visual/` — already touched in Phase C; confirm it counts as "HUD nodes for new
+  integrations" per the checklist, don't add a second redundant panel
+- `SOUL.md` — skill/capability summary entry, including that Astra Twin is a distinct,
+  OpenAI-backed mesh identity (spec.md User Story 3 — this must not be buried)
+- `workspace/skills/` — only if this feature adds an operator-facing skill surface; if it
+  doesn't (the twin is a HUD extension, not a new skill), record that explicitly in `debt.md`
+  as "not applicable" rather than silently skipping the checklist item
+- `.env.example` — `OPENAI_API_KEY` (description only, already confirmed present but
+  undocumented in `.env.example` — see `research.md`), plus any new `astra-twin-mcp`/HUD
+  variables from Phase C (`ASTRA_TWIN_POLL_INTERVAL_SECONDS`, `ASTRA_TWIN_HUD_URL`, etc.)
+- `TOOLS.md` — infrastructure reference entry
+- `config/openclaw.json` — register `astra-twin-mcp` as an MCP server entry
+
+### D3. `harness/done_gate.sh` passes
+
+Once D1/D2 are done and the checker has written evidence for every FR-001..FR-011/SC-001..SC-006
+in `loop/state/verdicts.md`, `harness/done_gate.sh` should pass — this is the loop's own exit
+condition, not a task to "do" separately from D1/D2 actually being complete and evidenced.

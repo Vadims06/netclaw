@@ -1,0 +1,23 @@
+# Astra Live Digital Twin — lab testbed allowlist (spec 122-astra-live-digital-twin)
+#
+# harness/assert_lab_only.py refuses to resolve ANY testbed unless every device connection
+# host/IP in it matches an entry below. This file ships EMPTY on purpose: nothing in this
+# repository's existing testbed/*.yaml files has been independently confirmed lab-only by a
+# human for this purpose (one entry resolves to a shared external DevNet sandbox host, not a
+# CML lab under local control, and the IP ranges in others have not been confirmed non-
+# production). Guessing which existing testbed is safe is exactly the kind of judgment call
+# this allowlist exists to take out of an unattended loop's hands.
+#
+# Populate this before running loop/ralph.sh for real. Two match kinds are supported:
+#   hosts: exact hostnames/IPs as they appear in the testbed YAML's connection "ip" field
+#   cidrs: CIDR ranges (IP entries are checked for containment; hostnames never match a CIDR)
+#
+# Example (uncomment and edit for your actual CML lab before use):
+# hosts:
+#   - 192.168.2.201
+#   - 192.168.2.202
+# cidrs:
+#   - 192.168.2.0/24
+
+hosts: []
+cidrs: []
