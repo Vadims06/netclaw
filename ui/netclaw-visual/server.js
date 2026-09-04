@@ -22,6 +22,7 @@ app.use(express.json({ limit: '4mb' }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
+const twinWss = new WebSocketServer({ server, path: '/ws/twin' });
 
 const SKILLS_DIR = path.join(ROOT, 'workspace/skills');
 const TESTBED_FILE = path.join(ROOT, 'testbed/testbed.yaml');
@@ -35,6 +36,10 @@ const ASTRA_TWIN_MCP_SERVER = process.env.ASTRA_TWIN_MCP_SERVER_PATH
   : path.join(ROOT, 'mcp-servers', 'astra-twin-mcp', 'server.py');
 const ASTRA_TWIN_MCP_CMD = process.env.ASTRA_TWIN_MCP_SERVER_CMD
   || `${ASTRA_TWIN_MCP_PYTHON} -u ${ASTRA_TWIN_MCP_SERVER}`;
+const ASTRA_TWIN_WS_POLL_INTERVAL_MS = Math.max(
+  1000,
+  parseInt(process.env.ASTRA_TWIN_WS_POLL_INTERVAL_MS || '5000', 10) || 5000
+);
 
 const INTEGRATION_CATALOG = [
   { id: 'pyats', name: 'pyATS', category: 'Device Automation', prefixes: ['pyats-'], color: '#4cc9f0', transport: 'stdio', toolEstimate: 120, description: 'CLI-first device automation, health checks, routing, topology, and controlled change workflows.' },
@@ -947,6 +952,61 @@ app.get('/api/twin/snapshot', async (req, res) => {
     res.status(502).json({ error: err.message });
   }
 });
+
+const twinSockets = new Set();
+let twinPollTimer = null;
+let twinPollInFlight = false;
+let twinSinceSeq = 0;
+
+function broadcastTwinMessage(message) {
+  const serialized = JSON.stringify(message);
+  for (const socket of twinSockets) {
+    if (socket.readyState === socket.OPEN) socket.send(serialized);
+  }
+}
+
+function stopTwinPollingIfIdle() {
+  if (twinSockets.size === 0 && twinPollTimer) {
+    clearInterval(twinPollTimer);
+    twinPollTimer = null;
+    twinPollInFlight = false;
+  }
+}
+
+function startTwinPolling() {
+  if (twinPollTimer) return;
+  twinPollTimer = setInterval(async () => {
+    if (twinSockets.size === 0 || twinPollInFlight) return;
+    twinPollInFlight = true;
+    try {
+      const result = await callAstraTwinTool('get_deltas', { since_seq: twinSinceSeq }, 60);
+      if (result?.buffer_overflow === true) {
+        twinSinceSeq = 0;
+        broadcastTwinMessage({
+          type: 'twin:resync_required',
+          reason: 'buffer_overflow',
+          snapshot: '/api/twin/snapshot',
+        });
+        return;
+      }
+      if (!Array.isArray(result)) return;
+      for (const delta of result) {
+        if (typeof delta?.seq === 'number' && delta.seq > twinSinceSeq) {
+          twinSinceSeq = delta.seq;
+        }
+        // Contract: each pushed delta is the raw TwinDelta object (no envelope).
+        broadcastTwinMessage(delta);
+      }
+    } catch (err) {
+      broadcastTwinMessage({
+        type: 'twin:error',
+        error: err.message,
+      });
+    } finally {
+      twinPollInFlight = false;
+    }
+  }, ASTRA_TWIN_WS_POLL_INTERVAL_MS);
+}
 
 // ── BGP topology endpoint ─────────────────────────────────────────
 const BGP_API = 'http://127.0.0.1:8179';
@@ -2161,8 +2221,19 @@ wss.on('connection', (socket) => {
   });
 });
 
+twinWss.on('connection', (socket) => {
+  twinSockets.add(socket);
+  startTwinPolling();
+
+  socket.on('close', () => {
+    twinSockets.delete(socket);
+    stopTwinPollingIfIdle();
+  });
+});
+
 const PORT = process.env.HUD_PORT || 3001;
 server.listen(PORT, () => {
   console.log(`NetClaw visual API listening on http://localhost:${PORT}`);
   console.log(`WebSocket available at ws://localhost:${PORT}/ws`);
+  console.log(`Astra Twin WebSocket available at ws://localhost:${PORT}/ws/twin`);
 });

@@ -77,3 +77,16 @@ pattern already used for `rag-mcp`. Useful overrides for later Phase C work:
 
 The route returns the MCP payload shape as-is (`structuredContent` preferred, then JSON text
 content fallback), so frontend contracts should consume the `TwinSnapshot` schema directly.
+
+## C2 wiring detail: WS /ws/twin polling and overflow behavior
+
+`ui/netclaw-visual/server.js` now hosts a second WebSocket path, `/ws/twin`, separate from the
+existing `/ws` graph/rag stream. Implementation details that matter for later Phase C tasks:
+- Delta polling is shared across all twin clients (single timer), not per-socket; this avoids
+  duplicate `get_deltas` MCP calls when multiple browser tabs are open.
+- The server tracks a process-level `twinSinceSeq` and calls `get_deltas({ since_seq })` on a
+  fixed interval (`ASTRA_TWIN_WS_POLL_INTERVAL_MS`, default 5000ms, floor 1000ms).
+- Each delta is sent as the raw `TwinDelta` object JSON (no envelope), per contract.
+- On `{"buffer_overflow": true}`, the server sends a control message
+  `{ "type": "twin:resync_required", "reason": "buffer_overflow", "snapshot": "/api/twin/snapshot" }`
+  so clients can re-fetch a snapshot and resume from `snapshot.seq`.

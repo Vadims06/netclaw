@@ -1,0 +1,150 @@
+diff --git a/loop/IMPLEMENTATION_PLAN.md b/loop/IMPLEMENTATION_PLAN.md
+index 2e023e1..25a2408 100644
+--- a/loop/IMPLEMENTATION_PLAN.md
++++ b/loop/IMPLEMENTATION_PLAN.md
+@@ -28,6 +28,10 @@ interval, calls `astra-twin-mcp`'s `get_deltas(since_seq)` and forwards each new
+ its own JSON message to every connected client — no envelope/wrapper, exact `TwinDelta` shape
+ per data-model.md. Handle the `{"buffer_overflow": true}` response by telling connected clients
+ to re-fetch `/api/twin/snapshot` (see contracts/astra-twin-mcp.md's reconnect contract).
++Done (iteration 1): `server.js` now exposes `WS /ws/twin` with shared polling against
++`get_deltas(since_seq)` and broadcasts each delta as a raw `TwinDelta` JSON message (no
++wrapper). On `{"buffer_overflow": true}`, it sends a `twin:resync_required` control message
++pointing clients at `/api/twin/snapshot`.
+ 
+ ### C3. Delta-application scene layer (`ui/netclaw-visual/src/twin/`)
+ 
+diff --git a/loop/state/iterations.md b/loop/state/iterations.md
+index 3ca4013..f9bd333 100644
+--- a/loop/state/iterations.md
++++ b/loop/state/iterations.md
+@@ -3,3 +3,4 @@
+ One line per loop iteration, appended by ralph.sh: task, verdict, commit, duration.
+ Written by the driver only — neither the maker nor the checker writes here directly.
+ - iter 2: REJECT (gates) — see runs/2/gates.log
++- iter 0: ACCEPT 9228ce07 (242s)
+diff --git a/loop/state/memory.md b/loop/state/memory.md
+index 780b56e..30a355b 100644
+--- a/loop/state/memory.md
++++ b/loop/state/memory.md
+@@ -77,3 +77,16 @@ pattern already used for `rag-mcp`. Useful overrides for later Phase C work:
+ 
+ The route returns the MCP payload shape as-is (`structuredContent` preferred, then JSON text
+ content fallback), so frontend contracts should consume the `TwinSnapshot` schema directly.
++
++## C2 wiring detail: WS /ws/twin polling and overflow behavior
++
++`ui/netclaw-visual/server.js` now hosts a second WebSocket path, `/ws/twin`, separate from the
++existing `/ws` graph/rag stream. Implementation details that matter for later Phase C tasks:
++- Delta polling is shared across all twin clients (single timer), not per-socket; this avoids
++  duplicate `get_deltas` MCP calls when multiple browser tabs are open.
++- The server tracks a process-level `twinSinceSeq` and calls `get_deltas({ since_seq })` on a
++  fixed interval (`ASTRA_TWIN_WS_POLL_INTERVAL_MS`, default 5000ms, floor 1000ms).
++- Each delta is sent as the raw `TwinDelta` object JSON (no envelope), per contract.
++- On `{"buffer_overflow": true}`, the server sends a control message
++  `{ "type": "twin:resync_required", "reason": "buffer_overflow", "snapshot": "/api/twin/snapshot" }`
++  so clients can re-fetch a snapshot and resume from `snapshot.seq`.
+diff --git a/ui/netclaw-visual/server.js b/ui/netclaw-visual/server.js
+index c3d63fd..f8845ef 100644
+--- a/ui/netclaw-visual/server.js
++++ b/ui/netclaw-visual/server.js
+@@ -22,6 +22,7 @@ app.use(express.json({ limit: '4mb' }));
+ 
+ const server = http.createServer(app);
+ const wss = new WebSocketServer({ server, path: '/ws' });
++const twinWss = new WebSocketServer({ server, path: '/ws/twin' });
+ 
+ const SKILLS_DIR = path.join(ROOT, 'workspace/skills');
+ const TESTBED_FILE = path.join(ROOT, 'testbed/testbed.yaml');
+@@ -35,6 +36,10 @@ const ASTRA_TWIN_MCP_SERVER = process.env.ASTRA_TWIN_MCP_SERVER_PATH
+   : path.join(ROOT, 'mcp-servers', 'astra-twin-mcp', 'server.py');
+ const ASTRA_TWIN_MCP_CMD = process.env.ASTRA_TWIN_MCP_SERVER_CMD
+   || `${ASTRA_TWIN_MCP_PYTHON} -u ${ASTRA_TWIN_MCP_SERVER}`;
++const ASTRA_TWIN_WS_POLL_INTERVAL_MS = Math.max(
++  1000,
++  parseInt(process.env.ASTRA_TWIN_WS_POLL_INTERVAL_MS || '5000', 10) || 5000
++);
+ 
+ const INTEGRATION_CATALOG = [
+   { id: 'pyats', name: 'pyATS', category: 'Device Automation', prefixes: ['pyats-'], color: '#4cc9f0', transport: 'stdio', toolEstimate: 120, description: 'CLI-first device automation, health checks, routing, topology, and controlled change workflows.' },
+@@ -948,6 +953,61 @@ app.get('/api/twin/snapshot', async (req, res) => {
+   }
+ });
+ 
++const twinSockets = new Set();
++let twinPollTimer = null;
++let twinPollInFlight = false;
++let twinSinceSeq = 0;
++
++function broadcastTwinMessage(message) {
++  const serialized = JSON.stringify(message);
++  for (const socket of twinSockets) {
++    if (socket.readyState === socket.OPEN) socket.send(serialized);
++  }
++}
++
++function stopTwinPollingIfIdle() {
++  if (twinSockets.size === 0 && twinPollTimer) {
++    clearInterval(twinPollTimer);
++    twinPollTimer = null;
++    twinPollInFlight = false;
++  }
++}
++
++function startTwinPolling() {
++  if (twinPollTimer) return;
++  twinPollTimer = setInterval(async () => {
++    if (twinSockets.size === 0 || twinPollInFlight) return;
++    twinPollInFlight = true;
++    try {
++      const result = await callAstraTwinTool('get_deltas', { since_seq: twinSinceSeq }, 60);
++      if (result?.buffer_overflow === true) {
++        twinSinceSeq = 0;
++        broadcastTwinMessage({
++          type: 'twin:resync_required',
++          reason: 'buffer_overflow',
++          snapshot: '/api/twin/snapshot',
++        });
++        return;
++      }
++      if (!Array.isArray(result)) return;
++      for (const delta of result) {
++        if (typeof delta?.seq === 'number' && delta.seq > twinSinceSeq) {
++          twinSinceSeq = delta.seq;
++        }
++        // Contract: each pushed delta is the raw TwinDelta object (no envelope).
++        broadcastTwinMessage(delta);
++      }
++    } catch (err) {
++      broadcastTwinMessage({
++        type: 'twin:error',
++        error: err.message,
++      });
++    } finally {
++      twinPollInFlight = false;
++    }
++  }, ASTRA_TWIN_WS_POLL_INTERVAL_MS);
++}
++
+ // ── BGP topology endpoint ─────────────────────────────────────────
+ const BGP_API = 'http://127.0.0.1:8179';
+ 
+@@ -2161,8 +2221,19 @@ wss.on('connection', (socket) => {
+   });
+ });
+ 
++twinWss.on('connection', (socket) => {
++  twinSockets.add(socket);
++  startTwinPolling();
++
++  socket.on('close', () => {
++    twinSockets.delete(socket);
++    stopTwinPollingIfIdle();
++  });
++});
++
+ const PORT = process.env.HUD_PORT || 3001;
+ server.listen(PORT, () => {
+   console.log(`NetClaw visual API listening on http://localhost:${PORT}`);
+   console.log(`WebSocket available at ws://localhost:${PORT}/ws`);
++  console.log(`Astra Twin WebSocket available at ws://localhost:${PORT}/ws/twin`);
+ });

@@ -28,6 +28,10 @@ interval, calls `astra-twin-mcp`'s `get_deltas(since_seq)` and forwards each new
 its own JSON message to every connected client — no envelope/wrapper, exact `TwinDelta` shape
 per data-model.md. Handle the `{"buffer_overflow": true}` response by telling connected clients
 to re-fetch `/api/twin/snapshot` (see contracts/astra-twin-mcp.md's reconnect contract).
+Done (iteration 1): `server.js` now exposes `WS /ws/twin` with shared polling against
+`get_deltas(since_seq)` and broadcasts each delta as a raw `TwinDelta` JSON message (no
+wrapper). On `{"buffer_overflow": true}`, it sends a `twin:resync_required` control message
+pointing clients at `/api/twin/snapshot`.
 
 ### C3. Delta-application scene layer (`ui/netclaw-visual/src/twin/`)
 

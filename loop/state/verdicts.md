@@ -14,3 +14,12 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: Local sandbox forbids opening localhost sockets (`curl: (7) failed to open socket: Operation not permitted`), so live HTTP execution of the new route could not be replayed here; verdict is based on direct code-path inspection and patch-scope validation.
+
+## Iteration 1 — C2. WS /ws/twin in ui/netclaw-visual/server.js
+Verdict: REJECT
+Criteria evidenced:
+  - FR-002: [ui/netclaw-visual/server.js] adds a dedicated `WebSocketServer` on `/ws/twin`, starts a polling loop, and forwards each returned delta object to connected clients.
+  - FR-003: `loop/runs/1/diff.patch` adds only `callAstraTwinTool('get_deltas', ...)` read-path usage in this task scope; no write-capable device/config tool invocation was introduced in the patch.
+Criteria claimed but not evidenced:
+  - FR-002 / SC-001: Not independently verified at runtime in this checker pass (no direct observed evidence here that live deltas reach the HUD within the bounded window).
+Concerns: Immediate policy violation: `loop/runs/1/diff.patch` modifies frozen path `loop/state/iterations.md`, which is explicitly disallowed for maker changes by checker rules (automatic reject).
