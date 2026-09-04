@@ -97,3 +97,13 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - SC-004: No primary evidence shows Astra Twin as a distinct, correctly AI-provider-attributed member in admin lookups.
 Concerns: Immediate policy violation: `loop/runs/9/diff.patch` modifies frozen path `loop/state/iterations.md` (outside allowed `loop/` exceptions), and this is out of task scope for D1 implementation.
+
+## Iteration 10 — D1. Enroll Astra Twin as a real iN2N member
+Verdict: REJECT
+Criteria evidenced:
+  - FR-006: Independent member lookup on `~/.openclaw/n2n/federation.db` found no Astra Twin enrollment record (`SELECT member_id,display_name,node_type,state FROM member WHERE lower(member_id) LIKE '%astra%' OR lower(display_name) LIKE '%astra%';` returned zero rows).
+  - FR-007: Independent schema check confirms `member.model_provider` still does not exist (`PRAGMA table_info(member);` lists 26 columns and none named `model_provider`), so OpenAI provider attribution cannot be stored or shown.
+  - SC-004: Independent reproduction of the enrollment write path fails before token issuance: `sqlite3 ~/.openclaw/n2n/federation.db "update risk set role='border' where id=1;"` returns `attempt to write a readonly database`; direct module-path reproduction (`RiskManager.set_role('border')`) returns `OperationalError attempt to write a readonly database`.
+Criteria claimed but not evidenced:
+  - none
+Concerns: `loop/runs/10/diff.patch` only updates loop planning/debt/memory notes and does not implement or land any enrollment/migration artifact, so the claimed D1 outcome is not completed.

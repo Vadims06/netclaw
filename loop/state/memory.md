@@ -190,3 +190,14 @@ Even when Unix perms show writable owner (`-rw-r--r-- johncapobianco`), this run
 Also reconfirmed the live DB schema currently has no `member.model_provider` column (`.schema member`
 omits it), so FR-007/SC-004 cannot be evidenced in this runner until executed where `~/.openclaw`
 is writable and migration/enrollment can commit.
+
+## D1 execution order quirk: enrollment path writes `risk` before token issue
+
+Re-attempted D1 on iteration 10 using the real repo modules under
+`mcp-servers/protocol-mcp/bgp/federation/`. The first write happens at
+`RiskManager.set_role('border')` (updates `risk` row id=1) before `issue_token` or
+`consume_token` run. On read-only `~/.openclaw/n2n/federation.db`, D1 fails immediately at that
+step with `sqlite3.OperationalError: attempt to write a readonly database`.
+
+For future retries in constrained runners: checking only whether `consume_token` can run is not
+sufficient; writable DB is required from the `set_role` step onward.

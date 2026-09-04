@@ -115,6 +115,11 @@ Blocked (iteration 9): revalidated with direct sqlite write probe
 both fail with the same sqlite readonly error on `~/.openclaw/n2n/federation.db`. Also confirmed
 live DB schema still lacks `member.model_provider`, so SC-004 evidence cannot be produced in this
 runner even before enrollment.
+Blocked (iteration 10): reran the actual enrollment flow using
+`mcp-servers/protocol-mcp/bgp/federation/{manager,risk}.py`; write fails even earlier at
+`RiskManager.set_role('border')` (updates the `risk` table before token issue), with the same
+`sqlite3.OperationalError: attempt to write a readonly database` on
+`~/.openclaw/n2n/federation.db`. D1 remains blocked on runner write access to `~/.openclaw`.
 
 ### D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
 
