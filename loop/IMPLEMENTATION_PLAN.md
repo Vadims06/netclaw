@@ -42,6 +42,13 @@ full scene rebuild (FR-002, SC-001's 30-second-visible requirement depends on th
 Sets and keeps current `window.__astraTwinDebug = { nodeCount, linkCount, lastError }` once the
 first frame has rendered — this is `harness/visual_verify.py`'s frozen contract (see
 `loop/state/memory.md`); the gate cannot pass without this exact global.
+Done (iteration 4): added `src/twin/live-twin.js` and wired it in `src/main.js`. On boot it
+fetches `/api/twin/snapshot`, renders twin nodes/links into a persistent scene group, then
+subscribes to `/ws/twin` and applies `TwinDelta` messages incrementally by kind
+(`node_added/node_removed/node_status_changed/link_added/link_removed/link_state_changed`)
+without scene rebuild. Overflow control (`twin:resync_required`) re-fetches snapshot. The module
+maintains `window.__astraTwinDebug = { nodeCount, linkCount, lastError }` and keeps counts
+current as deltas apply.
 
 ### C4. Freshness indicator (FR-010)
 

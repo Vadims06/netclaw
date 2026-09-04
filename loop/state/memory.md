@@ -90,3 +90,25 @@ existing `/ws` graph/rag stream. Implementation details that matter for later Ph
 - On `{"buffer_overflow": true}`, the server sends a control message
   `{ "type": "twin:resync_required", "reason": "buffer_overflow", "snapshot": "/api/twin/snapshot" }`
   so clients can re-fetch a snapshot and resume from `snapshot.seq`.
+
+## C3 client contract: live twin module wiring and debug global
+
+`ui/netclaw-visual/src/twin/live-twin.js` is now the frontend twin consumer. It is mounted from
+`src/main.js` during boot (`createLiveTwinLayer(...); await start();`) and does:
+- initial `GET /api/twin/snapshot` reconciliation into a persistent scene group
+  (`astra-twin-live` with separate node/link subgroups)
+- continuous `/ws/twin` consumption with per-delta incremental mutation only (no full rebuild on
+  normal deltas)
+- overflow handling via `twin:resync_required` -> re-fetch snapshot
+- runtime debug hook maintenance: `window.__astraTwinDebug = { nodeCount, linkCount, lastError }`
+  after first load and after every delta/error path
+
+The module stores `lastSeq` locally and ignores stale/replayed deltas (`seq <= lastSeq`) so a
+reconnect cannot double-apply old updates.
+
+## Sandbox quirk during maker runs: git write operations can fail on worktree index.lock
+
+In this environment, git commands that write index state (for example `git restore`) can fail with:
+`Unable to create .../.git/worktrees/<branch>/index.lock: Permission denied`. File edits and test
+commands still work. If this appears again, avoid relying on git-mutating commands inside the
+iteration and use normal file edits/gates flow.

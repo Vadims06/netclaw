@@ -16,3 +16,8 @@ completed as scoped, and by ralph.sh on a stall halt.
   section exists for — not a task for the loop to silently mark done from unit tests alone.
 - **`harness/lab_allowlist.yaml` is empty** — by design (see loop/state/memory.md); a human must
   populate it with real lab device hosts/CIDRs before `loop/ralph.sh` can pass preflight at all.
+
+- **C3 frontend bundle compile check (`npm run build`) not executable in this iteration environment** —
+  `vite` is missing on PATH (`sh: 1: vite: not found`) despite unit tests and loop gates passing.
+  The task implementation was validated by `npm test` and `harness/run_gates.sh`; full Vite bundle
+  verification remains deferred until dependencies are installed in the runtime used for loop runs.

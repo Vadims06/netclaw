@@ -31,3 +31,13 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - FR-001..FR-011 / SC-001..SC-006: `loop/runs/2/task.txt` is absent, so there is no claim to validate and no criterion-level implementation evidence to grade.
 Concerns: Immediate policy violation: `loop/runs/2/diff.patch` modifies frozen path `loop/state/iterations.md` (checker rule: everything under `loop/` is frozen except `IMPLEMENTATION_PLAN.md`, `state/memory.md`, and `state/debt.md`), which requires rejection regardless of gate results.
+
+## Iteration 3 — C3. Delta-application scene layer (ui/netclaw-visual/src/twin/)
+Verdict: REJECT
+Criteria evidenced:
+  - FR-002: `ui/netclaw-visual/src/main.js` wires a live twin layer into boot (`createLiveTwinLayer(...); await start();`) and ticks it during animation (`state.liveTwin?.tick?.()`), which is the entry point for incremental update behavior.
+  - FR-009: `ui/netclaw-visual/src/twin/live-twin.js` contains explicit change-highlighting behavior (`markChanged`, timed pulse/opacity in `tick`) for node/link deltas, indicating an attempt to visually distinguish recent changes.
+Criteria claimed but not evidenced:
+  - FR-002 / SC-001: Not independently verified at runtime in this checker pass; no direct observed evidence here that a real lab change appears in-scene within 30 seconds without reload.
+  - FR-008: No independent verification that camera/view state is preserved across live updates.
+Concerns: Immediate policy violation: `loop/runs/3/diff.patch` modifies frozen path `loop/state/iterations.md`, which is outside the allowed maker-write exceptions under `loop/`; additionally, `loop/runs/3/task.txt` is missing, so the claimed scope is not fully auditable from primary artifacts.
