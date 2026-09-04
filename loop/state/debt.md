@@ -21,3 +21,9 @@ completed as scoped, and by ralph.sh on a stall halt.
   `vite` is missing on PATH (`sh: 1: vite: not found`) despite unit tests and loop gates passing.
   The task implementation was validated by `npm test` and `harness/run_gates.sh`; full Vite bundle
   verification remains deferred until dependencies are installed in the runtime used for loop runs.
+
+- **D1 Astra Twin enrollment into `~/.openclaw/n2n/federation.db` blocked by sandbox write policy** —
+  iteration 7 ran the real `RiskManager.issue_token` + `consume_token(..., model_provider='openai')`
+  enrollment path, but sqlite failed with `attempt to write a readonly database`. This runner can
+  read that DB but cannot modify it. Deferred until run on a host/worktree context where
+  `~/.openclaw` is writable.

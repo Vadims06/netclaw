@@ -105,6 +105,10 @@ accepts `model_provider` — Phase A/B's groundwork, tasks.md T014) to enroll a 
 `member_id="astra-twin"`, `model_provider="openai"`, `node_type="agent"`. Confirm the row lands
 in `~/.openclaw/n2n/federation.db` with `model_provider='openai'` — this is what
 `quickstart.md`'s Phase D checkpoint and `spec.md`'s SC-004 both check for.
+Blocked (iteration 7): enrollment flow was executed via
+`mcp-servers/protocol-mcp/bgp/federation/risk.py` (`issue_token` + `consume_token`), but this
+runner cannot write `~/.openclaw/n2n/federation.db` (`sqlite3.OperationalError: attempt to write a
+readonly database`). Re-run D1 on a loop runner with writable `~/.openclaw`.
 
 ### D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
 

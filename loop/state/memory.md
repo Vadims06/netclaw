@@ -150,3 +150,19 @@ Regression coverage lives in `ui/netclaw-visual/src/twin/live-twin.test.js` agai
 `captureTwinViewState` / `restoreTwinViewState`, including a mutation-then-restore assertion that
 also checks `updateProjectionMatrix()` and `controls.update()` are triggered exactly once on
 restore.
+
+## Sandbox quirk: D1 cannot write `~/.openclaw/n2n/federation.db` in this runner
+
+Iteration 7 attempted Phase D task D1 by importing repo-local
+`mcp-servers/protocol-mcp/bgp/federation/{manager,risk}.py` and running the real enrollment path
+(`issue_token` -> `consume_token(member_id='astra-twin', model_provider='openai', node_type='agent')`)
+against `~/.openclaw/n2n/federation.db`. It failed with
+`sqlite3.OperationalError: attempt to write a readonly database`.
+
+Important details for next run:
+- `bgp/federation/` does not exist at repo root; the canonical path here is
+  `mcp-servers/protocol-mcp/bgp/federation/`.
+- The migration that adds `member.model_provider` runs when `FederationManager(...)` initializes,
+  but that migration also needs DB write permission.
+- D1 must be executed on a runner where `~/.openclaw` is writable; otherwise any token issue/enroll
+  attempt fails before evidence can be produced for SC-004.

@@ -70,3 +70,12 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: Immediate policy violation: `loop/runs/6/diff.patch` modifies frozen path `loop/state/iterations.md` (outside the allowed `loop/` exceptions), requiring rejection per checker rules regardless of FR-008 behavior.
+
+## Iteration 7 — D1. Enroll Astra Twin as a real iN2N member
+Verdict: REJECT
+Criteria evidenced:
+  - FR-006: Independent DB check on `~/.openclaw/n2n/federation.db` shows no enrolled `astra-twin` member row (`SELECT member_id,node_type,state,updated_at FROM member WHERE member_id='astra-twin';` returned zero rows).
+  - FR-007: Independent DB schema check shows the required `model_provider` attribute is not present on `member` in this environment (`.schema member` contains no `model_provider`; direct `SELECT ... model_provider ...` fails with `no such column: model_provider`).
+Criteria claimed but not evidenced:
+  - SC-004: No primary evidence demonstrates Astra Twin is discoverable as a distinct mesh member with provider attribution; `loop/runs/7/diff.patch` contains only documentation/debt notes and no successful enrollment artifact.
+Concerns: Immediate policy violation: `loop/runs/7/diff.patch` modifies frozen path `loop/state/iterations.md` (driver-owned under `loop/`; not in allowed maker-write exceptions), which is an automatic reject independent of functional status.
