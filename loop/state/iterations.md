@@ -24,3 +24,5 @@ Written by the driver only — neither the maker nor the checker writes here dir
 - iter 8: ACCEPT 49094c05 (166s)
 - iter 12: REJECT (checker) — see runs/12/check.log
 - iter 2: REJECT (checker) — see runs/2/check.log
+- iter 1: ACCEPT d9ffc7ac (342s)
+- DONE at iteration 1
