@@ -98,41 +98,31 @@ that C1-C3 change the shape of every gate run after them.
 looks easier; the pass schedule order in plan.md is deliberate (a human checkpoint sits between
 these phases).*
 
-### D1. Enroll Astra Twin as a real iN2N member
+### D1. Enroll Astra Twin as a real iN2N member (REDIRECTED — read this before touching D1 again)
 
-Use the existing enrollment path (`bgp/federation/risk.py`'s `consume_token`, which already
-accepts `model_provider` — Phase A/B's groundwork, tasks.md T014) to enroll a member with
-`member_id="astra-twin"`, `model_provider="openai"`, `node_type="agent"`. Confirm the row lands
-in `~/.openclaw/n2n/federation.db` with `model_provider='openai'` — this is what
-`quickstart.md`'s Phase D checkpoint and `spec.md`'s SC-004 both check for.
-Blocked (iteration 7): enrollment flow was executed via
-`mcp-servers/protocol-mcp/bgp/federation/risk.py` (`issue_token` + `consume_token`), but this
-runner cannot write `~/.openclaw/n2n/federation.db` (`sqlite3.OperationalError: attempt to write a
-readonly database`). Re-run D1 on a loop runner with writable `~/.openclaw`.
-Blocked (iteration 9): revalidated with direct sqlite write probe
-(`CREATE TABLE IF NOT EXISTS __astra_probe...`) and real repo enrollment path
-(`FederationManager` + `RiskManager.set_role('border')` before `issue_token`/`consume_token`);
-both fail with the same sqlite readonly error on `~/.openclaw/n2n/federation.db`. Also confirmed
-live DB schema still lacks `member.model_provider`, so SC-004 evidence cannot be produced in this
-runner even before enrollment.
-Blocked (iteration 10): reran the actual enrollment flow using
-`mcp-servers/protocol-mcp/bgp/federation/{manager,risk}.py`; write fails even earlier at
-`RiskManager.set_role('border')` (updates the `risk` table before token issue), with the same
-`sqlite3.OperationalError: attempt to write a readonly database` on
-`~/.openclaw/n2n/federation.db`. D1 remains blocked on runner write access to `~/.openclaw`.
-Blocked (iteration 11): reconfirmed with three probes in this runner:
-`PRAGMA table_info(member)` still shows no `model_provider` column, direct sqlite
-`UPDATE risk SET role='border' WHERE id=1` still fails with readonly-db, and the real enrollment
-path (`FederationManager` + `RiskManager.set_role` + `issue_token`/`consume_token`) still raises
-`sqlite3.OperationalError: attempt to write a readonly database` against
-`~/.openclaw/n2n/federation.db`. D1 remains blocked until the loop executes on a worker with
-writable `~/.openclaw`.
-Blocked (iteration 12): reran D1 with fresh probes. `PRAGMA table_info(member)` still shows 26
-columns with no `model_provider`; `UPDATE risk SET role='border' WHERE id=1` still returns
-`attempt to write a readonly database`; and the real module path under
-`mcp-servers/protocol-mcp/bgp/federation/` still fails at `RiskManager.set_role('border')` with
-`sqlite3.OperationalError: attempt to write a readonly database`. No `astra-twin` member row can
-be created in this runner until `~/.openclaw` is writable.
+Iterations 7, 9, 10, 11, 12 all correctly diagnosed the same root cause and correctly stopped
+short of forcing a write — this was not a bug in enrollment logic and does not need re-diagnosing
+again: `~/.openclaw/n2n/federation.db` is the **real, live, shared iN2N mesh database** that the
+actual running mesh reads and acts on. codex's own sandbox (`--sandbox workspace-write`, writable
+roots: the worktree, `/tmp`, `$TMPDIR`, `$CODEX_HOME/memories`) correctly refuses to write outside
+those roots, and `~/.openclaw/` is outside all of them. That refusal is doing its job — an
+unattended loop enrolling a permanent row into the production mesh database is exactly the kind
+of live-system side effect this loop should never cause, sandbox or no sandbox.
+
+**Corrected task**: enroll Astra Twin against a worktree-local *test* federation database
+instead, not the live one. `FederationManager.__init__` already accepts an explicit `db_path`
+(`mcp-servers/protocol-mcp/bgp/federation/manager.py`) — construct it with
+`db_path="loop/state/astra-twin-test-federation.db"` (relative to the worktree root, so it's
+inside the sandbox's writable root), let it create/migrate that file fresh, then run the same
+`RiskManager.set_role('border')` → `issue_token` → `consume_token(model_provider="openai")` flow
+against *that* file. Confirm the resulting row has `model_provider='openai'` there. This is what
+now stands in for `spec.md`'s SC-004 and `quickstart.md`'s Phase D checkpoint in this loop-run
+context — evidence lives at `loop/state/astra-twin-test-federation.db`, not
+`~/.openclaw/n2n/federation.db`. Note this substitution explicitly in `verdicts.md` (the checker
+should record that SC-004 was evidenced against a test-scoped DB, not the production one, and why
+— see this task's own reasoning above) so a human reviewing the loop's output later understands
+real enrollment into the live mesh is a separate, deliberate, human-run step, not something this
+loop did or was ever meant to do unattended.
 
 ### D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
 
