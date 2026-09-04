@@ -41,3 +41,14 @@ Criteria claimed but not evidenced:
   - FR-002 / SC-001: Not independently verified at runtime in this checker pass; no direct observed evidence here that a real lab change appears in-scene within 30 seconds without reload.
   - FR-008: No independent verification that camera/view state is preserved across live updates.
 Concerns: Immediate policy violation: `loop/runs/3/diff.patch` modifies frozen path `loop/state/iterations.md`, which is outside the allowed maker-write exceptions under `loop/`; additionally, `loop/runs/3/task.txt` is missing, so the claimed scope is not fully auditable from primary artifacts.
+
+## Iteration 4 — C4. Freshness indicator (FR-010)
+Verdict: REJECT
+Criteria evidenced:
+  - FR-010: [ui/netclaw-visual/server.js] adds `GET /api/twin/status` calling `callAstraTwinTool('get_status', {}, 60)` and returning JSON status directly; [ui/netclaw-visual/src/twin/live-twin.js] polls that endpoint every 10s and renders a fixed `#astra-twin-freshness` badge with explicit `LIVE`/`STALE` text.
+  - FR-010: Independent runtime probe executed from `ui/netclaw-visual` via `node --input-type=module` with mocked `fetch` responses showed operator-visible staleness transitions at source: `fresh: Twin data LIVE | 0s ago (threshold 45s)`, `waiting: Twin data STALE | waiting for first successful poll (stale threshold 45s)`, `failure_count: Twin data STALE | 0s ago (threshold 45s), 2 failed poll(s)`, `fetch_error: Twin data STALE | status unavailable (boom)`.
+  - SC-005: The badge is fixed-position (`position:fixed;top:10px;right:10px`) and continuously visible, so current-vs-stale state is immediately legible without opening panels.
+  - FR-003: `loop/runs/4/diff.patch` introduces no network configuration-write tool invocations; additions are limited to `get_status` read path plus UI rendering logic.
+Criteria claimed but not evidenced:
+  - SC-005: Not independently timed with a real operator or full browser session in this environment; evidence is code-path + runtime harness output.
+Concerns: Immediate policy violation: `loop/runs/4/diff.patch` modifies frozen paths `loop/runs/4/task.txt` and `loop/state/iterations.md` (checker rule says everything under `loop/` is frozen except `IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, and `loop/state/debt.md`), requiring rejection regardless of functional correctness.

@@ -16,7 +16,12 @@ function hashString(input) {
   return h >>> 0;
 }
 
-export function createLiveTwinLayer({ scene, makeLabel, snapshotUrl = '/api/twin/snapshot' }) {
+export function createLiveTwinLayer({
+  scene,
+  makeLabel,
+  snapshotUrl = '/api/twin/snapshot',
+  statusUrl = '/api/twin/status',
+}) {
   const root = new THREE.Group();
   root.name = 'astra-twin-live';
   const linkGroup = new THREE.Group();
@@ -37,6 +42,8 @@ export function createLiveTwinLayer({ scene, makeLabel, snapshotUrl = '/api/twin
   let lastSeq = 0;
   let socket = null;
   let reconnectTimer = null;
+  let statusPollTimer = null;
+  let freshnessElement = null;
   let disposed = false;
   let lastError = null;
   const nodeSlots = new Map();
@@ -51,6 +58,95 @@ export function createLiveTwinLayer({ scene, makeLabel, snapshotUrl = '/api/twin
       linkCount: links.size,
       lastError,
     };
+  }
+
+  function ensureFreshnessElement() {
+    if (freshnessElement) return freshnessElement;
+    freshnessElement = document.getElementById('astra-twin-freshness');
+    if (freshnessElement) return freshnessElement;
+    freshnessElement = document.createElement('div');
+    freshnessElement.id = 'astra-twin-freshness';
+    freshnessElement.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9999;'
+      + 'padding:6px 10px;border-radius:8px;border:1px solid #334155;'
+      + 'background:rgba(15,23,42,.9);color:#e2e8f0;font:12px/1.4 ui-monospace,monospace;'
+      + 'letter-spacing:.02em;pointer-events:none;';
+    document.body.appendChild(freshnessElement);
+    return freshnessElement;
+  }
+
+  function formatAge(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return 'just now';
+    if (seconds < 60) return `${Math.round(seconds)}s ago`;
+    if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
+    return `${Math.round(seconds / 3600)}h ago`;
+  }
+
+  function renderFreshnessStatus({ stale, text }) {
+    const el = ensureFreshnessElement();
+    el.textContent = `Twin data ${stale ? 'STALE' : 'LIVE'} | ${text}`;
+    if (stale) {
+      el.style.borderColor = '#b45309';
+      el.style.background = 'rgba(120,53,15,.92)';
+      el.style.color = '#fde68a';
+      return;
+    }
+    el.style.borderColor = '#14532d';
+    el.style.background = 'rgba(20,83,45,.86)';
+    el.style.color = '#dcfce7';
+  }
+
+  function staleThresholdSeconds(status) {
+    const pollInterval = Number(status?.poll_interval_seconds);
+    if (!Number.isFinite(pollInterval) || pollInterval <= 0) return 45;
+    return Math.max(45, (pollInterval * 3) + 5);
+  }
+
+  function computeFreshness(status) {
+    const threshold = staleThresholdSeconds(status);
+    const iso = status?.last_successful_poll;
+    if (!iso) {
+      return {
+        stale: true,
+        text: `waiting for first successful poll (stale threshold ${threshold}s)`,
+      };
+    }
+    const stampMs = Date.parse(iso);
+    if (!Number.isFinite(stampMs)) {
+      return {
+        stale: true,
+        text: 'collector reported invalid poll timestamp',
+      };
+    }
+    const ageSeconds = Math.max(0, (Date.now() - stampMs) / 1000);
+    const stale = ageSeconds > threshold;
+    return {
+      stale,
+      text: `${formatAge(ageSeconds)} (threshold ${threshold}s)`,
+    };
+  }
+
+  async function pollStatus() {
+    try {
+      const res = await fetch(statusUrl);
+      if (!res.ok) throw new Error(`status HTTP ${res.status}`);
+      const status = await res.json();
+      const freshness = computeFreshness(status);
+      if (Number(status?.consecutive_failures) > 0) {
+        freshness.stale = true;
+        freshness.text += `, ${status.consecutive_failures} failed poll(s)`;
+      }
+      renderFreshnessStatus(freshness);
+    } catch (err) {
+      renderFreshnessStatus({ stale: true, text: `status unavailable (${err.message})` });
+    }
+  }
+
+  function startStatusPolling() {
+    if (statusPollTimer) return;
+    pollStatus();
+    statusPollTimer = setInterval(() => {
+      pollStatus();
+    }, 10000);
   }
 
   function nodePosition(id) {
@@ -298,17 +394,22 @@ export function createLiveTwinLayer({ scene, makeLabel, snapshotUrl = '/api/twin
       setDebug(`snapshot failed: ${err.message}`);
     }
     connectSocket();
+    startStatusPolling();
   }
 
   function dispose() {
     disposed = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (statusPollTimer) clearInterval(statusPollTimer);
+    statusPollTimer = null;
     if (socket) socket.close();
     for (const linkId of [...links.keys()]) removeLink(linkId);
     for (const nodeId of [...nodes.keys()]) removeNode(nodeId);
     scene.remove(root);
     nodeGeo.dispose();
     Object.values(nodeMaterials).forEach((m) => m.dispose());
+    freshnessElement?.remove();
+    freshnessElement = null;
   }
 
   return {

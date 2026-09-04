@@ -1,1 +1,1 @@
-C3. Delta-application scene layer (ui/netclaw-visual/src/twin/)
+C4. Freshness indicator (FR-010)

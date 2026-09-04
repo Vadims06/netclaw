@@ -56,6 +56,11 @@ Poll `astra-twin-mcp`'s `get_status()` (via a small server.js route, e.g.
 `GET /api/twin/status`) and render a visible staleness indicator in the HUD once
 `last_successful_poll` falls outside a reasonable window. Must go visibly stale, not silently
 keep showing last-known state as current.
+Done (iteration 4): `server.js` now exposes `GET /api/twin/status` via `get_status()`, and
+`src/twin/live-twin.js` now polls that endpoint every 10s and renders a fixed HUD badge
+(`Twin data LIVE|STALE`) that computes staleness from `last_successful_poll` against a dynamic
+threshold (`max(45s, poll_interval_seconds*3+5)`). Null/invalid timestamps, status-fetch
+failures, and nonzero `consecutive_failures` all force a visible STALE state.
 
 ### C5. Delta highlighting (FR-009)
 

@@ -112,3 +112,15 @@ In this environment, git commands that write index state (for example `git resto
 `Unable to create .../.git/worktrees/<branch>/index.lock: Permission denied`. File edits and test
 commands still work. If this appears again, avoid relying on git-mutating commands inside the
 iteration and use normal file edits/gates flow.
+
+## C4 wiring detail: freshness status API + HUD staleness badge
+
+- `ui/netclaw-visual/server.js` now exposes `GET /api/twin/status`, a direct MCP pass-through to
+  `get_status()` (`last_successful_poll`, `testbed_identity`, `poll_interval_seconds`,
+  `consecutive_failures`).
+- `ui/netclaw-visual/src/twin/live-twin.js` polls `/api/twin/status` every 10s and renders a
+  fixed badge (`#astra-twin-freshness`) at top-right so freshness is always visible without opening
+  any panel.
+- Staleness rule is intentionally explicit in the client: stale when
+  `now - last_successful_poll > max(45s, poll_interval_seconds*3 + 5)`. Also forced stale on null
+  or unparseable timestamps, status endpoint errors, or `consecutive_failures > 0`.

@@ -953,6 +953,15 @@ app.get('/api/twin/snapshot', async (req, res) => {
   }
 });
 
+app.get('/api/twin/status', async (req, res) => {
+  try {
+    const status = await callAstraTwinTool('get_status', {}, 60);
+    res.json(status);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 const twinSockets = new Set();
 let twinPollTimer = null;
 let twinPollInFlight = false;
