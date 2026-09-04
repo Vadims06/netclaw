@@ -229,3 +229,15 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - none
 Concerns: none
+
+## Iteration 1 — D3. harness/done_gate.sh passes
+Verdict: ACCEPT
+Criteria evidenced:
+  - FR-004: Ran `python3 scripts/verify-astra-twin-safety.py` (exit 0); output includes `FR-004 OK: assert_lab_only rejects non-allowlisted testbed with explicit allowlist error`, showing lab-only enforcement still fails closed.
+  - FR-005: Same independent run reports `FR-005 OK: astra-twin-mcp is configured with only PYATS_TESTBED and no production credential vars`, matching read-only/lab-credential constraints.
+  - SC-003: Same run reports `SC-003 OK: collector uses read-only pyATS calls only and astra-twin-mcp tool surface is snapshot/deltas/status`; source checks in `scripts/verify-astra-twin-safety.py` validate collector/tool-call allowlists.
+  - SC-006: Same run reports `SC-006 OK: live twin layer starts, updates, and remains interactive with OPENAI/ANTHROPIC keys absent` and `PASS: FR-004/FR-005/SC-003/SC-006 evidence checks completed`; runtime probe bootstraps `createLiveTwinLayer(...)`, drives a websocket delta, and observes debug counters advancing without AI keys.
+  - SC-006: Independent command `bash harness/done_gate.sh` failed before this checker entry with `missing ACCEPTed evidence for: SC-006`; reran after this entry and it returned `DONE — all required FR/SC evidence present in loop/state/verdicts.md` (exit 0), satisfying the D3 claim.
+Criteria claimed but not evidenced:
+  - none
+Concerns: none

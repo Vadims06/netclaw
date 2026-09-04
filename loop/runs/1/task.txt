@@ -1,1 +1,1 @@
-C3. Delta-application scene layer (ui/netclaw-visual/src/twin/) — re-verification pass
+D3. harness/done_gate.sh passes

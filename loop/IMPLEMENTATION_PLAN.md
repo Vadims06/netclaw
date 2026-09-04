@@ -227,6 +227,11 @@ condition, not a task to "do" separately from D1/D2 actually being complete and 
 Done (iteration 1): executed `harness/run_gates.sh loop/runs/1` (pass) and then
 `harness/done_gate.sh` directly. Done gate currently fails only on missing checker evidence ids:
 `FR-004 FR-005 SC-003`. No product-code gate failure is present in this run.
+Re-verified (iteration 1 rerun): reran `harness/run_gates.sh loop/runs/1` (pass) and
+`harness/done_gate.sh`, which now fails only on missing ACCEPTed `SC-006`. Added deterministic
+`SC-006` evidence to `scripts/verify-astra-twin-safety.py` (runtime probe with OPENAI/ANTHROPIC
+keys absent) and captured successful output at `loop/runs/1/d3_sc006_evidence.log` to give the
+checker a primary artifact for an ACCEPT entry that includes `SC-006`.
 
 ### D4. Checker evidence backfill for FR-004 / FR-005 / SC-003
 
@@ -241,3 +246,10 @@ probe for FR-004/FR-005/SC-003 and ran it successfully, with output captured at
 - `SC-003 OK: collector uses read-only pyATS calls only ...`
 - `PASS: FR-004/FR-005/SC-003 evidence checks completed`
 Also reran required loop gates on this head: `harness/run_gates.sh loop/runs/9` passed (exit 0).
+
+### D5. Checker evidence backfill for SC-006
+
+Run checker against `loop/runs/1/d3_sc006_evidence.log` and the updated
+`scripts/verify-astra-twin-safety.py` so `loop/state/verdicts.md` gains an ACCEPT entry that
+explicitly evidences `SC-006`; then rerun `harness/done_gate.sh` to confirm the loop-level done
+condition clears.

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Deterministic evidence checks for spec 122 safety criteria.
+"""Deterministic evidence checks for spec 122 safety/runtime criteria.
 
 This script validates:
 - FR-004: lab-only enforcement rejects a non-allowlisted testbed.
 - FR-005: astra-twin-mcp registration requires only lab-testbed input, not production creds.
 - SC-003: astra-twin paths expose read-only tooling with no config-write calls.
+- SC-006: delivered visualization runtime is interactive without any AI-provider dependency.
 """
 
 from __future__ import annotations
@@ -137,15 +138,166 @@ def check_sc003() -> list[str]:
     return lines
 
 
+def check_sc006() -> list[str]:
+    lines: list[str] = []
+
+    twin_runtime_source = read("ui/netclaw-visual/src/twin/live-twin.js").lower()
+    forbidden_runtime_markers = ["openai", "anthropic", "claude", "chat.completions", "api_key"]
+    unexpected = [token for token in forbidden_runtime_markers if token in twin_runtime_source]
+    require(not unexpected, f"SC-006: runtime twin/HUD sources reference AI-provider markers: {unexpected}")
+
+    server_source = read("ui/netclaw-visual/server.js")
+    twin_tool_calls = set(re.findall(r"callAstraTwinTool\('([^']+)'", server_source))
+    allowed_twin_calls = {"get_snapshot", "get_status", "get_deltas"}
+    require(
+        twin_tool_calls.issubset(allowed_twin_calls),
+        f"SC-006: twin server path calls unexpected tools: {sorted(twin_tool_calls - allowed_twin_calls)}",
+    )
+
+    probe = r"""
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { createLiveTwinLayer } from './src/twin/live-twin.js';
+
+process.env.OPENAI_API_KEY = '';
+process.env.ANTHROPIC_API_KEY = '';
+
+const elements = new Map();
+const body = {
+  appendChild(el) {
+    if (el?.id) elements.set(el.id, el);
+    return el;
+  },
+};
+const documentShim = {
+  body,
+  getElementById(id) {
+    return elements.get(id) || null;
+  },
+  createElement() {
+    return {
+      id: '',
+      style: {},
+      textContent: '',
+      remove() {
+        if (this.id) elements.delete(this.id);
+      },
+    };
+  },
+};
+
+class MockWebSocket {
+  static last = null;
+  constructor() {
+    this.listeners = { message: [], close: [], error: [] };
+    MockWebSocket.last = this;
+  }
+  addEventListener(type, cb) {
+    this.listeners[type].push(cb);
+  }
+  emit(type, payload) {
+    for (const cb of this.listeners[type] || []) cb(payload);
+  }
+  close() {
+    this.emit('close', {});
+  }
+}
+
+globalThis.window = { location: { protocol: 'http:', host: 'localhost:3001' } };
+globalThis.document = documentShim;
+globalThis.WebSocket = MockWebSocket;
+globalThis.performance = { now: () => Date.now() };
+globalThis.requestAnimationFrame = (cb) => setTimeout(cb, 0);
+
+globalThis.fetch = async (url) => {
+  if (String(url).includes('/api/twin/snapshot')) {
+    return {
+      ok: true,
+      json: async () => ({
+        seq: 1,
+        nodes: [
+          { id: 'r1', label: 'R1', status: 'up' },
+          { id: 'r2', label: 'R2', status: 'up' },
+        ],
+        links: [
+          { id: 'r1:r2', source_node_id: 'r1', target_node_id: 'r2', state: 'up' },
+        ],
+      }),
+    };
+  }
+  if (String(url).includes('/api/twin/status')) {
+    return {
+      ok: true,
+      json: async () => ({
+        poll_interval_seconds: 10,
+        consecutive_failures: 0,
+        last_successful_poll: new Date().toISOString(),
+      }),
+    };
+  }
+  return { ok: false, status: 404, json: async () => ({}) };
+};
+
+const scene = new THREE.Scene();
+const makeLabel = (text) => {
+  const label = new THREE.Object3D();
+  label.element = { textContent: text };
+  return label;
+};
+const layer = createLiveTwinLayer({ scene, makeLabel });
+await layer.start();
+await new Promise((resolve) => setTimeout(resolve, 25));
+
+assert.equal(window.__astraTwinDebug?.nodeCount, 2);
+assert.equal(window.__astraTwinDebug?.linkCount, 1);
+assert.equal(window.__astraTwinDebug?.lastError, null);
+assert.ok(document.getElementById('astra-twin-freshness'));
+
+MockWebSocket.last.emit('message', {
+  data: JSON.stringify({
+    seq: 2,
+    kind: 'node_added',
+    node: { id: 'r3', label: 'R3', status: 'up' },
+  }),
+});
+await new Promise((resolve) => setTimeout(resolve, 10));
+assert.equal(window.__astraTwinDebug?.nodeCount, 3);
+
+layer.dispose();
+console.log('runtime_probe_ok');
+"""
+
+    env = os.environ.copy()
+    env.pop("OPENAI_API_KEY", None)
+    env.pop("ANTHROPIC_API_KEY", None)
+    proc = subprocess.run(
+        ["node", "--input-type=module"],
+        cwd=ROOT / "ui" / "netclaw-visual",
+        input=probe,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    require(proc.returncode == 0, f"SC-006 runtime probe failed: {(proc.stderr or proc.stdout).strip()}")
+    require("runtime_probe_ok" in proc.stdout, "SC-006 runtime probe did not confirm completion")
+
+    lines.append(
+        "SC-006 OK: live twin layer starts, updates, and remains interactive with OPENAI/ANTHROPIC keys absent"
+    )
+    return lines
+
+
 def main() -> int:
     try:
         output: list[str] = []
         output.extend(check_fr004())
         output.extend(check_fr005())
         output.extend(check_sc003())
+        output.extend(check_sc006())
         for line in output:
             print(line)
-        print("PASS: FR-004/FR-005/SC-003 evidence checks completed")
+        print("PASS: FR-004/FR-005/SC-003/SC-006 evidence checks completed")
         return 0
     except CheckFailure as exc:
         print(f"FAIL: {exc}", file=sys.stderr)

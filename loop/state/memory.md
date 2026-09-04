@@ -360,3 +360,22 @@ Validation query:
 
 Expected row on this host/current HEAD:
 `astra-test-risk/astra-twin|Astra Twin|agent|openai|enrolled`.
+
+## SC-006 evidence probe pattern for checker reruns
+
+`harness/done_gate.sh` can still fail after all product gates pass if a criterion is missing from
+ACCEPTed checker ledger lines. On this head the only missing id is `SC-006`.
+
+`scripts/verify-astra-twin-safety.py` now includes `check_sc006()` with two deterministic checks:
+1) static: `ui/netclaw-visual/src/twin/live-twin.js` has no AI-provider markers and `server.js`
+   twin MCP calls are limited to `get_snapshot|get_status|get_deltas`; 2) runtime: a Node module
+   probe boots `createLiveTwinLayer(...)` with mocked `fetch`/`WebSocket` while both
+   `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are absent, confirms debug counters update after a
+   pushed delta, and prints `runtime_probe_ok`.
+
+Evidence command: `python3 scripts/verify-astra-twin-safety.py | tee loop/runs/1/d3_sc006_evidence.log`
+Expected terminal marker now: `PASS: FR-004/FR-005/SC-003/SC-006 evidence checks completed`.
+
+Avoid broad scanning of all `ui/netclaw-visual/server.js` for words like `anthropic`/`openai`; that
+file contains unrelated gateway/chat-completions features. Scope static SC-006 checks to the twin
+runtime module and twin MCP call surface only.

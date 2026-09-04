@@ -42,3 +42,8 @@ completed as scoped, and by ralph.sh on a stall halt.
   `harness/run_gates.sh loop/runs/1` passed, but `harness/done_gate.sh` failed with missing
   `FR-004 FR-005 SC-003` in `loop/state/verdicts.md`. Maker does not write `verdicts.md`, so
   this remains deferred to a checker-accepted evidence pass.
+
+- **D3 still pending checker-ledger ingestion of SC-006 evidence** — runtime/product gates pass in this
+  iteration (`harness/run_gates.sh loop/runs/1` exit 0) and deterministic SC-006 evidence now exists
+  at `loop/runs/1/d3_sc006_evidence.log`, but `harness/done_gate.sh` still reports missing ACCEPTed
+  `SC-006` until checker appends that criterion to `loop/state/verdicts.md`.
