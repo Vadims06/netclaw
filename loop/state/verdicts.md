@@ -23,3 +23,11 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - FR-002 / SC-001: Not independently verified at runtime in this checker pass (no direct observed evidence here that live deltas reach the HUD within the bounded window).
 Concerns: Immediate policy violation: `loop/runs/1/diff.patch` modifies frozen path `loop/state/iterations.md`, which is explicitly disallowed for maker changes by checker rules (automatic reject).
+
+## Iteration 2 — task.txt missing (no claimed task)
+Verdict: REJECT
+Criteria evidenced:
+  - FR-003: `loop/runs/2/diff.patch` only appends one line in `loop/state/iterations.md`; inspection shows no device/config write-capable tool call introduced in this iteration patch.
+Criteria claimed but not evidenced:
+  - FR-001..FR-011 / SC-001..SC-006: `loop/runs/2/task.txt` is absent, so there is no claim to validate and no criterion-level implementation evidence to grade.
+Concerns: Immediate policy violation: `loop/runs/2/diff.patch` modifies frozen path `loop/state/iterations.md` (checker rule: everything under `loop/` is frozen except `IMPLEMENTATION_PLAN.md`, `state/memory.md`, and `state/debt.md`), which requires rejection regardless of gate results.
