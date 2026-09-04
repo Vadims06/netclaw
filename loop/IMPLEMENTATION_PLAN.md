@@ -130,6 +130,12 @@ box-check:
   variables from Phase C (`ASTRA_TWIN_POLL_INTERVAL_SECONDS`, `ASTRA_TWIN_HUD_URL`, etc.)
 - `TOOLS.md` — infrastructure reference entry
 - `config/openclaw.json` — register `astra-twin-mcp` as an MCP server entry
+Done (iteration 8): added `astra-twin` catalog component to `scripts/lib/catalog.sh`,
+added `component_install_astra_twin()` and `PYATS_TESTBED` environment export in
+`scripts/lib/install-steps.sh`, registered `astra-twin-mcp` in `config/openclaw.json`,
+updated `.env.example` with Astra Twin/OpenAI env vars, updated README/SOUL MCP counts
+and Astra Twin capability text, and added Astra Twin entries in `TOOLS.md`.
+`python3 scripts/verify-catalog-coverage.py` now passes with zero vendored-state gaps.
 
 ### D3. `harness/done_gate.sh` passes
 

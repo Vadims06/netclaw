@@ -166,3 +166,11 @@ Important details for next run:
   but that migration also needs DB write permission.
 - D1 must be executed on a runner where `~/.openclaw` is writable; otherwise any token issue/enroll
   attempt fails before evidence can be produced for SC-004.
+
+## D2 coherence closure details for astra-twin-mcp (iteration 8)
+
+To satisfy Principle XI and clear catalog coverage, `astra-twin-mcp` must be coherent across four surfaces at once: `config/openclaw.json` registration key `astra-twin-mcp`, installer catalog id `astra-twin` (so `strip_mcp_suffix('astra-twin-mcp')` matches), install function `component_install_astra_twin()`, and documented env vars in `.env.example`/`TOOLS.md`.
+
+If any one of those is missing, `python3 scripts/verify-catalog-coverage.py` fails with an unexplained vendored server gap. After adding all four plus README/SOUL count updates, both `verify-catalog-coverage.py` and `verify-inventory-counts.py` pass with MCP totals at 169 (106 config + 63 external).
+
+`component_install_astra_twin()` intentionally only installs `mcp-servers/astra-twin-mcp/requirements.txt`; it does not install pyATS itself. pyATS remains owned by `component_install_pyats()`. The deploy step now also exports `PYATS_TESTBED` alongside `PYATS_TESTBED_PATH` so astra-twin-mcp has the env name it requires.

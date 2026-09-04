@@ -79,3 +79,12 @@ Criteria evidenced:
 Criteria claimed but not evidenced:
   - SC-004: No primary evidence demonstrates Astra Twin is discoverable as a distinct mesh member with provider attribution; `loop/runs/7/diff.patch` contains only documentation/debt notes and no successful enrollment artifact.
 Concerns: Immediate policy violation: `loop/runs/7/diff.patch` modifies frozen path `loop/state/iterations.md` (driver-owned under `loop/`; not in allowed maker-write exceptions), which is an automatic reject independent of functional status.
+
+## Iteration 8 — D2. Full Artifact Coherence Checklist (constitution.md Principle XI)
+Verdict: REJECT
+Criteria evidenced:
+  - FR-003: `loop/runs/8/diff.patch` adds Astra Twin wiring/docs (`config/openclaw.json`, installer/catalog/docs) and introduces no new write-capable network action in patch scope; grep found no added `pyats_configure_device`/config-push call patterns.
+Criteria claimed but not evidenced:
+  - FR-006 / FR-007 / SC-004: No mesh enrollment/member-record change or lookup evidence is present in this iteration; provider-attributed Astra Twin membership is not independently evidenced here.
+  - FR-011 / SC-006: Runtime AI-independence is described in docs, but this iteration provides no independent runtime verification evidence.
+Concerns: Immediate policy violation: `loop/runs/8/diff.patch` modifies frozen path `loop/state/iterations.md` (driver-owned under `loop/`; only `loop/IMPLEMENTATION_PLAN.md`, `loop/state/memory.md`, and `loop/state/debt.md` are maker-writable). Additional checker note: `specs/122-astra-live-digital-twin/contracts/data-model.md` referenced by checker instructions is absent in this worktree, limiting contract-level shape validation to `contracts/astra-twin-mcp.md`.

@@ -27,3 +27,5 @@ completed as scoped, and by ralph.sh on a stall halt.
   enrollment path, but sqlite failed with `attempt to write a readonly database`. This runner can
   read that DB but cannot modify it. Deferred until run on a host/worktree context where
   `~/.openclaw` is writable.
+
+- **D2 workspace/skills checklist item is not applicable for spec 122** — this feature adds a HUD extension and one MCP server (`astra-twin-mcp`), but no new operator-facing skill surface under `workspace/skills/`. Recorded explicitly per D2 instructions so the checklist item is not silently skipped.
