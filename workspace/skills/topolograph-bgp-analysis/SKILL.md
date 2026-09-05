@@ -23,7 +23,7 @@ It answers "what does BGP believe the topology and route state are" — not
 Same server as `topolograph-igp-analysis` (spec 119): `topolograph-mcp` is a
 remote HTTP MCP registered in `config/openclaw.json`, no local server,
 fronting **your own** Topolograph instance (`TOPOLOGRAPH_MCP_URL`, default
-`https://mcp.topolograph.com/mcp`), bearer `TOPOLOGRAPH_API_TOKEN`. No
+`https://topolograph.com/mcp`), bearer `TOPOLOGRAPH_API_TOKEN`. No
 second credential — if the IGP skill already works, this one does too.
 
 The server runs with `TOPOLOGRAPH_MCP_READ_ONLY=true`: mutation tools are

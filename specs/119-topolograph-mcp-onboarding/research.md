@@ -30,8 +30,8 @@ it further to the analysis tools the skill actually uses.
 
 One variable: `TOPOLOGRAPH_API_TOKEN`, sent as `Authorization: Bearer` to the
 operator's own Topolograph instance. The instance base URL is configured on
-the MCP server itself (`TOPOLOGRAPH_API_BASE`); for a hosted instance the
-public endpoint is `https://mcp.topolograph.com/mcp` (operator-confirmable).
+the MCP server itself (`TOPOLOGRAPH_API_BASE`); the hosted instance's public
+endpoint is `https://topolograph.com/mcp`.
 
 ## R4 — Deferred: manifest size + acceptance tests
 

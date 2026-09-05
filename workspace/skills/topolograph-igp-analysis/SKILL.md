@@ -22,7 +22,7 @@ X failed?" — not "what is on this router right now."
 
 `topolograph-mcp` is a remote HTTP MCP registered in `config/openclaw.json`.
 There is no local server. It fronts **your own** Topolograph instance
-(`TOPOLOGRAPH_MCP_URL`, default `https://mcp.topolograph.com/mcp`), bearer
+(`TOPOLOGRAPH_MCP_URL`, default `https://topolograph.com/mcp`), bearer
 `TOPOLOGRAPH_API_TOKEN`.
 
 The server runs with `TOPOLOGRAPH_MCP_READ_ONLY=true`: mutation tools

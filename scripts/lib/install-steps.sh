@@ -4164,7 +4164,7 @@ echo "  Read-only: the server hides all mutation tools from tools/list."
 # Fronts an operator-run Topolograph HTTP API, actively developed upstream:
 # nothing to clone or pip install. "Installing" is registration plus a
 # credential check, same shape as Globalping (spec 119).
-log_info "Registered from config/openclaw.json (TOPOLOGRAPH_MCP_URL, default https://mcp.topolograph.com/mcp)"
+log_info "Registered from config/openclaw.json (TOPOLOGRAPH_MCP_URL, default https://topolograph.com/mcp)"
 
 if [ -z "${TOPOLOGRAPH_API_TOKEN:-}" ]; then
     log_info "Set TOPOLOGRAPH_API_TOKEN in .env to enable it."

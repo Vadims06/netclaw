@@ -1098,7 +1098,7 @@
       }
     },
     "topolograph-mcp": {
-      "url": "${TOPOLOGRAPH_MCP_URL:-https://mcp.topolograph.com/mcp}",
+      "url": "${TOPOLOGRAPH_MCP_URL:-https://topolograph.com/mcp}",
       "headers": {
         "Authorization": "Bearer ${TOPOLOGRAPH_API_TOKEN}"
       },
